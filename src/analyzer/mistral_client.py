@@ -21,11 +21,13 @@ class MistralClient(BaseLLMClient):
         self,
         api_key: Optional[str] = None,
         model: Optional[str] = None,
-        timeout_seconds: float = 60.0,
+        timeout_seconds: Optional[float] = None,
     ) -> None:
         self.api_key = api_key or settings.MISTRAL_API_KEY
         self.model = model or settings.MISTRAL_MODEL
-        self.timeout_seconds = timeout_seconds
+        self.timeout_seconds = (
+            timeout_seconds if timeout_seconds is not None else settings.MISTRAL_TIMEOUT
+        )
         self.api_url = "https://api.mistral.ai/v1/chat/completions"
 
     def _sanitize_proposal(self, text: str) -> str:

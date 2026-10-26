@@ -21,11 +21,13 @@ class AntigravityClient(BaseLLMClient):
         self,
         binary_path: Optional[str] = None,
         model: Optional[str] = None,
-        timeout_seconds: float = 150.0,
+        timeout_seconds: Optional[float] = None,
     ) -> None:
         self.binary_path = binary_path or settings.ANTIGRAVITY_BIN
         self.model = model or settings.ANTIGRAVITY_MODEL
-        self.timeout_seconds = timeout_seconds
+        self.timeout_seconds = (
+            timeout_seconds if timeout_seconds is not None else settings.ANTIGRAVITY_TIMEOUT
+        )
 
     def _clean_json_output(self, raw_text: str) -> str:
         """Извлечь чистый JSON-блок из текстового вывода модели."""

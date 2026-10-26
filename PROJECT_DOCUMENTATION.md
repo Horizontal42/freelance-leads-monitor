@@ -135,8 +135,9 @@ jobs/
 │   ├── test_storage_and_filter.py# Тесты SQLite WAL и HardFilter
 │   ├── test_analyzer.py         # Тесты промптов, парсинга JSON и санитизации дефисов
 │   └── test_pipeline_e2e.py     # End-to-end тест роутинга заказов (Tier 1/2/3)
-├── .env.example                 # Шаблон переменных окружения
+├── .env.example                 # Шаблон учетных данных
 ├── .gitignore                   # Исключения Git (.venv, data/*.db, .env)
+├── config.yml                   # Основная конфигурация системы (фильтры, сборщики, модели)
 ├── pyproject.toml               # Конфигурация сборки и зависимости проекта
 └── README.md                    # Краткое руководство пользователя
 ```
@@ -250,37 +251,76 @@ jobs/
 
 ---
 
-## 6. Конфигурация окружения (`.env`)
+## 6. Конфигурация окружения (.env) и приложения (config.yml)
 
-Создайте файл `.env` в корне каталога `~/jobs` (на базе `.env.example`):
+В проекте реализовано строгое разделение секретов и бизнес-конфигурации (12-Factor App):
+1. **`.env`** содержит **исключительно секреты и учетные данные** (токены, ключи, ID администратора). Файл добавлен в `.gitignore` и никогда не попадает в репозиторий.
+2. **`config.yml`** содержит **всю архитектурную и бизнес-конфигурацию**: списки стоп-слов, ключевиков, пороговые бюджеты, интервалы опроса, настройки парсеров и моделей.
 
+### 6.1. Секреты: `.env` (шаблон `.env.example`)
 ```env
-# Telegram Bot Configuration
-# Токен бота от @BotFather
+# ==========================================
+# СЕКРЕТЫ И УЧЕТНЫЕ ДАННЫЕ (CREDENTIALS)
+# Вся конфигурация логики лежит в config.yml!
+# ==========================================
+
+# Telegram Bot Token (получить у @BotFather)
 BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
-# Твой личный Telegram ID (узнать у @userinfobot)
+
+# Твой личный Telegram User ID (узнать у @userinfobot)
 ADMIN_CHAT_ID=123456789
 
-# LLM Provider Configuration
-# "antigravity" (бесплатно через локальный CLI agy) или "mistral"
-LLM_PROVIDER=antigravity
-# Модели: gemini-3.8-flash-medium (рекомендуется), gemini-3.8-flash-low, claude-sonnet-4-6
-ANTIGRAVITY_MODEL=gemini-3.8-flash-medium
-
-# Опционально: если LLM_PROVIDER=mistral
+# Опционально: API-ключ Mistral (если в config.yml llm.provider=mistral)
 MISTRAL_API_KEY=
-MISTRAL_MODEL=ministral-8b-latest
+```
 
-# Storage Configuration
-DB_PATH=data/jobs.db
+### 6.2. Бизнес-конфигурация: `config.yml`
+```yaml
+storage:
+  db_path: "data/jobs.db"
 
-# Polling Intervals (в секундах)
-KWORK_POLL_INTERVAL=180
-FL_POLL_INTERVAL=180
+polling:
+  kwork_interval: 180  # секунды
+  fl_interval: 180     # секунды
 
-# Hard Filter Settings
-MIN_BUDGET=10000
-HOT_SCORE_THRESHOLD=7
+collectors:
+  kwork:
+    base_url: "https://kwork.ru"
+    category_ids:
+      - 11  # Разработка и IT
+      - 41  # Скрипты, боты и mini apps
+  fl_ru:
+    rss_url: "https://www.fl.ru/rss/all.xml"
+
+filter:
+  min_budget: 10000
+  hot_score_threshold: 7  # Порог скора (1-10) для отправки в Telegram (Tier 1)
+  stop_words:
+    - "диплом"
+    - "курсов"
+    - "реферат"
+    - "1с"
+    - "верстка"
+    - "tilda"
+    # ... полная база в config.yml
+  keywords:
+    - "python"
+    - "бот"
+    - "парсер"
+    - "fastapi"
+    - "crm"
+    - "битрикс24"
+    # ... полная база в config.yml
+
+llm:
+  provider: "antigravity"  # "antigravity" или "mistral"
+  antigravity:
+    binary: "agy"
+    model: "gemini-3.8-flash-medium"
+    timeout_seconds: 150.0
+  mistral:
+    model: "ministral-8b-latest"
+    timeout_seconds: 60.0
 ```
 
 ---

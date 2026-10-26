@@ -89,21 +89,17 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Копирование конфига
+# Копирование шаблона учетных данных
 cp .env.example .env
 ```
 
-Отредактируйте `.env`:
+Отредактируйте `.env` (только секреты):
 ```env
 BOT_TOKEN=твой_токен_от_BotFather
 ADMIN_CHAT_ID=твой_telegram_user_id
-
-LLM_PROVIDER=antigravity
-ANTIGRAVITY_MODEL=gemini-3.8-flash-medium
-
-MIN_BUDGET=10000
-HOT_SCORE_THRESHOLD=7
 ```
+
+Все остальные параметры (стоп-слова, ключевики, модели LLM, интервалы) настраиваются в [`config.yml`](config.yml).
 
 ### 2. Запуск тестов
 

@@ -1,118 +1,208 @@
-"""Configuration settings for Freelance Leads Monitor."""
+"""Unified configuration loading credentials from .env and application settings from config.yml."""
 
+import logging
 from pathlib import Path
-from typing import List
-from pydantic import Field
+from typing import Any, Dict, List, Optional
+import yaml
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+logger = logging.getLogger(__name__)
+
 BASE_DIR = Path(__file__).resolve().parent.parent
-
-# Дефолтный черный список стоп-слов (отсекаем мусор, студенческие работы и не наш профиль)
-DEFAULT_STOP_WORDS: List[str] = [
-    "диплом",
-    "курсов",
-    "реферат",
-    "контрольн",
-    "студент",
-    "лабораторн",
-    "1с",
-    "1c",
-    "битрикс-сайт",
-    "tilda",
-    "тильда",
-    "wordpress",
-    "вордпресс",
-    "верстка",
-    "верстку",
-    "дизайн",
-    "дизайнер",
-    "seo",
-    "сео",
-    "копирайт",
-    "рерайт",
-    "таргет",
-    "smm",
-    "накрутк",
-    "отзыв",
-    "лайк",
-]
-
-# Дефолтный белый список ключевых слов (наш стек и специфика)
-DEFAULT_KEYWORDS: List[str] = [
-    "python",
-    "питон",
-    "парсер",
-    "парсинг",
-    "парсить",
-    "скрейпинг",
-    "скрейпер",
-    "бот",
-    "telegram",
-    "телеграм",
-    "aiogram",
-    "fastapi",
-    "django",
-    "flask",
-    "crm",
-    "битрикс24",
-    "bitrix24",
-    "api",
-    "интеграци",
-    "llm",
-    "ии",
-    "нейросет",
-    "whisper",
-    "автоматизац",
-    "scraping",
-    "selenium",
-    "playwright",
-    "curl_cffi",
-    "opencv",
-    "yolo",
-    "rag",
-    "qdrant",
-    "tauri",
-    "asyncio",
-    "google sheets",
-    "гугл таблиц",
-]
+CONFIG_YAML_PATH = BASE_DIR / "config.yml"
 
 
-class Settings(BaseSettings):
+# ==========================================
+# 1. Структура конфигурации из config.yml
+# ==========================================
+
+class StorageConfig(BaseModel):
+    db_path: str = "data/jobs.db"
+
+
+class PollingConfig(BaseModel):
+    kwork_interval: int = 180
+    fl_interval: int = 180
+
+
+class KworkCollectorConfig(BaseModel):
+    base_url: str = "https://kwork.ru"
+    category_ids: List[int] = Field(default_factory=lambda: [11, 41])
+
+
+class FlRuCollectorConfig(BaseModel):
+    rss_url: str = "https://www.fl.ru/rss/all.xml"
+
+
+class CollectorsConfig(BaseModel):
+    kwork: KworkCollectorConfig = Field(default_factory=KworkCollectorConfig)
+    fl_ru: FlRuCollectorConfig = Field(default_factory=FlRuCollectorConfig)
+
+
+class FilterConfig(BaseModel):
+    min_budget: int = 10000
+    hot_score_threshold: int = 7
+    stop_words: List[str] = Field(default_factory=list)
+    keywords: List[str] = Field(default_factory=list)
+
+
+class AntigravityConfig(BaseModel):
+    binary: str = "agy"
+    model: str = "gemini-3.8-flash-medium"
+    timeout_seconds: float = 150.0
+
+
+class MistralConfig(BaseModel):
+    model: str = "ministral-8b-latest"
+    timeout_seconds: float = 60.0
+
+
+class LLMConfig(BaseModel):
+    provider: str = "antigravity"
+    antigravity: AntigravityConfig = Field(default_factory=AntigravityConfig)
+    mistral: MistralConfig = Field(default_factory=MistralConfig)
+
+
+class YamlAppConfig(BaseModel):
+    storage: StorageConfig = Field(default_factory=StorageConfig)
+    polling: PollingConfig = Field(default_factory=PollingConfig)
+    collectors: CollectorsConfig = Field(default_factory=CollectorsConfig)
+    filter: FilterConfig = Field(default_factory=FilterConfig)
+    llm: LLMConfig = Field(default_factory=LLMConfig)
+
+
+def load_yaml_config(yaml_path: Path) -> YamlAppConfig:
+    """Загрузить и провалидировать config.yml."""
+    if not yaml_path.exists():
+        logger.warning("Файл %s не найден, используются дефолтные параметры", yaml_path)
+        return YamlAppConfig()
+
+    try:
+        with open(yaml_path, "r", encoding="utf-8") as f:
+            raw_data = yaml.safe_load(f) or {}
+        return YamlAppConfig.model_validate(raw_data)
+    except Exception as e:
+        logger.error("Ошибка чтения %s: %s. Используются дефолтные параметры.", yaml_path, e)
+        return YamlAppConfig()
+
+
+# ==========================================
+# 2. Секреты и учетные данные из .env
+# ==========================================
+
+class Secrets(BaseSettings):
+    """Секреты и токены, читаемые строго из .env."""
+
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / ".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
-    # Telegram
     BOT_TOKEN: str = ""
     ADMIN_CHAT_ID: int = 0
-
-    # LLM Provider
-    LLM_PROVIDER: str = "antigravity"  # "antigravity" | "mistral"
-    ANTIGRAVITY_BIN: str = "agy"
-    ANTIGRAVITY_MODEL: str = "gemini-3.8-flash-medium"
     MISTRAL_API_KEY: str = ""
-    MISTRAL_MODEL: str = "ministral-8b-latest"
 
-    # Database
-    DB_PATH: Path = BASE_DIR / "data" / "jobs.db"
 
-    # Polling Intervals (seconds)
-    KWORK_POLL_INTERVAL: int = 180
-    FL_POLL_INTERVAL: int = 180
+# ==========================================
+# 3. Единый фасад настроек (Settings)
+# ==========================================
 
-    # Source Endpoints
-    KWORK_BASE_URL: str = "https://kwork.ru"
-    KWORK_CATEGORY_IDS: List[int] = Field(default_factory=lambda: [11, 41])
-    FL_RSS_URL: str = "https://www.fl.ru/rss/all.xml"
+class Settings:
+    """Единый фасад для доступа к секретам (.env) и конфигурации (config.yml)."""
 
-    # Filtering & Tiering
-    MIN_BUDGET: int = 10_000
-    HOT_SCORE_THRESHOLD: int = 7
-    STOP_WORDS: List[str] = Field(default_factory=lambda: DEFAULT_STOP_WORDS)
-    KEYWORDS: List[str] = Field(default_factory=lambda: DEFAULT_KEYWORDS)
+    def __init__(
+        self,
+        yaml_path: Optional[Path] = None,
+        env_file: Optional[Path] = None,
+    ) -> None:
+        self.yaml_path = yaml_path or CONFIG_YAML_PATH
+        self.app_config = load_yaml_config(self.yaml_path)
+        self.secrets = Secrets(_env_file=env_file or (BASE_DIR / ".env"))
+
+    # Секреты из .env
+    @property
+    def BOT_TOKEN(self) -> str:
+        return self.secrets.BOT_TOKEN
+
+    @property
+    def ADMIN_CHAT_ID(self) -> int:
+        return self.secrets.ADMIN_CHAT_ID
+
+    @property
+    def MISTRAL_API_KEY(self) -> str:
+        return self.secrets.MISTRAL_API_KEY
+
+    # База данных
+    @property
+    def DB_PATH(self) -> Path:
+        p = Path(self.app_config.storage.db_path)
+        return p if p.is_absolute() else (BASE_DIR / p)
+
+    # Интервалы опроса
+    @property
+    def KWORK_POLL_INTERVAL(self) -> int:
+        return self.app_config.polling.kwork_interval
+
+    @property
+    def FL_POLL_INTERVAL(self) -> int:
+        return self.app_config.polling.fl_interval
+
+    # Источники
+    @property
+    def KWORK_BASE_URL(self) -> str:
+        return self.app_config.collectors.kwork.base_url
+
+    @property
+    def KWORK_CATEGORY_IDS(self) -> List[int]:
+        return self.app_config.collectors.kwork.category_ids
+
+    @property
+    def FL_RSS_URL(self) -> str:
+        return self.app_config.collectors.fl_ru.rss_url
+
+    # Фильтры
+    @property
+    def MIN_BUDGET(self) -> int:
+        return self.app_config.filter.min_budget
+
+    @property
+    def HOT_SCORE_THRESHOLD(self) -> int:
+        return self.app_config.filter.hot_score_threshold
+
+    @property
+    def STOP_WORDS(self) -> List[str]:
+        return self.app_config.filter.stop_words
+
+    @property
+    def KEYWORDS(self) -> List[str]:
+        return self.app_config.filter.keywords
+
+    # LLM
+    @property
+    def LLM_PROVIDER(self) -> str:
+        return self.app_config.llm.provider
+
+    @property
+    def ANTIGRAVITY_BIN(self) -> str:
+        return self.app_config.llm.antigravity.binary
+
+    @property
+    def ANTIGRAVITY_MODEL(self) -> str:
+        return self.app_config.llm.antigravity.model
+
+    @property
+    def ANTIGRAVITY_TIMEOUT(self) -> float:
+        return self.app_config.llm.antigravity.timeout_seconds
+
+    @property
+    def MISTRAL_MODEL(self) -> str:
+        return self.app_config.llm.mistral.model
+
+    @property
+    def MISTRAL_TIMEOUT(self) -> float:
+        return self.app_config.llm.mistral.timeout_seconds
 
 
 settings = Settings()
