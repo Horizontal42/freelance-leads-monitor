@@ -86,6 +86,41 @@ class LLMConfig(BaseModel):
     mistral: MistralConfig = Field(default_factory=MistralConfig)
 
 
+class ProjectDossierItem(BaseModel):
+    name: str
+    stack: str
+    highlights: str
+    use_for: str
+
+
+class DeveloperProfileConfig(BaseModel):
+    name: str = "Андрей Пименов"
+    username: str = "@horizontal42"
+    level: str = "Junior+ / Middle"
+    specialization: str = "Python Backend, Telegram-боты, парсинг, CRM"
+    min_budget: int = 10000
+    hourly_rate_rub: int = 750
+
+
+class PromptRulesConfig(BaseModel):
+    strict_no_em_dash: bool = True
+    preview_rule_140_chars: bool = True
+    cold_start_strategy: bool = True
+    no_ai_cliches: bool = True
+
+
+class PromptTemplatesConfig(BaseModel):
+    analysis_system_prompt: str = ""
+    proposal_prompt_template: str = ""
+
+
+class PromptsConfig(BaseModel):
+    developer_profile: DeveloperProfileConfig = Field(default_factory=DeveloperProfileConfig)
+    projects_dossier: List[ProjectDossierItem] = Field(default_factory=list)
+    rules: PromptRulesConfig = Field(default_factory=PromptRulesConfig)
+    templates: PromptTemplatesConfig = Field(default_factory=PromptTemplatesConfig)
+
+
 class YamlAppConfig(BaseModel):
     storage: StorageConfig = Field(default_factory=StorageConfig)
     web: WebConfig = Field(default_factory=WebConfig)
@@ -93,6 +128,7 @@ class YamlAppConfig(BaseModel):
     collectors: CollectorsConfig = Field(default_factory=CollectorsConfig)
     filter: FilterConfig = Field(default_factory=FilterConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
+    prompts: PromptsConfig = Field(default_factory=PromptsConfig)
 
 
 def load_yaml_config(yaml_path: Path) -> YamlAppConfig:
@@ -255,6 +291,40 @@ class Settings:
     @property
     def MISTRAL_TIMEOUT(self) -> float:
         return self.app_config.llm.mistral.timeout_seconds
+
+    # Промпты и досье проектов из config.yml
+    @property
+    def PROMPTS_CONFIG(self) -> PromptsConfig:
+        return self.app_config.prompts
+
+    @property
+    def DOSSIER_TEXT(self) -> str:
+        items = self.app_config.prompts.projects_dossier
+        if not items:
+            return ""
+        lines = []
+        for i, p in enumerate(items, 1):
+            lines.append(
+                f"{i}. {p.name}: {p.stack}. "
+                f"Ключевые решения: {p.highlights}. "
+                f"Для каких задач: {p.use_for}."
+            )
+        return "\n".join(lines)
+
+    @property
+    def ANALYSIS_SYSTEM_PROMPT(self) -> str:
+        tmpl = self.app_config.prompts.templates.analysis_system_prompt
+        if not tmpl:
+            return ""
+        return tmpl.format(dossier_text=self.DOSSIER_TEXT).strip()
+
+    @property
+    def PROPOSAL_PROMPT_TEMPLATE(self) -> str:
+        tmpl = self.app_config.prompts.templates.proposal_prompt_template
+        if not tmpl:
+            return ""
+        # Подставляем dossier_text, оставляя {source}, {title}, {price}, {description}, {extra_context} для format
+        return tmpl.replace("{dossier_text}", self.DOSSIER_TEXT).strip()
 
 
 settings = Settings()

@@ -1,138 +1,188 @@
 # Freelance Leads Monitor
 
-Автоматизированная система мониторинга бирж фриланса (Kwork, FL.ru), эвристической фильтрации лидов, их оценки нейросетью по стандартам разработчика и оперативной доставки готовых откликов в Telegram.
+[English](README.md) · [Русский](README.ru.md)
 
-Разработано специально под профиль и регламенты Андрея Пименова ([`Horizontal42`](https://github.com/Horizontal42)) на основе `FREELANCE_PROFILE.md` и `PROJECTS_DOSSIER.md`.
-
----
-
-## Архитектура системы
-
-```text
-[ Kwork (IT, Боты) ]        [ FL.ru (RSS-фид) ]
-         \                         /
-          v                       v
-     [ Модуль сбора (Ingestion) ]
-                  │ RawOrder
-                  ▼
-       [ SQLite (Дедупликация) ]
-                  │
-                  ▼
-     [ 1. Эвристический Hard-Filter ]
-     (Бюджет >= 10к, стоп-слова, ключевики)
-                  │
-       ┌──────────┴──────────┐
-       │ Не прошел           │ Прошел (4-8 целевых лидов в день)
-       ▼                     ▼
- [ Tier 3: Мусор ]     [ 2. LLM-Анализ (Antigravity CLI / Mistral) ]
- (В БД как REJECTED,   - Оценка скора 1-10 и рисков
-  без вызова LLM)      - PERT расчет сроков и ценовой вилки
-                       - Зацепка за реальные проекты из досье
-                       - Живой человеческий отклик без ИИ-штампов (только дефисы "-")
-                             │
-            ┌────────────────┴────────────────┐
-            │ Скор < 7                        │ Скор >= 7
-            ▼                                 ▼
-   [ Tier 2: Обычные ]               [ Tier 1: Горячие лиды ]
-   - База данных SQLite              - 🚀 Мгновенный пуш в Telegram
-   - Доступны на сайте / дашборде    - Интерактивные кнопки (Копировать в 1 клик)
-   - Google Таблицы (без спама)      - Запись в базу и на сайт
-```
-
----
-
-## Ключевые модули
-
-1. **Модули сбора (Ingestion):**
-   - [`KworkCollector`](src/collectors/kwork.py): парсинг серверного состояния `window.stateData` со страниц категорий `c=11` (IT) и `c=41` (Скрипты и боты). Забирает точные бюджеты, описания и счетчики уже поданных заявок.
-   - [`FlRuCollector`](src/collectors/fl_ru.py): чтение официального RSS-фида `https://www.fl.ru/rss/all.xml` с извлечением бюджетов и тегов.
-   - [`FreelanceRuCollector`](src/collectors/freelance_ru.py): сбор свежих проектов со страниц `https://freelance.ru/task` и поисковой выдачи по Python.
-   - [`PchelNetCollector`](src/collectors/pchel_net.py): сбор IT-заказов с биржи Pchel.net (раздел Программирование) с автоконвертацией валют ($ -> ₽).
-   - [`RemoteJobCollector`](src/collectors/remote_job.py): сбор проектов с биржи `https://remote-job.ru/search?search[searchType]=project`.
-   - **Защита от банов:** стандартные браузерные заголовки, безопасные интервалы опроса (2–3 минуты). За RSS и обычные GET-запросы не банят.
-
-2. **Эвристический Hard-Filter:**
-   - [`HardFilter`](src/filters/pre_filter.py):
-     - **Бюджет:** строго от 10 000 руб. (или если бюджет не указан / «по договоренности»).
-     - **Черный список:** дипломы, курсовые, рефераты, 1С, верстка, Tilda, копирайтинг.
-     - **Белый список:** Python, бот, парсер, CRM, API, Битрикс24, FastAPI, LLM, ИИ, автоматизация, curl_cffi.
-
-3. **LLM-анализ и генерация откликов:**
-   - [`AntigravityClient`](src/analyzer/antigravity_client.py): запускает локальный CLI `agy -p` с моделями `gemini-3.8-flash-medium` или `claude-sonnet-4-6`. Не требует платных API-ключей, использует существующие токены Antigravity.
-   - [`MistralClient`](src/analyzer/mistral_client.py): резервный клиент для работы через официальный Mistral API (`ministral-8b`, `codestral`).
-   - **Соблюдение правил `FREELANCE_PROFILE.md`:**
-     - Строго обычные дефисы `-` (полный запрет длинных тире `—`).
-     - Никаких шаблонных списков со звездочками (`**Стек:**`).
-     - Первые 140 символов бьют сразу в суть и проблему клиента.
-     - Опора на реальные кейсы: `Speech Analytics`, `Avia_Pars`, `leads-monitor`, `netsleuth`, `AgroTech CV`.
-
-4. **Хранилище и дедупликация:**
-   - [`OrderRepository`](src/storage/repository.py): SQLite в режиме высокой конкурентности `WAL`. Исключает повторный анализ одних и тех же заказов.
-
-5. **Telegram-бот (aiogram 3) и Веб-дашборд (FastAPI):**
-   - [`create_web_app`](src/web/app.py): веб-интерфейс на FastAPI для домена **`jobs.3dvex.ru`** (порт `8086`, настраивается в `config.yml`).
-     * Фильтрация заказов по приоритету (`Hot` / `Normal` / `Trash`) и биржам (`Kwork` / `FL.ru` / `Freelance.ru` / `Pchel.net` / `Remote-job`).
-     * Отображение скора, сложности, PERT-сроков, цены и готового отклика.
-     * Кнопка моментального копирования отклика в буфер обмена (`navigator.clipboard.writeText`).
-     * JSON API: `/api/orders`, `/api/stats`, `/health`.
-   - [`router`](src/bot/handlers.py):
-     - Карточка заказа с деталями, PERT и рисками.
-     - **Кнопка «📋 Скопировать отклик»:** присылает готовый текст отдельным сообщением в цитате для моментального копирования на смартфоне в один тап.
-     - **Кнопка «🔗 Открыть заказ»:** прямая ссылка на страницу проекта.
-     - **Кнопка «📦 В архив»:** переводит заказ в архив и скрывает кнопки.
-     - Команды: `/start`, `/scan` (ручной запуск сбора), `/stats`, `/recent`.
-   - [`LeadsPipeline`](src/notifiers/pipeline.py): параллельный анализ заказов через `asyncio.gather` с ограничением конкурентности `asyncio.Semaphore(2)`.
-
----
-
-## Быстрый старт
-
-### 1. Настройка окружения
+Cross-exchange freelance lead monitoring and evaluation daemon for Russian-speaking platforms (Kwork, FL.ru, Freelance.ru, Pchel.net, Remote-job). Features heuristic hard-filtering, two-stage cascaded LLM analysis (Mistral for ingestion scoring, Antigravity `agy` for on-demand proposals), real-time Telegram delivery via aiogram 3, and an interactive FastAPI dashboard for `jobs.3dvex.ru`.
 
 ```bash
-# Клонирование / переход в каталог
-cd ~/jobs
+$ python -m src.main --once
+2026-10-26 23:59:00 [INFO] Ingestion started across 5 platforms...
+2026-10-26 23:59:02 [INFO] Collected: Kwork (14), FL.ru (22), Freelance.ru (18), Pchel.net (12), Remote-job (8)
+2026-10-26 23:59:03 [INFO] HardFilter: 71 rejected (diplomas, 1C, low budget), 3 passed to LLM
+2026-10-26 23:59:05 [INFO] Mistral: Evaluated 3 leads (1 Hot, 2 Normal). PERT & market price calculated.
+2026-10-26 23:59:06 [INFO] Telegram: Delivered 1 Hot lead to @horizontal42 with action keyboard.
+2026-10-26 23:59:06 [INFO] Pipeline complete. New leads persisted in SQLite WAL.
+```
 
-# Создание виртуального окружения и установка зависимостей
+Built specifically for Andrey Pimenov ([`@horizontal42`](https://github.com/Horizontal42)) following [`docs/FREELANCE_PROFILE.md`](docs/FREELANCE_PROFILE.md), [`docs/PROJECTS_DOSSIER.md`](docs/PROJECTS_DOSSIER.md), and [`docs/RESUME_HH.md`](docs/RESUME_HH.md).
+
+---
+
+## Supported Exchanges
+
+| Exchange | Method | Rate Limits & Protection | PRO / Free Filter |
+|---|---|---|---|
+| **Kwork** | Server-side `window.stateData` JSON (IT & Bots categories) | 180s poll, browser headers | Free responses |
+| **FL.ru** | Official RSS feed (`/rss/all.xml`) | Standard XML polling | Gated by `(для всех)` in title |
+| **Freelance.ru** | HTML card scraping (`/task` & `?q=python`) | 180s poll, desktop User-Agent | Gated by `task-card__pro` badge |
+| **Pchel.net** | HTML parsing (`/jobs/programming/`) | Auto USD-to-RUB conversion (rate 95.0) | Open IT tasks |
+| **Remote-job** | HTML project feed (`/search?searchType=project`) | Clean title & budget normalization | Open remote projects |
+
+---
+
+## Architecture & Data Flow
+
+```text
+[ Kwork ]  [ FL.ru ]  [ Freelance.ru ]  [ Pchel.net ]  [ Remote-job ]
+    │          │             │               │              │
+    └──────────┴──────┬──────┴───────────────┴──────────────┘
+                      │ Periodic HTTP polling (180s)
+                      ▼
+              [ BaseCollector ]
+                      │ List[RawOrder]
+                      ▼
+            [ SQLite Deduplication ]
+             (is_duplicate check)
+                      │ Fresh RawOrder
+                      ▼
+            [ 1. HardFilter ]
+             - Min budget: 10,000 ₽ or negotiable
+             - Stop words rejection (diplomas, 1C, layout, Tilda, SEO)
+             - Keyword matching (Python, bots, parsers, CRM, FastAPI, LLM)
+             - PRO-only filter check
+                      │
+       ┌──────────────┴──────────────┐
+       │ Rejected                    │ Passed (Target Leads)
+       ▼                             ▼
+  [ Tier 3: Trash ]           [ 2. LLM Analysis (Mistral) ]
+  - Status: REJECTED          - 3-4 sentence concise executive summary
+  - No LLM calls              - Preliminary PERT estimate: E = (O + 4M + P)/6, σ
+                              - Market price evaluation & justification
+                              - Complexity, hours, risks, dossier matching
+                              - proposal_text remains ""
+                                     │
+                      ┌──────────────┴──────────────┐
+                      │ Score < 7                   │ Score >= 7
+                      ▼                             ▼
+             [ Tier 2: Normal ]            [ Tier 1: Hot Leads ]
+             - Saved in SQLite             - Saved in SQLite
+             - Visible in Web UI           - Visible in Web UI (Hot tab)
+                                           - 🚀 Instant Telegram alert
+                                                  │
+                                                  ▼
+                                    [ On-Demand Proposal Generation ]
+                                     User clicks "Сгенерировать отклик"
+                                     (Telegram inline button or Web button)
+                                                  │
+                                                  ▼
+                                    [ 3. Antigravity CLI (agy -p) ]
+                                    - Bespoke human response from dossier
+                                    - Strict ban on em-dashes "-"
+                                    - First 140 chars preview rule
+                                    - Persisted in SQLite & copied in 1-click
+```
+
+Full details on module boundaries, resilience guarantees, and data flows are documented in [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
+---
+
+## Web Dashboard & Telegram Bot
+
+### Web Dashboard (`jobs.3dvex.ru:8086`)
+- **Tab Navigation:** `Горячие лиды (Tier 1)`, `Все прошедшие`, `Потенциальные (Tier 2)`, `Отсеянные (Tier 3)`, `Аналитика бирж`, `Правила и фильтры`.
+- **Live Search:** instant client-side search across titles, descriptions, and technology tags.
+- **PRO / Free Toggle:** switch between free applications only and all projects with one click.
+- **Publication Timestamp:** clear display of publication date and time (`🕒 Опубликован: ...`) on every card.
+- **One-Click Proposal Generation & Copy:** interactive button triggering Antigravity proposal generation and copying to clipboard.
+
+### Telegram Bot (`aiogram 3`)
+- **Instant Hot Alerts:** push notifications for leads scoring $\ge 7/10$.
+- **Card Format:** source exchange, publication time, PRO access badge, budget, PERT timeline ($E$, $\sigma$), matched portfolio case, and risks.
+- **Interactive Buttons:**
+  - `⚡ Сгенерировать отклик`: triggers Antigravity CLI on-demand.
+  - `📋 Скопировать`: sends proposal text formatted for 1-tap mobile copying.
+  - `🔗 Открыть заказ`: direct link to exchange listing.
+  - `📦 В архив`: marks order as archived and dismisses buttons.
+- **Commands:** `/start`, `/scan` (run manual scraping cycle), `/stats`, `/recent`.
+
+---
+
+## Configuration
+
+All configuration is strictly separated: secrets live in `.env` and application parameters live in [`config.yml`](config.yml).
+
+### Credentials (`.env`)
+```bash
+cp .env.example .env
+```
+
+```env
+BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+ADMIN_CHAT_ID=123456789
+MISTRAL_API_KEY=your_mistral_api_key
+```
+
+### Application Settings (`config.yml`)
+- `storage.db_path`: path to SQLite database (`data/jobs.db`).
+- `web.host` & `web.port`: web dashboard binding (`0.0.0.0:8086`).
+- `polling`: intervals per exchange.
+- `filter`: `min_budget` (10,000 ₽), `hot_score_threshold` (7), `stop_words`, `keywords`.
+- `llm`: provider selection (`hybrid`, `antigravity`, `mistral`), binary path, models, and timeouts.
+- `prompts`: developer profile, complete project dossier (Speech Analytics, Avia_Pars, netsleuth, summarum, leads-monitor, Sort_YM, AgroTech CV, RAG), rules, and system prompt templates.
+
+---
+
+## Install & Quickstart
+
+### Requirements
+- Python 3.12 or newer
+- Linux, macOS, or Windows
+- SQLite 3.35+ (with WAL mode support)
+- Antigravity CLI (`agy`) installed and authenticated for Stage 2 on-demand proposals
+
+### Setup
+```bash
+git clone https://github.com/Horizontal42/freelance-leads-monitor.git
+cd freelance-leads-monitor
+
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Копирование шаблона учетных данных
 cp .env.example .env
+# Edit .env with your BOT_TOKEN, ADMIN_CHAT_ID, and MISTRAL_API_KEY
 ```
 
-Отредактируйте `.env` (только секреты):
-```env
-BOT_TOKEN=твой_токен_от_BotFather
-ADMIN_CHAT_ID=твой_telegram_user_id
-```
-
-Все остальные параметры (стоп-слова, ключевики, модели LLM, интервалы) настраиваются в [`config.yml`](config.yml).
-
-### 2. Запуск тестов
-
+### Run Tests
 ```bash
-.venv/bin/pytest
+.venv/bin/pytest -v
 ```
 
-### 3. Запуск разового сканирования (--once)
-
+### Run Single Scan
 ```bash
 .venv/bin/python -m src.main --once
 ```
 
-### 4. Непрерывный запуск (Фоновый мониторинг + Telegram-бот)
-
+### Run Full Daemon (Web + Telegram Bot + Background Polling)
 ```bash
 .venv/bin/python -m src.main
 ```
 
 ---
 
-## Интеграция с сервером и сайтом
+## For Developers
 
-В будущем систему можно легко объединить с дашбордом:
-- База данных SQLite (`data/jobs.db`) спроектирована как единый источник правды.
-- Для вывода лидов на свой сайт достаточно поднять микросервис на FastAPI (чтение из `OrderRepository.get_recent_orders`).
-- Для объединения с `leads-monitor` достаточно добавить `HhCollector` в список сборщиков в `src/main.py`.
+```bash
+.venv/bin/pytest -v            # Run test suite (21 unit and integration tests)
+.venv/bin/ruff check .         # Code style & linting
+.venv/bin/mypy src             # Type checking
+```
+
+Architecture, data structures, and reasoning behind design choices: [ARCHITECTURE.md](ARCHITECTURE.md).
+
+---
+
+## License
+
+PolyForm Noncommercial 1.0.0
+https://github.com/Horizontal42/freelance-leads-monitor/blob/master/LICENSE - free for personal, educational, and other non-commercial use.

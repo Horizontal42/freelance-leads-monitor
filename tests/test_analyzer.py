@@ -68,50 +68,47 @@ async def test_hybrid_client_flow():
     order = RawOrder(
         source=SourcePlatform.KWORK,
         external_id="111",
-        title="Сделать верстку сайта",
-        description="Верстка HTML",
+        title="Сделать Telegram-бота на Python",
+        description="Нужен парсер и бот на aiogram 3",
         url="https://kwork.ru/111",
         price=15000,
     )
 
-    mock_mistral = AsyncMock()
-    mock_mistral.api_key = "fake_key"
-    # Stage 1: Mistral filters out non-relevant order
-    mock_mistral.quick_classify.return_value = {
-        "is_relevant": False,
-        "quick_score": 3,
-        "reason": "Not a python task",
-    }
-
-    mock_antigravity = AsyncMock()
-    client = HybridLLMClient(mistral=mock_mistral, antigravity=mock_antigravity)
-
-    res = await client.analyze_order(order)
-    assert res.take_order is False
-    assert res.score == 3
-    assert res.priority == OrderPriority.NORMAL
-    # agy was not even called, saving resources!
-    mock_antigravity.analyze_order.assert_not_called()
-
-    # Now test high-score order passing to agy
-    mock_mistral.quick_classify.return_value = {
-        "is_relevant": True,
-        "quick_score": 9,
-        "reason": "Python parser",
-    }
-    mock_antigravity.analyze_order.return_value = AnalysisResult(
+    expected_analysis = AnalysisResult(
         take_order=True,
         score=9,
         priority=OrderPriority.HOT,
-        executive_summary="Great match",
-        complexity=6,
-        pure_dev_hours=12.0,
-        risks_and_pitfalls=[],
-        proposal_text="Ready to do it.",
+        executive_summary="Разработка Telegram-бота на aiogram 3 с парсером данных. Специфика в стабильной работе фонового воркера. Ключевой риск - блокировка источника парсинга без ротации прокси.",
+        recommended_price=20000,
+        price_justification="Бюджет адекватен, но с учетом парсера стоит запросить 20к",
+        realistic_days=3.0,
+        matched_project="Avia_Pars",
+        complexity=5,
+        pure_dev_hours=10.0,
+        risks_and_pitfalls=["Капча", "Частые запросы к источнику"],
+        proposal_text="",
     )
 
-    res2 = await client.analyze_order(order)
-    assert res2.take_order is True
-    assert res2.score == 9
-    assert res2.priority == OrderPriority.HOT
-    mock_antigravity.analyze_order.assert_called_once()
+    mock_mistral = AsyncMock()
+    mock_mistral.api_key = "fake_key"
+    mock_mistral.analyze_order.return_value = expected_analysis
+
+    mock_antigravity = AsyncMock()
+    mock_antigravity.generate_proposal.return_value = "Добрый день. Делал бота Avia_Pars на aiogram 3 с обходом блокировок."
+
+    client = HybridLLMClient(mistral=mock_mistral, antigravity=mock_antigravity)
+
+    # 1. Pipeline analysis is performed by Mistral
+    res = await client.analyze_order(order)
+    assert res.take_order is True
+    assert res.score == 9
+    assert res.priority == OrderPriority.HOT
+    assert "Avia_Pars" in res.matched_project
+    mock_mistral.analyze_order.assert_called_once_with(order)
+    # agy was not called during ingestion analysis!
+    mock_antigravity.analyze_order.assert_not_called()
+
+    # 2. Proposal generation is performed by Antigravity on user demand
+    proposal = await client.generate_proposal(order, {"matched_project": "Avia_Pars"})
+    assert "Avia_Pars" in proposal
+    mock_antigravity.generate_proposal.assert_called_once()

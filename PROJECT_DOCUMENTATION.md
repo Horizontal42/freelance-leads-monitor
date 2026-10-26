@@ -1,27 +1,28 @@
 # Полная техническая документация: Freelance Leads Monitor
 
 > **Автор:** Андрей Пименов ([`@horizontal42`](https://github.com/Horizontal42))  
-> **Стек:** Python 3.12, asyncio, aiogram 3, aiosqlite (WAL), httpx, feedparser, pydantic v2, pydantic-settings, Antigravity CLI (`gemini-3.8-flash-medium` / `claude-sonnet-4-6`) / Mistral API.  
-> **Версия:** 0.1.0 (MVP)  
+> **Стек:** Python 3.12, asyncio, aiogram 3, FastAPI, uvicorn, aiosqlite (WAL), httpx, feedparser, pydantic v2, pydantic-settings, Mistral API (`ministral-8b`), Antigravity CLI (`agy -p` / `gemini-3.8-flash-medium`).  
+> **Версия:** 0.2.0  
 > **Дата актуализации:** Октябрь 2026  
 
 ---
 
 ## 1. Назначение системы и бизнес-контекст
 
-Система решает задачу автоматического мониторинга русскоязычных бирж фриланса, первичного эвристического отсева нерелевантного трафика (без затрат на LLM), глубокого анализа прошедших заказов нейросетью по авторским регламентам и оперативной доставки готовых откликов в личный Telegram-бот.
+Система решает задачу непрерывного мониторинга 5 русскоязычных бирж фриланса, первичного эвристического отсева нерелевантного трафика (без затрат токенов LLM), глубокой 2-стадийной оценки заказов нейросетями по авторским стандартам и оперативной доставки лидов в Telegram-бот и на веб-дашборд (`jobs.3dvex.ru:8086`).
 
 ### Бизнес-правила и регламенты (на базе `FREELANCE_PROFILE.md`):
 1. **Скорость первого контакта:** На фрилансе первые 3-5 откликов забирают 80% внимания клиента. Задача системы - доставить готовый отклик на смартфон в течение 1-2 минут после публикации заказа.
 2. **Запрет маркеров ИИ в откликах:**
-   - **Строжайший запрет длинных тире `—`:** живые люди в чатах нажимают только обычный дефис `-`. Длинное тире моментально палит генерацию. В системе реализован принудительный санитизатор `replace("—", "-")`.
+   - **Строжайший запрет длинных тире (em-dash):** живые люди в чатах нажимают только обычный дефис `-`. Длинное тире моментально палит генерацию. В системе реализован принудительный санитизатор `replace("—", "-")`.
    - **Запрет шаблонных списков со звездочками:** никаких `**Стек:**`, `**Преимущества:**`, `**Сроки:**`. Текст отклика строится естественными связными абзацами с живым ритмом.
    - **Правило первых 140 символов:** первые 2 предложения видны в превью ленты биржи. Они сразу бьют в боль клиента и подтверждают опыт без приветственных штампов ("Здравствуйте, меня зовут Андрей...").
-   - **Опора на реальные проекты из `PROJECTS_DOSSIER.md`:** отклик обязан ссылаться на настоящие кейсы:
+   - **Опора на реальные проекты из `docs/PROJECTS_DOSSIER.md`:** отклик обязан ссылаться на настоящие кейсы:
      * `Speech Analytics (Intervesp)` (FastAPI, Celery, WhisperX, Bitrix24 REST API, difflib fuzzy, malloc_trim);
      * `Avia_Pars` (aiogram 3, curl_cffi обход TLS, patchright Chromium в изолированном subprocess, residential socks5 relay, Circuit Breaker);
      * `leads-monitor` (hh.ru, DaData, Google Sheets API, SQLite);
      * `netsleuth` (сетевой CLI, Win32 Iphlpapi через ctypes без админки);
+     * `summarum` (десктопный калькулятор с Pratt-парсером, Tauri 2, Rust);
      * `AgroTech CV` (компьютерное зрение, YOLOv8, OpenCV, ByteTrack).
 3. **Ценовая политика:**
    - Минимальный бюджет заказа: **от 10 000 руб.** (или "по договоренности").
@@ -30,441 +31,114 @@
 
 ---
 
-## 2. Реалии рынка бирж (Результаты разведки 2026 года)
+## 2. Поддерживаемые площадки
 
-Перед реализацией была проведена прямая сетевая разведка площадок:
-1. **Хабр Фриланс (`freelance.habr.com`):**
-   - **ЗАКРЫТ НАВСЕГДА.** Сервер отдает `HTTP 410 Gone` с официальным сообщением о ликвидации сервиса. Парсинг невозможен.
-2. **Kwork (`kwork.ru`):**
-   - **Идеальный источник.** В HTML-странице категорий `c=11` (Разработка и IT) и `c=41` (Скрипты, боты и mini apps) содержится нативный JSON `window.stateData` со всеми проектами (`wants`), точными бюджетами, описаниями и счетчиком уже поданных заявок (`kwork_count`).
-   - Парсится GET-запросом через `httpx` с браузерными заголовками раз в 2-3 минуты. Блокировок и Cloudflare нет.
-3. **FL.ru (`fl.ru`):**
-   - **Стабильный источник.** Имеет открытый публичный RSS-фид `https://www.fl.ru/rss/all.xml`.
-   - Не блокирует запросы с браузерным User-Agent. Бюджеты извлекаются регулярными выражениями с декодированием HTML-сущностей (`&#8381;` $\to$ `₽`).
-4. **Freelance.ru (`freelance.ru`):**
-   - Рабочий каталог заказов на `https://freelance.ru/task`. Доступен для расширения вторым этапом.
-5. **Агрегаторы (например, `alot.pro`):**
-   - Закрыты авторизацией (платная подписка), куки-сессиями и Firebase. Главный минус - лаг в 15-30 минут, убивающий преимущество быстрого отклика. Прямой сбор первоисточников в разы эффективнее.
+1. **Kwork (`kwork.ru`):**
+   - Парсинг серверного JSON `window.stateData` со страниц категорий `c=11` (Разработка и IT) и `c=41` (Скрипты, боты и mini apps).
+   - Точные бюджеты, описания, счетчик поданных заявок. Бесплатные отклики.
+2. **FL.ru (`fl.ru`):**
+   - Официальный RSS-фид `https://www.fl.ru/rss/all.xml`.
+   - Регулярные выражения бюджета, определение бесплатных заказов по маркеру `(для всех)` в названии/описании.
+3. **Freelance.ru (`freelance.ru`):**
+   - Каталог `https://freelance.ru/task` и поисковая выдача `?q=python`.
+   - Детекция платных PRO-заказов по классу `task-card__pro` и тексту "аккаунт pro".
+4. **Pchel.net (`pchel.net`):**
+   - Раздел Программирование (`/jobs/programming/`).
+   - Автоматическая конвертация валютных бюджетов USD -> RUB по курсу (по умолчанию 95.0).
+5. **Remote-job (`remote-job.ru`):**
+   - Раздел удаленных проектов (`/search?searchType=project`).
+   - Нормализация бюджетов и очистка заголовков.
 
 ---
 
-## 3. Архитектура и трехуровневая воронка (Tiering)
+## 3. Архитектура и 2-стадийный LLM-пайплайн
 
 ```text
-               [ Биржи: Kwork (c=11, c=41) ]      [ FL.ru (RSS) ]
-                               \                      /
-                                v                    v
-                        [ Ingestion: BaseCollector ]
-                                     │ RawOrder
-                                     ▼
-                        [ SQLite: Дедупликация ]
-                        (source, external_id UNIQUE)
-                                     │
-                                     ▼
-                        [ 1. Hard-Filter (Эвристика) ]
-                        - Бюджет >= 10 000 ₽ или договоренность
-                        - Черный список стоп-слов
-                        - Белый список ключевых слов
-                                     │
-                    ┌────────────────┴────────────────┐
-                    │ Не прошел                       │ Прошел (4-8 заказов в день)
-                    ▼                                 ▼
-            [ Tier 3: Мусор ]                 [ 2. LLM-Анализ ]
-         (Статус: REJECTED,               (Antigravity CLI / Mistral API)
-          без вызова нейросети)           - Оценка рисков и сложности (1-10)
-                                          - Скор привлекательности (1-10)
-                                          - PERT расчет сроков и цены
-                                          - Отклик без ИИ-маркеров (дефисы "-")
-                                                      │
-                                     ┌────────────────┴────────────────┐
-                                     │ Скор < 7                        │ Скор >= 7
-                                     ▼                                 ▼
-                            [ Tier 2: Обычные ]               [ Tier 1: Горячие лиды ]
-                            - База данных SQLite              - 🚀 Мгновенный пуш в Telegram
-                            - Доступны на сайте / дашборде    - Интерактивные кнопки (1 клик)
-                            - Google Таблицы (без спама)      - Запись в базу SQLite и на сайт
+  [ Kwork ]  [ FL.ru ]  [ Freelance.ru ]  [ Pchel.net ]  [ Remote-job ]
+      │          │             │               │              │
+      └──────────┴──────┬──────┴───────────────┴──────────────┘
+                        │ Фоновый опрос (180 сек)
+                        ▼
+                [ BaseCollector ]
+                        │ List[RawOrder]
+                        ▼
+              [ SQLite Дедупликация ]
+               (is_duplicate)
+                        │ Свежий RawOrder
+                        ▼
+              [ 1. Hard-Filter (Эвристика) ]
+               - Бюджет >= 10 000 ₽ или договорной
+               - Черный список стоп-слов
+               - Белый список ключевых слов
+               - Фильтрация только бесплатных (опционально)
+                        │
+         ┌──────────────┴──────────────┐
+         │ Не прошел                   │ Прошел (Целевые лиды)
+         ▼                             ▼
+    [ Tier 3: Мусор ]           [ 2. LLM-Анализ: Mistral ]
+    (Статус: REJECTED,          - Краткая суть задачи (3-4 емких предложения)
+     без вызова LLM)            - Предварительный PERT-расчет: E, σ
+                                - Оценка рыночной цены и порог торга
+                                - Сложность, часы, риски, привязка к кейсу
+                                - proposal_text = ""
+                                       │
+                        ┌──────────────┴──────────────┐
+                        │ Скор < 7                    │ Скор >= 7
+                        ▼                             ▼
+               [ Tier 2: Обычные ]           [ Tier 1: Горячие лиды ]
+               - Запись в SQLite             - Запись в SQLite
+               - Доступны на дашборде        - Доступны на дашборде (Hot)
+                                             - 🚀 Мгновенный пуш в Telegram
+                                                    │
+                                                    ▼
+                                      [ По требованию пользователя ]
+                                       Клик по кнопке "Сгенерировать отклик"
+                                       (в Telegram-боте или на веб-дашборде)
+                                                    │
+                                                    ▼
+                                      [ 3. Antigravity CLI (agy -p) ]
+                                      - Живой продающий отклик из досье
+                                      - Запрет тире (только "-")
+                                      - Правило первых 140 символов
+                                      - Сохранение в SQLite и буфер обмена
 ```
 
 ---
 
-## 4. Структура каталогов и назначение файлов
+## 4. Веб-дашборд и Telegram-бот
 
-```text
-jobs/
-├── data/
-│   └── jobs.db                  # Локальная база данных SQLite (WAL-режим)
-├── src/
-│   ├── __init__.py
-│   ├── config.py                # Pydantic Settings (.env, дефолтные стоп-слова, ключевики)
-│   ├── main.py                  # Точка входа: CLI (--once) и фоновый демон с Telegram-ботом
-│   ├── models/                  # Доменные Pydantic-модели (DTO)
-│   │   ├── __init__.py
-│   │   ├── order.py             # RawOrder, SourcePlatform, OrderPriority, OrderStatus, FilterResult
-│   │   └── analysis.py          # AnalysisResult, PertEstimate
-│   ├── collectors/              # Модули сбора (Ingestion)
-│   │   ├── __init__.py
-│   │   ├── base.py              # Абстрактный класс BaseCollector
-│   │   ├── kwork.py             # KworkCollector (парсинг window.stateData)
-│   │   └── fl_ru.py             # FlRuCollector (парсинг RSS FL.ru)
-│   ├── filters/                 # Эвристический Hard-Filter
-│   │   ├── __init__.py
-│   │   └── pre_filter.py        # HardFilter (проверка бюджета, стоп-слов, ключевиков)
-│   ├── analyzer/                # LLM-анализ и генерация откликов
-│   │   ├── __init__.py
-│   │   ├── base.py              # Абстрактный BaseLLMClient
-│   │   ├── prompts.py           # Промпты с инъекцией регламента и досье проектов
-│   │   ├── antigravity_client.py# Runner через локальный CLI agy (gemini-3.8-flash-medium)
-│   │   ├── mistral_client.py    # Резервный клиент Mistral API (ministral-8b/codestral)
-│   │   └── factory.py           # Фабрика get_llm_client() по переменной LLM_PROVIDER
-│   ├── storage/                 # Слой персистентности (SQLite WAL)
-│   │   ├── __init__.py
-│   │   ├── db.py                # Инициализация схемы и индексов через aiosqlite
-│   │   └── repository.py        # OrderRepository (CRUD, дедупликация, статистика)
-│   ├── notifiers/               # Пайплайн и доставка уведомлений
-│   │   ├── __init__.py
-│   │   ├── pipeline.py          # LeadsPipeline (оркестрация, семафор конкурентности, роутинг)
-│   │   └── telegram_notifier.py # Форматирование карточки и отправка в Telegram
-│   ├── web/                     # Веб-дашборд на FastAPI (jobs.3dvex.ru)
-│   │   ├── __init__.py
-│   │   └── app.py               # Дашборд, фильтры, карточки, Copy to clipboard, JSON API
-│   └── bot/                     # Telegram-бот (aiogram 3)
-│       ├── __init__.py
-│       ├── bot.py               # Фабрика Bot и Dispatcher с DI репозитория
-│       ├── handlers.py          # Обработчики команд (/start, /scan, /stats, /recent) и кнопок
-│       └── keyboards.py         # Inline-клавиатура (Скопировать отклик, Открыть заказ, В архив)
-├── tests/                       # Автотесты (pytest, 100% pass)
-│   ├── __init__.py
-│   ├── test_collectors.py       # Тесты парсинга Kwork и живого RSS FL.ru
-│   ├── test_storage_and_filter.py# Тесты SQLite WAL и HardFilter
-│   ├── test_config.py           # Тесты разделения config.yml и .env
-│   ├── test_analyzer.py         # Тесты промптов, парсинга JSON и санитизации дефисов
-│   ├── test_pipeline_e2e.py     # End-to-end тест роутинга заказов (Tier 1/2/3) и семафора
-│   └── test_web.py              # Тесты эндпоинтов и HTML дашборда FastAPI
-├── .env.example                 # Шаблон учетных данных
-├── .gitignore                   # Исключения Git (.venv, data/*.db, .env)
-├── config.yml                   # Основная конфигурация системы (фильтры, сборщики, модели, web)
-├── pyproject.toml               # Конфигурация сборки и зависимости проекта
-└── README.md                    # Краткое руководство пользователя
-```
+### Веб-дашборд (`jobs.3dvex.ru:8086`)
+- Модуль: `src/web/app.py`.
+- Вкладки: Горячие лиды (`hot`), Все прошедшие (`all`), Потенциальные (`normal`), Отсеянные (`trash`), Аналитика бирж (`analytics`), Правила и фильтры (`rules`).
+- Живой поиск на стороне клиента (Vanilla JS) по названию, описанию и стеку.
+- Фильтр PRO: тумблер `Только бесплатные отклики` / `Все заказы`.
+- Время публикации: явная плашка `🕒 Опубликован: DD.MM.YYYY HH:MM` на каждой карточке.
+- Генерация отклика: интерактивная кнопка обращения к `POST /api/orders/{id}/generate-proposal` и копирование в буфер в 1 клик.
+- Защита от XSS: безопасный рендеринг через Jinja2 `Template(..., autoescape=True)`.
+
+### Telegram-бот (`aiogram 3`)
+- Модули: `src/bot/bot.py`, `src/bot/handlers.py`, `src/bot/keyboards.py`.
+- Команды: `/start`, `/scan`, `/stats`, `/recent`.
+- Оповещения: отправка карточки Hot-лида с полной сводкой (биржа, дата, бюджет, PERT, кейс, риски, резюме Mistral).
+- Кнопки:
+  - `⚡ Сгенерировать отклик`: асинхронный запуск Antigravity `agy -p`.
+  - `📋 Скопировать`: отправка текста отдельным сообщением в цитате для моментального тапа на смартфоне.
+  - `🔗 Открыть заказ`: прямой переход на биржу.
+  - `📦 В архив`: архивация заказа и снятие кнопок.
 
 ---
 
-## 5. Подробный разбор каждого модуля
+## 5. Структура конфигурации
 
-### 5.1. Конфигурация ([`src/config.py`](file:///home/horizontal42/jobs/src/config.py))
-Использует `pydantic-settings`. Загружает параметры из `.env` с типизацией:
-- `DEFAULT_STOP_WORDS`: диплом, курсовая, реферат, 1С, верстка, Tilda, WordPress, SEO, копирайтинг, накрутка, отзывы.
-- `DEFAULT_KEYWORDS`: python, парсер, бот, telegram, aiogram, fastapi, django, CRM, битрикс24, api, интеграция, LLM, ИИ, нейросеть, whisper, автоматизация, scraping, selenium, playwright, opencv, yolo, RAG, qdrant, tauri.
-- `MIN_BUDGET`: 10 000 руб.
-- `HOT_SCORE_THRESHOLD`: 7 (порог для отправки в Telegram).
-- `ANTIGRAVITY_MODEL`: `gemini-3.8-flash-medium` (оптимальный баланс глубины мышления и скорости генерации в 5-10 сек).
-
-### 5.2. Модели данных ([`src/models/`](file:///home/horizontal42/jobs/src/models))
-- **`RawOrder`**: входная модель сборщика (`source`, `external_id`, `title`, `description`, `url`, `price`, `is_negotiable`, `tags`, `created_at`, `raw_payload`). Имеет свойство `full_text` для фильтрации.
-- **`FilterResult`**: результат пре-фильтра (`passed: bool`, `reason: str`, `matched_keywords`, `matched_stopwords`).
-- **`AnalysisResult`**: строгий структурированный контракт ответа LLM:
-  * `take_order: bool`
-  * `score: int` (1-10)
-  * `priority: OrderPriority` (`hot` | `normal`)
-  * `executive_summary: str`
-  * `recommended_price: float`
-  * `price_justification: str`
-  * `realistic_days: float`
-  * `matched_project: str` (зацепка за досье)
-  * `complexity: int` (1-10)
-  * `pure_dev_hours: float`
-  * `risks_and_pitfalls: List[str]`
-  * `proposal_text: str` (готовый живой текст отклика)
-  * `pert: PertEstimate` (`optimistic_days`, `most_likely_days`, `pessimistic_days`, `expected_days`, `sigma`)
-
-### 5.3. Сборщики заказов ([`src/collectors/`](file:///home/horizontal42/jobs/src/collectors))
-- **`KworkCollector`**:
-  * Делает GET-запрос к `https://kwork.ru/projects?c={cat_id}` (`c=11` - IT, `c=41` - боты).
-  * Находит `window.stateData` и декодирует его через `json.JSONDecoder().raw_decode()`.
-  * Извлекает `possiblePriceLimit` (или `priceLimit`). Если цена 0 или не указана, выставляет `is_negotiable = True`.
-- **`FlRuCollector`**:
-  * Делает GET-запрос к `https://www.fl.ru/rss/all.xml`.
-  * Парсит XML через `feedparser`.
-  * Регулярным выражением вытаскивает бюджет (например, `Бюджет: 150 000 ₽` или `35 000 руб.`), корректно обрабатывая HTML-сущности. Извлекает ID проекта из ссылки вида `/projects/5526844/...`.
-- **`FreelanceRuCollector`**:
-  * Опрашивает страницы `https://freelance.ru/task` и `https://freelance.ru/task?q=python`.
-  * Парсит карточки `<article class="task-card">`, извлекает заголовки, описание, теги-чипсы и бюджет с обработкой статуса «договорная».
-- **`PchelNetCollector`**:
-  * Опрашивает IT-раздел `https://pchel.net/jobs/programming/`.
-  * Парсит блоки `<div class="project-block-cont">`, извлекает ID из ссылок, производит автоконвертацию бюджетов из долларов в рубли по заданному курсу (по умолчанию 95.0 ₽/$).
-- **`RemoteJobCollector`**:
-  * Опрашивает ленту заданий `https://remote-job.ru/search?search[searchType]=project`.
-  * Парсит карточки `<div class="vacancy_item">`, извлекает ID проекта, название без служебных пометок, очищенное описание и числовой бюджет.
-
-### 5.4. Эвристический Hard-Filter ([`src/filters/pre_filter.py`](file:///home/horizontal42/jobs/src/filters/pre_filter.py))
-Отрабатывает за доли миллисекунды:
-1. Ищет стоп-слова в тексте. Для коротких терминов (до 3 символов, таких как `1с`, `smm`, `seo`) использует строгие границы слов (`\b`), предотвращая ложные срабатывания. Если найдено хотя бы одно стоп-слово - отказ.
-2. Проверяет бюджет: если указан точный бюджет `< 10 000 ₽` и нет флага договоренности - отказ.
-3. Ищет ключевые слова из белого списка. Если нет ни одного совпадения - отказ.
-
-### 5.5. LLM-движок и гибридный каскад ([`src/analyzer/`](file:///home/horizontal42/jobs/src/analyzer))
-- **Как вызывается модель:**
-  В проекте реализована гибкая фабрика [`get_llm_client()`](file:///home/horizontal42/jobs/src/analyzer/factory.py), поддерживающая три режима (`LLM_PROVIDER` в `config.yml` или `.env`):
-  1. `hybrid` (Рекомендуемый каскад):
-     * **Стадия 1 (Mistral):** быстрый микро-скоринг (300-500 мс) на предмет базовой релевантности стеку Python Middle. Если заказ пустой или скор < 5, отсекается в БД как Normal без траты квот.
-     * **Стадия 2 (Antigravity CLI):** глубокий анализ перспективных лидов с полным досье 7 проектов, расчетом PERT-сроков ($E \pm \sigma$) и составлением продающего отклика строго без длинных тире `—`.
-     * Если `MISTRAL_API_KEY` не задан в `.env`, каскад прозрачно делегирует 100% заказов сразу в Antigravity.
-  2. `antigravity`: все заказы после HardFilter анализируются через локальный CLI `agy -p` (модель `gemini-3.8-flash-medium` или `claude-sonnet-4-6`). Без затрат на API-токены.
-  3. `mistral`: все заказы анализируются через официальный Mistral API (`ministral-8b-latest` / `codestral`).
-
-- **`prompts.py`**:
-  * Содержит полный системный промпт с инъекцией всех 7 проектов из досье разработчика и правил из регламента откликов.
-  * Требует строгий JSON-формат.
-- **`antigravity_client.py`**:
-  * Асинхронно вызывает команду:
-    ```bash
-    agy -p "<prompt>" --model gemini-3.8-flash-medium --output-format text
-    ```
-  * Очищает вывод от markdown-оберток (```json).
-  * Выполняет принудительную санитизацию: `text.replace("—", "-").replace("–", "-")`.
-  * Валидирует результат в модель `AnalysisResult`.
-- **`mistral_client.py`**:
-  * Реализует запасной путь через официальный Mistral API (`https://api.mistral.ai/v1/chat/completions`) с параметром `response_format={"type": "json_object"}`.
-  * Метод `quick_classify()` для микро-скоринга за 300 мс.
-- **`hybrid_client.py`**:
-  * Оркестрирует каскадное взаимодействие Mistral + Antigravity с взаимным fallback при сбоях.
-
-### 5.6. Хранилище SQLite WAL ([`src/storage/`](file:///home/horizontal42/jobs/src/storage))
-- Схема базы данных `orders`:
-  * `id` INTEGER PRIMARY KEY
-  * `source` TEXT (kwork / fl_ru)
-  * `external_id` TEXT
-  * `title`, `description`, `url`
-  * `price`, `is_negotiable`
-  * `status` (new / rejected / analyzed / sent_to_tg / archived)
-  * `priority` (trash / normal / hot)
-  * `score`, `recommended_price`, `realistic_days`, `matched_project`
-  * `proposal_text`, `analysis_json`
-  * `created_at`, `updated_at`
-  * Индексы на `(source, external_id)`, `priority`, `status`, `created_at`.
-- Подключение оборачивается асинхронным контекстным менеджером с прагмами:
-  ```sql
-  PRAGMA journal_mode = WAL;
-  PRAGMA synchronous = NORMAL;
-  ```
-
-### 5.7. Пайплайн обработки ([`src/notifiers/pipeline.py`](file:///home/horizontal42/jobs/src/notifiers/pipeline.py))
-Оркестрирует жизненный цикл каждого заказа с контролем параллелизма:
-1. `is_duplicate()` $\to$ пропуск, если заказ уже есть в базе.
-2. `hard_filter.evaluate()` $\to$ если не прошел, сохраняется в базу со статусом `REJECTED` и приоритетом `TRASH` с указанием причины (повторно не анализируется).
-3. **Конкурентный анализ через LLM:** заказы, прошедшие первичный фильтр, анализируются параллельно через `asyncio.gather()` под контролем `asyncio.Semaphore(2)`. Это предотвращает последовательные задержки пачки и не перегружает воркер.
-4. Запись в SQLite.
-5. Если `score >= 7` $\to$ при наличии настроенного `tg_notifier` заказ отправляется в Telegram через `TelegramNotifier` со статусом `SENT_TO_TG`. Если `tg_notifier=None` (например, в автотестах), отправка пропускается без сетевых таймаутов.
-6. Если `score < 7` $\to$ статус `ANALYZED`, приоритет `NORMAL`. Заказ тихо сохраняется в базе и отображается на веб-дашборде.
-
-### 5.8. Telegram-бот на aiogram 3 ([`src/bot/`](file:///home/horizontal42/jobs/src/bot))
-- **Карточка заказа:** формируется в безопасном HTML-формате (`html.escape`):
-  * Бейдж: `🔥 [ГОРЯЧИЙ ЛИД | СКОР 8/10]`
-  * Биржа и кликабельная ссылка на заказ
-  * Бюджет клиента vs Рекомендуемая цена
-  * Срок по PERT ($E$ и $\sigma$)
-  * Проект из досье и сложность
-  * Подводные камни и резюме задачи
-- **Интерактивные кнопки под карточкой:**
-  * **`✨ Сгенерировать отклик`** (`gen_prop:{order_id}`): отклик не создается автоматически на этапе сбора ради экономии квот LLM. Нажатие кнопки вызывает точечную генерацию персонализированного отклика по регламенту, сохраняет его в БД, обновляет кнопку на «Скопировать» и присылает готовый текст в цитате `<blockquote>` (в 1 тап копируется на телефоне).
-  * **`📋 Скопировать отклик`** (`copy:{order_id}`): присылает уже сгенерированный отклик отдельным сообщением в цитате.
-  * **`🔗 Открыть заказ`**: прямая URL-кнопка для перехода на биржу.
-  * **`📦 В архив`** (`archive:{order_id}`): помечает заказ как `ARCHIVED` в базе данных, редактирует карточку, добавляя плашку `[В АРХИВЕ]`, и убирает кнопки.
-- **Команды бота:**
-  * `/start`: статус системы, проверка ID администратора, список команд.
-  * `/scan`: запуск внеочередного сбора прямо сейчас с выводом отчета по найденным заказам.
-  * `/stats`: статистика базы (всего, горячие, обычные, отсеянные, отправленные).
-  * `/recent`: список последних 5 заказов со статусами и ссылками.
-
-### 5.9. Веб-дашборд на FastAPI ([`src/web/app.py`](file:///home/horizontal42/jobs/src/web/app.py))
-Предназначен для развертывания на прод-сервере под доменом **`jobs.3dvex.ru`**:
-- **Порт по умолчанию:** `8086` (настраивается в `config.yml` секцией `web.port`).
-- **Интерфейс и навигация:**
-  * Адаптивный темный UI на Tailwind CSS.
-  * Вкладки: `🔥 Горячие лиды`, `⚡ Все прошедшие`, `🎯 Потенциальные`, `🗑 Отсеянные`, `📊 Аналитика бирж`, `⚙️ Правила и фильтры`.
-  * Переключатель платных откликов: `🔓 Все` / `✅ Только бесплатные отклики (без PRO)`.
-  * Мгновенный клиентский поиск по ключевым словам, технологиям и сути задачи.
-  * Фильтрация по биржам: Kwork, FL.ru, Freelance.ru, Pchel.net, Remote-job.
-  * Блок краткой сути задачи (`executive_summary`) от нейросети.
-  * Кнопка **`✨ Сгенерировать отклик (ИИ)`** с асинхронным обновлением карточки через эндпоинт `POST /api/orders/{id}/generate-proposal` без перезагрузки страницы.
-  * Интерактивная кнопка **`📋 Скопировать`** с анимацией подтверждения (`navigator.clipboard.writeText`).
-- **REST API:**
-  * `GET /api/orders?priority=hot&source=kwork` - JSON-список заказов.
-  * `GET /api/stats` - агрегированная статистика.
-  * `GET /health` - проверка работоспособности сервиса.
-
----
-
-## 6. Конфигурация окружения (.env) и приложения (config.yml)
-
-В проекте реализовано строгое разделение секретов и бизнес-конфигурации (12-Factor App):
-1. **`.env`** содержит **исключительно секреты и учетные данные** (токены, ключи, ID администратора). Файл добавлен в `.gitignore` и никогда не попадает в репозиторий.
-2. **`config.yml`** содержит **всю архитектурную и бизнес-конфигурацию**: списки стоп-слов, ключевиков, пороговые бюджеты, интервалы опроса, настройки парсеров и моделей.
-
-### 6.1. Секреты: `.env` (шаблон `.env.example`)
-```env
-# ==========================================
-# СЕКРЕТЫ И УЧЕТНЫЕ ДАННЫЕ (CREDENTIALS)
-# Вся конфигурация логики лежит в config.yml!
-# ==========================================
-
-# Telegram Bot Token (получить у @BotFather)
-BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
-
-# Твой личный Telegram User ID (узнать у @userinfobot)
-ADMIN_CHAT_ID=123456789
-
-# Опционально: API-ключ Mistral (если в config.yml llm.provider=mistral)
-MISTRAL_API_KEY=
-```
-
-### 6.2. Бизнес-конфигурация: `config.yml`
-```yaml
-storage:
-  db_path: "data/jobs.db"
-
-polling:
-  kwork_interval: 180  # секунды
-  fl_interval: 180     # секунды
-
-collectors:
-  kwork:
-    base_url: "https://kwork.ru"
-    category_ids:
-      - 11  # Разработка и IT
-      - 41  # Скрипты, боты и mini apps
-  fl_ru:
-    rss_url: "https://www.fl.ru/rss/all.xml"
-  freelance_ru:
-    base_url: "https://freelance.ru"
-  pchel_net:
-    base_url: "https://pchel.net"
-    usd_rate: 95.0
-  remote_job:
-    base_url: "https://remote-job.ru"
-
-filter:
-  min_budget: 10000
-  hot_score_threshold: 7  # Порог скора (1-10) для отправки в Telegram (Tier 1)
-  stop_words:
-    - "диплом"
-    - "курсов"
-    - "реферат"
-    - "1с"
-    - "верстка"
-    - "tilda"
-    # ... полная база в config.yml
-  keywords:
-    - "python"
-    - "бот"
-    - "парсер"
-    - "fastapi"
-    - "crm"
-    - "битрикс24"
-    # ... полная база в config.yml
-
-llm:
-  provider: "antigravity"  # "antigravity" или "mistral"
-  antigravity:
-    binary: "agy"
-    model: "gemini-3.8-flash-medium"
-    timeout_seconds: 150.0
-  mistral:
-    model: "ministral-8b-latest"
-    timeout_seconds: 60.0
-```
-
----
-
-## 7. Развертывание, запуск и обслуживание
-
-### 7.1. Первичная настройка виртуального окружения
-```bash
-cd ~/jobs
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-```
-
-### 7.2. Запуск тестов
-Все модули покрыты тестами (`tests/`):
-```bash
-.venv/bin/pytest -v
-# Ожидаемый результат: 11 passed
-```
-
-### 7.3. Разовый запуск сканирования (--once)
-Идеально для проверки работы без запуска бота или для работы по системному cron:
-```bash
-.venv/bin/python -m src.main --once
-```
-
-### 7.4. Запуск демона с фоновым воркером и Telegram-ботом
-```bash
-.venv/bin/python -m src.main
-```
-
-### 7.5. Автозапуск через Systemd (для VDS-сервера)
-Создайте файл `/etc/systemd/system/freelance-monitor.service`:
-```ini
-[Unit]
-Description=Freelance Leads Monitor Daemon
-After=network.target
-
-[Service]
-Type=simple
-User=horizontal42
-WorkingDirectory=/home/horizontal42/jobs
-ExecStart=/home/horizontal42/jobs/.venv/bin/python -m src.main
-Restart=always
-RestartSec=10
-EnvironmentFile=/home/horizontal42/jobs/.env
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Управление сервисом:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable freelance-monitor
-sudo systemctl start freelance-monitor
-sudo journalctl -u freelance-monitor -f
-```
-
-### 7.6. Настройка Nginx для домена jobs.3dvex.ru
-Для вывода дашборда на домен создайте конфиг `/etc/nginx/sites-available/jobs.3dvex.ru`:
-```nginx
-server {
-    listen 80;
-    server_name jobs.3dvex.ru;
-
-    location / {
-        proxy_pass http://127.0.0.1:8086;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-Активация и получение SSL (Let's Encrypt):
-```bash
-sudo ln -s /etc/nginx/sites-available/jobs.3dvex.ru /etc/nginx/sites-enabled/
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d jobs.3dvex.ru
-```
-
----
-
-## 8. Перспективы развития и точки расширения (Roadmap)
-
-Архитектура изначально спроектирована модульной:
-1. **Объединение с `leads-monitor`:**
-   Чтобы собирать B2B-вакансии с hh.ru, достаточно создать класс `HhCollector(BaseCollector)` в каталоге `src/collectors/` и добавить его в список сборщиков в `src/main.py`.
-2. **Веб-дашборд на личном домене:**
-   База SQLite лежит в `data/jobs.db`. Достаточно написать простой бэкенд на FastAPI (1 файл `src/web/app.py`), который читает заказы через `OrderRepository.get_recent_orders()` и рендерит веб-страницу с архивом и фильтрами.
-3. **Google Таблицы:**
-   Создать `GoogleSheetsNotifier` в `src/notifiers/`, который параллельно записывает Tier 2 и Tier 1 заказы в онлайн-таблицу (код работы с `gspread` можно скопировать из твоего `leads-monitor`).
-4. **Подключение Freelance.ru:**
-   Создать `FreelanceRuCollector` для парсинга `https://freelance.ru/task`.
+- **Секреты (`.env`):**
+  - `BOT_TOKEN`: токен Telegram-бота.
+  - `ADMIN_CHAT_ID`: Telegram ID администратора.
+  - `MISTRAL_API_KEY`: API-ключ Mistral.
+- **Параметры (`config.yml`):**
+  - `storage.db_path`: путь к SQLite БД.
+  - `web.host` и `web.port`: хост и порт дашборда (`0.0.0.0:8086`).
+  - `polling`: интервалы опроса бирж.
+  - `collectors`: настройки URL и категорий площадок.
+  - `filter`: минимальный бюджет, порог горячих лидов, стоп-слова, ключевые слова.
+  - `llm`: выбор провайдера (`hybrid`, `antigravity`, `mistral`), параметры Antigravity и Mistral.
+  - `prompts`: профиль разработчика, досье всех проектов (Speech Analytics, Avia_Pars, netsleuth, summarum, leads-monitor, Sort_YM, LaptopTester, AgroTech CV, RAG), правила и шаблоны промптов.

@@ -1,32 +1,37 @@
 """Prompts and instructions based on FREELANCE_PROFILE.md and PROJECTS_DOSSIER.md."""
 
 from typing import Any, Dict, Optional
+from src.config import settings
 from src.models.order import RawOrder
 
-SYSTEM_PROMPT = """Ты - старший Python-разработчик и ассистент Андрея Пименова (@horizontal42, Junior+/Middle).
-Твоя задача - проанализировать заказ с биржи фриланса и сформировать ответ СТРОГО в формате JSON по заданной схеме.
+DEFAULT_SYSTEM_PROMPT = """Ты - старший Python-разработчик и ассистент Андрея Пименова (@horizontal42, Junior+/Middle).
+Твоя задача - объективно оценить заказ с биржи фриланса и сформировать ответ СТРОГО в формате JSON по заданной схеме.
 
 БЭКГРАУНД РАЗРАБОТЧИКА (БАЗА ПРОЕКТОВ ИЗ ДОСЬЕ):
-1. Speech Analytics (Intervesp): B2B речевая аналитика. FastAPI, Celery (раздельные очереди IO и GPU с батчингом batch_size=3), WhisperX, Qwen 32B (Ollama), Bitrix24 REST API, детерминированный роутинг оценок с fuzzy-проверкой цитат (difflib, flip-rate 0%), сброс памяти через malloc_trim ctypes, генерация накопительных PDF-отчетов O(n).
-2. Avia_Pars: Telegram-бот мониторинга цен на aiogram 3, SQLite WAL, curl_cffi (обход TLS-фингерпринтов), patchright (Chromium solver в изолированном subprocess), residential Tailscale proxy, Circuit Breaker, экран FSM (screen.py).
+1. Speech Analytics (Intervesp): B2B речевая аналитика. FastAPI, Celery, WhisperX, Qwen 32B, Bitrix24 REST API, детерминированный роутинг оценок с fuzzy-проверкой цитат (difflib, flip-rate 0%), сброс памяти через malloc_trim ctypes, генерация накопительных PDF-отчетов O(n).
+2. Avia_Pars: Telegram-бот мониторинга цен на aiogram 3, SQLite WAL, curl_cffi, patchright (Chromium solver), residential proxy, Circuit Breaker.
 3. leads-monitor: B2B лидогенерация. Парсинг hh.ru, DaData API, LLM-анализ вакансий, Google Sheets API (gspread), SQLite.
-4. netsleuth: Кроссплатформенный сетевой CLI на Python (Typer, Rich, httpx), обвязка Iphlpapi.dll (Win32 API) через ctypes без прав админа, 850+ тестов.
+4. netsleuth: Кроссплатформенный сетевой CLI на Python (Typer, Rich, httpx), обвязка Iphlpapi.dll (Win32 API) без прав админа, 850+ тестов.
 5. summarum: Десктопный калькулятор с Pratt-парсером естественного языка (Tauri 2, Rust, TypeScript).
 6. RAG-ассистент: Поиск по сложной номенклатуре и ГОСТам на LangChain, Qdrant, FastAPI для 130+ менеджеров.
 7. AgroTech CV: Видеоаналитика с IP-камер (YOLOv8, ByteTrack, IsolationForest, OpenCV, CUDA).
 
 ЖЕСТКИЕ ПРАВИЛА:
-1. Запрет длинных тире "—"! Используй только обычные дефисы "-".
-2. Оценивай реальные риски (лимиты, блокировки, капчи, WAF).
-3. Сроки рассчитывай по методике PERT: E = (O + 4M + P) / 6, sigma = (P - O) / 6.
-4. Поле proposal_text оставь пустым (""), так как отклик генерируется по требованию пользователя.
+1. Запрет длинных тире (em-dash)! Используй только обычные дефисы "-".
+2. Краткая суть задачи (executive_summary): сформулируй в 3-4 емких предложениях (что сделать, стек, ключевая техническая сложность). Чем меньше лишних слов, тем лучше, но ровно 3-4 предложения.
+3. Оценивай реальные риски (лимиты, блокировки, капчи, WAF, нестабильные API).
+4. Первоначальный расчет сроков по методике PERT: E = (O + 4M + P) / 6, sigma = (P - O) / 6.
+5. Оценка рыночной цены:
+   - recommended_price: адекватная рыночная ставка с учетом сложности (не демпинг).
+   - price_justification: разбор бюджета заказчика, рыночная вилка, стратегия торга.
+6. Поле proposal_text оставь пустым (""), так как отклик генерируется по требованию пользователя через Antigravity.
 
 ФОРМАТ ОТВЕТА (СТРОГО JSON):
 {
   "take_order": true,
   "score": 8,
   "priority": "hot",
-  "executive_summary": "Краткая суть: что именно требуется сделать и в чем специфика задачи (1-2 предложения)",
+  "executive_summary": "Краткая суть задачи в 3-4 емких предложениях.",
   "recommended_price": 25000,
   "price_justification": "Разбор бюджета, стратегия холодного старта, порог торга",
   "realistic_days": 4.0,
@@ -48,21 +53,15 @@ SYSTEM_PROMPT = """Ты - старший Python-разработчик и асс
 }
 """
 
-PROPOSAL_PROMPT_TEMPLATE = """Ты - старший Python-разработчик и ассистент Андрея Пименова (@horizontal42, Junior+/Middle).
+DEFAULT_PROPOSAL_PROMPT_TEMPLATE = """Ты - старший Python-разработчик и ассистент Андрея Пименова (@horizontal42, Junior+/Middle).
 Твоя задача - составить идеальный, продающий отклик на заказ с биржи фриланса.
 
-БЭКГРАУНД РАЗРАБОТЧИКА:
-1. Speech Analytics: FastAPI, Celery, WhisperX, Bitrix24 REST API, fuzzy-проверка цитат, malloc_trim.
-2. Avia_Pars: Telegram-бот на aiogram 3, SQLite WAL, curl_cffi (обход TLS-фингерпринтов), patchright (Chromium solver в отдельном процессе), residential прокси, Circuit Breaker.
-3. leads-monitor: B2B парсинг hh.ru, DaData API, LLM-анализ, Google Sheets API.
-4. netsleuth: Сетевой CLI на Python (httpx, ctypes, Win32 Iphlpapi).
-5. summarum: Десктопное приложение (Tauri 2, Rust, TypeScript).
-6. RAG-ассистент: Поиск по ГОСТам на LangChain, Qdrant, FastAPI.
-7. AgroTech CV: Видеоаналитика с IP-камер (YOLOv8, ByteTrack, OpenCV).
+БЭКГРАУНД РАЗРАБОТЧИКА (БАЗА ПРОЕКТОВ ИЗ ДОСЬЕ):
+{dossier_text}
 
 ЖЕСТКИЕ ПРАВИЛА СОСТАВЛЕНИЯ ОТКЛИКА (FREELANCE_PROFILE.md):
 1. ЗАПРЕТ МАРКЕРОВ ИИ:
-   - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать длинное тире "—"! Используй ТОЛЬКО обычный дефис "-".
+   - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать длинное тире (em-dash)! Используй ТОЛЬКО обычный дефис "-".
    - Никаких списков с жирными заголовками (**Стек:**, **Преимущества:**).
    - Никакого канцелярита и пересказа ТЗ ("Здравствуйте! Задача понятна...").
    - Никакого роботизированного официоза ("Буду рад сотрудничеству").
@@ -84,6 +83,23 @@ PROPOSAL_PROMPT_TEMPLATE = """Ты - старший Python-разработчи�
 
 Верни ТОЛЬКО готовый текст отклика для отправки клиенту. Никаких кавычек, никаких служебных префиксов, строго с обычными дефисами "-".
 """
+
+
+def get_system_prompt() -> str:
+    """Получить актуальный системный промпт из конфигурации config.yml."""
+    prompt = getattr(settings, "ANALYSIS_SYSTEM_PROMPT", "")
+    return prompt if prompt else DEFAULT_SYSTEM_PROMPT
+
+
+def get_proposal_template() -> str:
+    """Получить актуальный шаблон отклика из конфигурации config.yml."""
+    tmpl = getattr(settings, "PROPOSAL_PROMPT_TEMPLATE", "")
+    return tmpl if tmpl else DEFAULT_PROPOSAL_PROMPT_TEMPLATE
+
+
+# Для обратной совместимости
+SYSTEM_PROMPT = get_system_prompt()
+PROPOSAL_PROMPT_TEMPLATE = get_proposal_template()
 
 
 def build_analysis_prompt(order: RawOrder) -> str:
@@ -108,7 +124,7 @@ def build_analysis_prompt(order: RawOrder) -> str:
 
 Сформируй JSON-ответ строго по инструкции. Поле proposal_text оставь пустой строкой.
 """
-    return f"{SYSTEM_PROMPT}\n\n{user_content}"
+    return f"{get_system_prompt()}\n\n{user_content}"
 
 
 def build_proposal_prompt(
@@ -133,7 +149,8 @@ def build_proposal_prompt(
             f"- Риски: {', '.join(risks) if risks else 'стандартные'}\n"
         )
 
-    return PROPOSAL_PROMPT_TEMPLATE.format(
+    template = get_proposal_template()
+    return template.format(
         source=order.source.value.upper(),
         title=order.title,
         price=price_info,

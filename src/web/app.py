@@ -247,8 +247,8 @@ DASHBOARD_HTML = """
                                 </span>
                             {% endif %}
 
-                            <span class="text-xs text-slate-500 font-mono">
-                                {{ order.created_at }}
+                            <span class="text-xs text-slate-400 font-mono bg-slate-950/80 border border-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1" title="Дата и время публикации заказа">
+                                🕒 {{ order.created_at[:16].replace('T', ' ') if order.created_at else 'Только что' }}
                             </span>
                         </div>
 
@@ -594,7 +594,7 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
 
         extended_stats = await repository.get_extended_stats()
 
-        template = Template(DASHBOARD_HTML)
+        template = Template(DASHBOARD_HTML, autoescape=True)
         html_content = template.render(
             orders=formatted_orders,
             stats=extended_stats,

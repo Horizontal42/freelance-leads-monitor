@@ -44,3 +44,17 @@ def test_settings_facade(tmp_path):
     assert settings.BOT_TOKEN == "test_token_123"
     assert settings.ADMIN_CHAT_ID == 99999
     assert settings.MIN_BUDGET == 15000
+
+
+def test_prompts_and_dossier_from_config():
+    from src.config import settings
+
+    assert len(settings.PROMPTS_CONFIG.projects_dossier) >= 5
+    assert "Speech Analytics" in settings.DOSSIER_TEXT
+    assert "Avia_Pars" in settings.DOSSIER_TEXT
+    assert "netsleuth" in settings.DOSSIER_TEXT
+    assert "summarum" in settings.DOSSIER_TEXT
+    assert "leads-monitor" in settings.DOSSIER_TEXT
+    assert "—" not in settings.ANALYSIS_SYSTEM_PROMPT
+    assert "PERT" in settings.ANALYSIS_SYSTEM_PROMPT
+    assert "{source}" in settings.PROPOSAL_PROMPT_TEMPLATE

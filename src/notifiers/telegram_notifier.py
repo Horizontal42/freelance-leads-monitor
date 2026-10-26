@@ -58,10 +58,18 @@ class TelegramNotifier:
             else f"⚡ <b>[ЗАКАЗ | СКОР {analysis.score}/10]</b>"
         )
 
+        pub_time_str = (
+            order.created_at.strftime("%d.%m.%Y %H:%M")
+            if order.created_at
+            else "Не указано"
+        )
+        access_badge = "⭐ <b>Только PRO</b>" if order.is_pro_only else "🔓 <b>Для всех</b>"
+
         card_html = (
             f"{badge}\n\n"
-            f"📌 <b>Биржа:</b> {order.source.value.upper()}\n"
-            f"📝 <b>Заказ:</b> <a href=\"{order.url}\">{html.escape(order.title)}</a>\n\n"
+            f"📌 <b>Биржа:</b> {order.source.value.upper()} | {access_badge}\n"
+            f"🕒 <b>Опубликован:</b> {pub_time_str}\n"
+            f"📝 <b>Заказ:</b> <a href=\"{html.escape(order.url, quote=True)}\">{html.escape(order.title)}</a>\n\n"
             f"💰 <b>Бюджет клиента:</b> {price_str}\n"
             f"🎯 <b>Рекомендуемая цена:</b> {rec_price_str}\n"
             f"⏱ <b>Срок (PERT):</b> {analysis.realistic_days} дн. "
@@ -69,7 +77,7 @@ class TelegramNotifier:
             f"💼 <b>Кейс из досье:</b> <code>{html.escape(analysis.matched_project)}</code> "
             f"(Сложность: {analysis.complexity}/10, Время: {analysis.pure_dev_hours:.1f}ч)\n\n"
             f"⚠️ <b>Подводные камни:</b>\n{risks_list}\n\n"
-            f"💡 <b>Резюме:</b> {html.escape(analysis.executive_summary)}"
+            f"💡 <b>Резюме (Mistral):</b> {html.escape(analysis.executive_summary)}"
         )
         return card_html
 
