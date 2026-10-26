@@ -34,6 +34,8 @@ class PollingConfig(BaseModel):
 class KworkCollectorConfig(BaseModel):
     base_url: str = "https://kwork.ru"
     category_ids: List[int] = Field(default_factory=lambda: [11, 41])
+    max_pages: int = 5
+    include_all_pages: int = 2
 
 
 class FlRuCollectorConfig(BaseModel):
@@ -225,6 +227,14 @@ class Settings:
     @property
     def KWORK_CATEGORY_IDS(self) -> List[int]:
         return self.app_config.collectors.kwork.category_ids
+
+    @property
+    def KWORK_MAX_PAGES(self) -> int:
+        return self.app_config.collectors.kwork.max_pages
+
+    @property
+    def KWORK_INCLUDE_ALL_PAGES(self) -> int:
+        return self.app_config.collectors.kwork.include_all_pages
 
     @property
     def FL_RSS_URL(self) -> str:
