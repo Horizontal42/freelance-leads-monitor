@@ -20,6 +20,13 @@ collectors:
       - 41  # Скрипты, боты и mini apps
   fl_ru:
     rss_url: "https://www.fl.ru/rss/all.xml"
+  freelance_ru:
+    base_url: "https://freelance.ru"
+  pchel_net:
+    base_url: "https://pchel.net"
+    usd_rate: 95.0
+  remote_job:
+    base_url: "https://remote-job.ru"
 
 filter:
   min_budget: 10000

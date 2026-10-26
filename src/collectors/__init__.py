@@ -1,7 +1,17 @@
 """Collectors package exports."""
 
 from src.collectors.base import BaseCollector
-from src.collectors.kwork import KworkCollector
 from src.collectors.fl_ru import FlRuCollector
+from src.collectors.freelance_ru import FreelanceRuCollector
+from src.collectors.kwork import KworkCollector
+from src.collectors.pchel_net import PchelNetCollector
+from src.collectors.remote_job import RemoteJobCollector
 
-__all__ = ["BaseCollector", "KworkCollector", "FlRuCollector"]
+__all__ = [
+    "BaseCollector",
+    "KworkCollector",
+    "FlRuCollector",
+    "FreelanceRuCollector",
+    "PchelNetCollector",
+    "RemoteJobCollector",
+]

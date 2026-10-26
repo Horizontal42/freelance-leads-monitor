@@ -10,7 +10,10 @@ from src.analyzer.factory import get_llm_client
 from src.bot.bot import create_bot_and_dispatcher
 from src.collectors.base import BaseCollector
 from src.collectors.fl_ru import FlRuCollector
+from src.collectors.freelance_ru import FreelanceRuCollector
 from src.collectors.kwork import KworkCollector
+from src.collectors.pchel_net import PchelNetCollector
+from src.collectors.remote_job import RemoteJobCollector
 from src.config import settings
 from src.filters.pre_filter import HardFilter
 from src.notifiers.pipeline import LeadsPipeline
@@ -94,6 +97,9 @@ async def main() -> None:
     collectors: List[BaseCollector] = [
         KworkCollector(),
         FlRuCollector(),
+        FreelanceRuCollector(),
+        PchelNetCollector(),
+        RemoteJobCollector(),
     ]
 
     # 3. Режим разового сканирования (--once)

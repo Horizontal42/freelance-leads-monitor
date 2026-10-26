@@ -46,6 +46,9 @@
 1. **Модули сбора (Ingestion):**
    - [`KworkCollector`](src/collectors/kwork.py): парсинг серверного состояния `window.stateData` со страниц категорий `c=11` (IT) и `c=41` (Скрипты и боты). Забирает точные бюджеты, описания и счетчики уже поданных заявок.
    - [`FlRuCollector`](src/collectors/fl_ru.py): чтение официального RSS-фида `https://www.fl.ru/rss/all.xml` с извлечением бюджетов и тегов.
+   - [`FreelanceRuCollector`](src/collectors/freelance_ru.py): сбор свежих проектов со страниц `https://freelance.ru/task` и поисковой выдачи по Python.
+   - [`PchelNetCollector`](src/collectors/pchel_net.py): сбор IT-заказов с биржи Pchel.net (раздел Программирование) с автоконвертацией валют ($ -> ₽).
+   - [`RemoteJobCollector`](src/collectors/remote_job.py): сбор проектов с биржи `https://remote-job.ru/search?search[searchType]=project`.
    - **Защита от банов:** стандартные браузерные заголовки, безопасные интервалы опроса (2–3 минуты). За RSS и обычные GET-запросы не банят.
 
 2. **Эвристический Hard-Filter:**
@@ -68,7 +71,7 @@
 
 5. **Telegram-бот (aiogram 3) и Веб-дашборд (FastAPI):**
    - [`create_web_app`](src/web/app.py): веб-интерфейс на FastAPI для домена **`jobs.3dvex.ru`** (порт `8086`, настраивается в `config.yml`).
-     * Фильтрация заказов по приоритету (`Hot` / `Normal` / `Trash`) и биржам (`Kwork` / `FL.ru`).
+     * Фильтрация заказов по приоритету (`Hot` / `Normal` / `Trash`) и биржам (`Kwork` / `FL.ru` / `Freelance.ru` / `Pchel.net` / `Remote-job`).
      * Отображение скора, сложности, PERT-сроков, цены и готового отклика.
      * Кнопка моментального копирования отклика в буфер обмена (`navigator.clipboard.writeText`).
      * JSON API: `/api/orders`, `/api/stats`, `/health`.

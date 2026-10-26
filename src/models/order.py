@@ -10,6 +10,8 @@ class SourcePlatform(str, Enum):
     KWORK = "kwork"
     FL_RU = "fl_ru"
     FREELANCE_RU = "freelance_ru"
+    PCHEL_NET = "pchel_net"
+    REMOTE_JOB = "remote_job"
     CUSTOM = "custom"
 
 
