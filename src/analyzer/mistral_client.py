@@ -1,0 +1,74 @@
+"""Mistral API client for LLM analysis."""
+
+import json
+import logging
+import re
+from typing import Optional
+import httpx
+from src.analyzer.base import BaseLLMClient
+from src.analyzer.prompts import build_analysis_prompt
+from src.config import settings
+from src.models.analysis import AnalysisResult
+from src.models.order import OrderPriority, RawOrder
+
+logger = logging.getLogger(__name__)
+
+
+class MistralClient(BaseLLMClient):
+    """Клиент анализа заказов через официальный Mistral API (ministral/codestral)."""
+
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        timeout_seconds: float = 60.0,
+    ) -> None:
+        self.api_key = api_key or settings.MISTRAL_API_KEY
+        self.model = model or settings.MISTRAL_MODEL
+        self.timeout_seconds = timeout_seconds
+        self.api_url = "https://api.mistral.ai/v1/chat/completions"
+
+    def _sanitize_proposal(self, text: str) -> str:
+        """Гарантированная замена длинных тире на дефисы."""
+        return text.replace("—", "-").replace("–", "-")
+
+    async def analyze_order(self, order: RawOrder) -> AnalysisResult:
+        if not self.api_key:
+            raise ValueError("MISTRAL_API_KEY не задан в конфигурации (.env)")
+
+        prompt = build_analysis_prompt(order)
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "response_format": {"type": "json_object"},
+            "temperature": 0.2,
+        }
+
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            resp = await client.post(self.api_url, headers=headers, json=payload)
+            if resp.status_code != 200:
+                raise RuntimeError(
+                    f"Mistral API вернул ошибку {resp.status_code}: {resp.text}"
+                )
+
+            result_json = resp.json()
+            content = result_json["choices"][0]["message"]["content"]
+            data = json.loads(content)
+
+            if "proposal_text" in data and isinstance(data["proposal_text"], str):
+                data["proposal_text"] = self._sanitize_proposal(data["proposal_text"])
+
+            score = int(data.get("score", 5))
+            if "priority" not in data or data["priority"] not in ["hot", "normal"]:
+                data["priority"] = (
+                    OrderPriority.HOT.value
+                    if score >= settings.HOT_SCORE_THRESHOLD
+                    else OrderPriority.NORMAL.value
+                )
+
+            return AnalysisResult.model_validate(data)
