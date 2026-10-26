@@ -3,6 +3,7 @@
 import logging
 from src.analyzer.antigravity_client import AntigravityClient
 from src.analyzer.base import BaseLLMClient
+from src.analyzer.hybrid_client import HybridLLMClient
 from src.analyzer.mistral_client import MistralClient
 from src.config import settings
 
@@ -15,6 +16,14 @@ def get_llm_client() -> BaseLLMClient:
     if provider == "mistral":
         logger.info("Инициализирован LLM провайдер: Mistral (%s)", settings.MISTRAL_MODEL)
         return MistralClient()
+
+    if provider == "hybrid":
+        logger.info(
+            "Инициализирован гибридный LLM каскад: Mistral (%s) -> Antigravity (%s)",
+            settings.MISTRAL_MODEL,
+            settings.ANTIGRAVITY_MODEL,
+        )
+        return HybridLLMClient()
 
     # По умолчанию используем Antigravity
     logger.info(

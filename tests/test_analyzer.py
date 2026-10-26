@@ -58,3 +58,60 @@ def test_antigravity_clean_json_and_sanitize():
     sanitized = client._sanitize_proposal("Делал бота — обход Cloudflare — решим.")
     assert "—" not in sanitized
     assert sanitized == "Делал бота - обход Cloudflare - решим."
+
+
+@pytest.mark.asyncio
+async def test_hybrid_client_flow():
+    from unittest.mock import AsyncMock
+    from src.analyzer.hybrid_client import HybridLLMClient
+
+    order = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="111",
+        title="Сделать верстку сайта",
+        description="Верстка HTML",
+        url="https://kwork.ru/111",
+        price=15000,
+    )
+
+    mock_mistral = AsyncMock()
+    mock_mistral.api_key = "fake_key"
+    # Stage 1: Mistral filters out non-relevant order
+    mock_mistral.quick_classify.return_value = {
+        "is_relevant": False,
+        "quick_score": 3,
+        "reason": "Not a python task",
+    }
+
+    mock_antigravity = AsyncMock()
+    client = HybridLLMClient(mistral=mock_mistral, antigravity=mock_antigravity)
+
+    res = await client.analyze_order(order)
+    assert res.take_order is False
+    assert res.score == 3
+    assert res.priority == OrderPriority.NORMAL
+    # agy was not even called, saving resources!
+    mock_antigravity.analyze_order.assert_not_called()
+
+    # Now test high-score order passing to agy
+    mock_mistral.quick_classify.return_value = {
+        "is_relevant": True,
+        "quick_score": 9,
+        "reason": "Python parser",
+    }
+    mock_antigravity.analyze_order.return_value = AnalysisResult(
+        take_order=True,
+        score=9,
+        priority=OrderPriority.HOT,
+        executive_summary="Great match",
+        complexity=6,
+        pure_dev_hours=12.0,
+        risks_and_pitfalls=[],
+        proposal_text="Ready to do it.",
+    )
+
+    res2 = await client.analyze_order(order)
+    assert res2.take_order is True
+    assert res2.score == 9
+    assert res2.priority == OrderPriority.HOT
+    mock_antigravity.analyze_order.assert_called_once()

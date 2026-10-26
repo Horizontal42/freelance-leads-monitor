@@ -202,7 +202,16 @@ jobs/
 2. Проверяет бюджет: если указан точный бюджет `< 10 000 ₽` и нет флага договоренности - отказ.
 3. Ищет ключевые слова из белого списка. Если нет ни одного совпадения - отказ.
 
-### 5.5. LLM-движок и промптинг ([`src/analyzer/`](file:///home/horizontal42/jobs/src/analyzer))
+### 5.5. LLM-движок и гибридный каскад ([`src/analyzer/`](file:///home/horizontal42/jobs/src/analyzer))
+- **Как вызывается модель:**
+  В проекте реализована гибкая фабрика [`get_llm_client()`](file:///home/horizontal42/jobs/src/analyzer/factory.py), поддерживающая три режима (`LLM_PROVIDER` в `config.yml` или `.env`):
+  1. `hybrid` (Рекомендуемый каскад):
+     * **Стадия 1 (Mistral):** быстрый микро-скоринг (300-500 мс) на предмет базовой релевантности стеку Python Middle. Если заказ пустой или скор < 5, отсекается в БД как Normal без траты квот.
+     * **Стадия 2 (Antigravity CLI):** глубокий анализ перспективных лидов с полным досье 7 проектов, расчетом PERT-сроков ($E \pm \sigma$) и составлением продающего отклика строго без длинных тире `—`.
+     * Если `MISTRAL_API_KEY` не задан в `.env`, каскад прозрачно делегирует 100% заказов сразу в Antigravity.
+  2. `antigravity`: все заказы после HardFilter анализируются через локальный CLI `agy -p` (модель `gemini-3.8-flash-medium` или `claude-sonnet-4-6`). Без затрат на API-токены.
+  3. `mistral`: все заказы анализируются через официальный Mistral API (`ministral-8b-latest` / `codestral`).
+
 - **`prompts.py`**:
   * Содержит полный системный промпт с инъекцией всех 7 проектов из досье разработчика и правил из регламента откликов.
   * Требует строгий JSON-формат.
@@ -216,6 +225,9 @@ jobs/
   * Валидирует результат в модель `AnalysisResult`.
 - **`mistral_client.py`**:
   * Реализует запасной путь через официальный Mistral API (`https://api.mistral.ai/v1/chat/completions`) с параметром `response_format={"type": "json_object"}`.
+  * Метод `quick_classify()` для микро-скоринга за 300 мс.
+- **`hybrid_client.py`**:
+  * Оркестрирует каскадное взаимодействие Mistral + Antigravity с взаимным fallback при сбоях.
 
 ### 5.6. Хранилище SQLite WAL ([`src/storage/`](file:///home/horizontal42/jobs/src/storage))
 - Схема базы данных `orders`:
