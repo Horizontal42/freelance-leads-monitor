@@ -68,3 +68,19 @@ async def test_web_dashboard_endpoints(tmp_path):
         resp_rules = await client.get("/?tab=rules")
         assert resp_rules.status_code == 200
         assert "Белый список ключевых слов" in resp_rules.text
+
+        # 6. Generate proposal on-demand
+        from unittest.mock import patch, AsyncMock
+        with patch("src.analyzer.factory.get_llm_client") as mock_get_llm:
+            mock_client = AsyncMock()
+            mock_client.generate_proposal.return_value = "Готовый отклик на aiogram."
+            mock_get_llm.return_value = mock_client
+
+            resp_gen = await client.post("/api/orders/1/generate-proposal")
+            assert resp_gen.status_code == 200
+            assert resp_gen.json()["ok"] is True
+            assert resp_gen.json()["proposal_text"] == "Готовый отклик на aiogram."
+
+            # Verify it persisted to DB
+            updated_order = await repo.get_by_id(1)
+            assert updated_order["proposal_text"] == "Готовый отклик на aiogram."

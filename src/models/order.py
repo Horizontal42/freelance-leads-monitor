@@ -39,6 +39,7 @@ class RawOrder(BaseModel):
     url: str
     price: Optional[float] = None
     is_negotiable: bool = False
+    is_pro_only: bool = False
     tags: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.now)
     raw_payload: Optional[Dict[str, Any]] = None

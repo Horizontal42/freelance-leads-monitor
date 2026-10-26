@@ -64,6 +64,7 @@ class CollectorsConfig(BaseModel):
 class FilterConfig(BaseModel):
     min_budget: int = 10000
     hot_score_threshold: int = 7
+    filter_pro_only: bool = False
     stop_words: List[str] = Field(default_factory=list)
     keywords: List[str] = Field(default_factory=list)
 
@@ -217,6 +218,10 @@ class Settings:
     @property
     def HOT_SCORE_THRESHOLD(self) -> int:
         return self.app_config.filter.hot_score_threshold
+
+    @property
+    def FILTER_PRO_ONLY(self) -> bool:
+        return self.app_config.filter.filter_pro_only
 
     @property
     def STOP_WORDS(self) -> List[str]:

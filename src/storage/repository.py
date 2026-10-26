@@ -46,8 +46,8 @@ class OrderRepository:
                 """
                 INSERT INTO orders (
                     source, external_id, title, description, url, price,
-                    is_negotiable, tags, status, priority, filter_reason, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    is_negotiable, is_pro_only, tags, status, priority, filter_reason, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     order.source.value,
@@ -57,6 +57,7 @@ class OrderRepository:
                     order.url,
                     order.price,
                     1 if order.is_negotiable else 0,
+                    1 if order.is_pro_only else 0,
                     tags_str,
                     status.value,
                     priority.value,
@@ -113,6 +114,15 @@ class OrderRepository:
             )
             await db.commit()
 
+    async def update_proposal(self, order_id: int, proposal_text: str) -> None:
+        """Сохранить сгенерированный по требованию отклик."""
+        async with self._get_conn() as db:
+            await db.execute(
+                "UPDATE orders SET proposal_text = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (proposal_text, order_id),
+            )
+            await db.commit()
+
     async def get_by_id(self, order_id: int) -> Optional[Dict[str, Any]]:
         """Получить заказ по id."""
         async with self._get_conn() as db:
@@ -128,6 +138,7 @@ class OrderRepository:
         priority: Optional[OrderPriority | str] = None,
         status: Optional[OrderStatus | str] = None,
         source: Optional[str] = None,
+        only_free: bool = False,
     ) -> List[Dict[str, Any]]:
         """Получить список свежих заказов с возможностью фильтрации."""
         query = "SELECT * FROM orders WHERE 1=1"
@@ -144,6 +155,8 @@ class OrderRepository:
         if source:
             query += " AND source = ?"
             params.append(str(source).lower())
+        if only_free:
+            query += " AND is_pro_only = 0"
 
         query += " ORDER BY created_at DESC LIMIT ?"
         params.append(limit)

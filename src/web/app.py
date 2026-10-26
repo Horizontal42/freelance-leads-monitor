@@ -8,6 +8,7 @@ from fastapi import FastAPI, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from jinja2 import Template
 from src.config import settings
+from src.models.order import OrderPriority, RawOrder, SourcePlatform
 from src.storage.repository import OrderRepository
 
 logger = logging.getLogger(__name__)
@@ -123,19 +124,19 @@ DASHBOARD_HTML = """
         <!-- Main Tab Navigation -->
         <div class="border-b border-slate-800 flex items-center justify-between overflow-x-auto custom-scroll">
             <nav class="flex space-x-1 sm:space-x-4 min-w-max">
-                <a href="/?tab=hot&source={{ selected_source }}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'hot' %}active border-b-2 border-amber-500 text-amber-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                <a href="/?tab=hot&source={{ selected_source }}&free_only={{ free_only }}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'hot' %}active border-b-2 border-amber-500 text-amber-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                     <span>🔥</span> Горячие лиды
                     <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono">{{ stats.hot }}</span>
                 </a>
-                <a href="/?tab=all&source={{ selected_source }}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'all' %}active border-b-2 border-blue-500 text-blue-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                <a href="/?tab=all&source={{ selected_source }}&free_only={{ free_only }}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'all' %}active border-b-2 border-blue-500 text-blue-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                     <span>⚡</span> Все прошедшие
                     <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-mono">{{ stats.hot + stats.normal }}</span>
                 </a>
-                <a href="/?tab=normal&source={{ selected_source }}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'normal' %}active border-b-2 border-blue-500 text-blue-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                <a href="/?tab=normal&source={{ selected_source }}&free_only={{ free_only }}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'normal' %}active border-b-2 border-blue-500 text-blue-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                     <span>🎯</span> Потенциальные (Tier 2)
                     <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">{{ stats.normal }}</span>
                 </a>
-                <a href="/?tab=trash&source={{ selected_source }}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'trash' %}active border-b-2 border-slate-500 text-slate-300 font-bold{% else %}text-slate-500 hover:text-slate-300{% endif %}">
+                <a href="/?tab=trash&source={{ selected_source }}&free_only={{ free_only }}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'trash' %}active border-b-2 border-slate-500 text-slate-300 font-bold{% else %}text-slate-500 hover:text-slate-300{% endif %}">
                     <span>🗑</span> Отсеянные (Tier 3)
                     <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono">{{ stats.trash }}</span>
                 </a>
@@ -155,31 +156,42 @@ DASHBOARD_HTML = """
                 <!-- Live Search Box -->
                 <div class="relative flex-1">
                     <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">🔍</span>
-                    <input type="text" id="orderSearch" onkeyup="filterOrdersClient()" placeholder="Живой поиск по заголовку, технологиям, стеку, рискам..." class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-sm rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-blue-500 placeholder-slate-500 transition">
+                    <input type="text" id="orderSearch" onkeyup="filterOrdersClient()" placeholder="Живой поиск по заголовку, технологиям, стеку, сути..." class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-sm rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-blue-500 placeholder-slate-500 transition">
                 </div>
 
-                <!-- Source Badges Filter -->
-                <div class="flex items-center space-x-1.5 overflow-x-auto custom-scroll pb-1 sm:pb-0">
-                    <span class="text-xs text-slate-400 font-semibold uppercase mr-1">Биржа:</span>
-                    <a href="/?tab={{ active_tab }}&source=" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if not selected_source %}bg-blue-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
-                        Все
-                    </a>
-                    <a href="/?tab={{ active_tab }}&source=kwork" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'kwork' %}bg-emerald-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
-                        Kwork
-                    </a>
-                    <a href="/?tab={{ active_tab }}&source=fl_ru" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'fl_ru' %}bg-blue-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
-                        FL.ru
-                    </a>
-                    <a href="/?tab={{ active_tab }}&source=freelance_ru" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'freelance_ru' %}bg-purple-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
-                        Freelance.ru
-                    </a>
-                    <a href="/?tab={{ active_tab }}&source=pchel_net" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'pchel_net' %}bg-amber-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
-                        Pchel.net
-                    </a>
-                    <a href="/?tab={{ active_tab }}&source=remote_job" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'remote_job' %}bg-cyan-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
-                        Remote-job
+                <!-- Free / PRO Filter Toggle -->
+                <div>
+                    <a href="/?tab={{ active_tab }}&source={{ selected_source }}&free_only={% if free_only %}0{% else %}1{% endif %}" class="px-3.5 py-2 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 {% if free_only %}bg-emerald-600 text-white shadow-md{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700{% endif %}">
+                        {% if free_only %}
+                            <span>✅</span> Только бесплатные отклики
+                        {% else %}
+                            <span>🔓</span> Все отклики (включая PRO)
+                        {% endif %}
                     </a>
                 </div>
+            </div>
+
+            <!-- Source Badges Filter Row -->
+            <div class="flex items-center space-x-1.5 overflow-x-auto custom-scroll pt-1 border-t border-slate-800/80">
+                <span class="text-xs text-slate-400 font-semibold uppercase mr-1">Биржа:</span>
+                <a href="/?tab={{ active_tab }}&source=&free_only={{ free_only }}" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if not selected_source %}bg-blue-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
+                    Все
+                </a>
+                <a href="/?tab={{ active_tab }}&source=kwork&free_only={{ free_only }}" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'kwork' %}bg-emerald-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
+                    Kwork
+                </a>
+                <a href="/?tab={{ active_tab }}&source=fl_ru&free_only={{ free_only }}" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'fl_ru' %}bg-blue-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
+                    FL.ru
+                </a>
+                <a href="/?tab={{ active_tab }}&source=freelance_ru&free_only={{ free_only }}" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'freelance_ru' %}bg-purple-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
+                    Freelance.ru
+                </a>
+                <a href="/?tab={{ active_tab }}&source=pchel_net&free_only={{ free_only }}" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'pchel_net' %}bg-amber-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
+                    Pchel.net
+                </a>
+                <a href="/?tab={{ active_tab }}&source=remote_job&free_only={{ free_only }}" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'remote_job' %}bg-cyan-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
+                    Remote-job
+                </a>
             </div>
         </div>
 
@@ -193,7 +205,7 @@ DASHBOARD_HTML = """
             {% endif %}
 
             {% for order in orders %}
-                <div class="order-card bg-slate-900 border {% if order.priority == 'hot' %}border-amber-500/50 shadow-lg shadow-amber-950/20{% elif order.priority == 'trash' %}border-slate-800 opacity-60{% else %}border-slate-800{% endif %} p-5 rounded-xl transition hover:border-slate-700 space-y-4" data-title="{{ order.title|lower }}" data-desc="{{ order.description|lower }}">
+                <div class="order-card bg-slate-900 border {% if order.priority == 'hot' %}border-amber-500/50 shadow-lg shadow-amber-950/20{% elif order.priority == 'trash' %}border-slate-800 opacity-60{% else %}border-slate-800{% endif %} p-5 rounded-xl transition hover:border-slate-700 space-y-3.5" data-title="{{ order.title|lower }}" data-desc="{{ order.description|lower }}">
 
                     <!-- Card Header Row -->
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
@@ -202,6 +214,17 @@ DASHBOARD_HTML = """
                             <span class="text-xs font-bold uppercase px-2.5 py-1 rounded-md {% if order.source == 'kwork' %}bg-emerald-950 text-emerald-300 border border-emerald-800/60{% elif order.source == 'fl_ru' %}bg-blue-950 text-blue-300 border border-blue-800/60{% elif order.source == 'freelance_ru' %}bg-purple-950 text-purple-300 border border-purple-800/60{% elif order.source == 'pchel_net' %}bg-amber-950 text-amber-300 border border-amber-800/60{% else %}bg-cyan-950 text-cyan-300 border border-cyan-800/60{% endif %}">
                                 {{ order.source }}
                             </span>
+
+                            <!-- Paid vs Free Response Badge -->
+                            {% if order.is_pro_only %}
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-950/80 text-purple-300 border border-purple-800/60 flex items-center gap-1" title="Требуется аккаунт PRO / платный отклик">
+                                    ⭐ Только PRO
+                                </span>
+                            {% else %}
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded-md bg-emerald-950/70 text-emerald-300 border border-emerald-800/50 flex items-center gap-1" title="Бесплатный отклик для всех">
+                                    🔓 Для всех
+                                </span>
+                            {% endif %}
 
                             <!-- Priority & Score Badge -->
                             {% if order.priority == 'hot' %}
@@ -257,8 +280,19 @@ DASHBOARD_HTML = """
                         </h2>
                     </div>
 
+                    <!-- Executive Summary Box (Brief info from AI) -->
+                    {% if order.analysis and order.analysis.executive_summary %}
+                        <div class="text-xs bg-slate-950/80 border border-blue-900/40 p-2.5 rounded-lg text-blue-200 flex items-start gap-2">
+                            <span class="text-blue-400 mt-0.5">📝</span>
+                            <div>
+                                <strong class="text-blue-300 font-semibold uppercase text-[10px] tracking-wider block mb-0.5">Краткая суть задачи (ИИ):</strong>
+                                <span>{{ order.analysis.executive_summary }}</span>
+                            </div>
+                        </div>
+                    {% endif %}
+
                     <!-- Description -->
-                    <div class="text-sm text-slate-300 leading-relaxed bg-slate-950/60 p-3.5 rounded-lg border border-slate-800/80">
+                    <div class="text-sm text-slate-300 leading-relaxed bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
                         <p class="whitespace-pre-line">{{ order.description }}</p>
                     </div>
 
@@ -305,21 +339,35 @@ DASHBOARD_HTML = """
                                 </div>
                             {% endif %}
 
-                            <!-- Proposal Copy Box -->
-                            {% if order.analysis.proposal_text %}
-                                <div class="mt-3 pt-3 border-t border-slate-800 space-y-2">
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
-                                            <span>✍️</span> Сгенерированный отклик:
-                                        </span>
-                                        <button onclick="copyProposal('proposal-{{ order.id }}', this)" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
-                                            <span>📋</span> Скопировать отклик
+                            <!-- Proposal Container (Pre-generated or On-demand) -->
+                            <div id="proposal-box-{{ order.id }}">
+                                {% if order.proposal_text or (order.analysis and order.analysis.proposal_text) %}
+                                    <div class="mt-3 pt-3 border-t border-slate-800 space-y-2">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                                                <span>✍️</span> Сгенерированный отклик:
+                                            </span>
+                                            <div class="flex items-center space-x-2">
+                                                <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
+                                                    🔄 Перегенерировать
+                                                </button>
+                                                <button onclick="copyProposal('proposal-text-{{ order.id }}', this)" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                                    <span>📋</span> Скопировать отклик
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div id="proposal-text-{{ order.id }}" class="text-xs font-mono bg-slate-900/90 text-slate-200 p-3.5 rounded-lg border border-slate-800 whitespace-pre-wrap leading-relaxed select-all">
+{{ order.proposal_text or order.analysis.proposal_text }}</div>
+                                    </div>
+                                {% else %}
+                                    <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
+                                        <span class="text-xs text-slate-400">Отклик не генерировался для экономии квот.</span>
+                                        <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold px-4 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md">
+                                            <span>✨</span> Сгенерировать отклик (ИИ)
                                         </button>
                                     </div>
-                                    <div id="proposal-{{ order.id }}" class="text-xs font-mono bg-slate-900/90 text-slate-200 p-3.5 rounded-lg border border-slate-800 whitespace-pre-wrap leading-relaxed select-all">
-{{ order.analysis.proposal_text }}</div>
-                                </div>
-                            {% endif %}
+                                {% endif %}
+                            </div>
                         </div>
                     {% endif %}
                 </div>
@@ -433,6 +481,44 @@ DASHBOARD_HTML = """
             });
         }
 
+        async function generateProposal(orderId, btn) {
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span>⏳</span> Генерация отклика...';
+            try {
+                const res = await fetch(`/api/orders/${orderId}/generate-proposal`, { method: 'POST' });
+                const data = await res.json();
+                if (data.ok && data.proposal_text) {
+                    const box = document.getElementById(`proposal-box-${orderId}`);
+                    box.className = "mt-3 pt-3 border-t border-slate-800 space-y-2";
+                    box.innerHTML = `
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                                <span>✍️</span> Сгенерированный отклик:
+                            </span>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="generateProposal('${orderId}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
+                                    🔄 Перегенерировать
+                                </button>
+                                <button onclick="copyProposal('proposal-text-${orderId}', this)" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                    <span>📋</span> Скопировать отклик
+                                </button>
+                            </div>
+                        </div>
+                        <div id="proposal-text-${orderId}" class="text-xs font-mono bg-slate-900/90 text-slate-200 p-3.5 rounded-lg border border-slate-800 whitespace-pre-wrap leading-relaxed select-all">${data.proposal_text}</div>
+                    `;
+                } else {
+                    alert('Ошибка генерации: ' + (data.error || 'не удалось составить отклик'));
+                    btn.disabled = false;
+                    btn.innerHTML = origHtml;
+                }
+            } catch (e) {
+                alert('Сетевая ошибка: ' + e);
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+            }
+        }
+
         function filterOrdersClient() {
             const query = document.getElementById('orderSearch').value.toLowerCase().trim();
             const cards = document.querySelectorAll('.order-card');
@@ -457,7 +543,7 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
     app = FastAPI(
         title="Freelance Leads Monitor",
         description="Web dashboard for monitoring freelance leads on jobs.3dvex.ru",
-        version="0.2.0",
+        version="0.3.0",
     )
 
     repository = repo or OrderRepository()
@@ -467,10 +553,12 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
         request: Request,
         tab: str = Query("hot", description="Активная вкладка (hot, all, normal, trash, analytics, rules)"),
         source: Optional[str] = Query(None, description="Фильтр по источнику (kwork, fl_ru, freelance_ru, pchel_net, remote_job)"),
+        free_only: int = Query(0, description="Фильтр только бесплатных откликов (1 - без PRO, 0 - все)"),
         limit: int = Query(80, ge=1, le=300),
     ):
         active_tab = tab.strip().lower()
         s_filter = source.strip().lower() if source else None
+        only_free_flag = bool(free_only)
 
         # Определяем фильтр приоритета по вкладке
         p_filter: Optional[str] = None
@@ -481,7 +569,7 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
         elif active_tab == "trash":
             p_filter = "trash"
         elif active_tab == "all":
-            p_filter = None  # Выбираем без фильтра приоритета (все)
+            p_filter = None
 
         raw_orders: List[Dict[str, Any]] = []
         if active_tab in ["hot", "all", "normal", "trash"]:
@@ -489,6 +577,7 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
                 limit=limit,
                 priority=p_filter,
                 source=s_filter,
+                only_free=only_free_flag,
             )
 
         formatted_orders: List[Dict[str, Any]] = []
@@ -512,11 +601,47 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
             extended_stats=extended_stats,
             active_tab=active_tab,
             selected_source=s_filter or "",
+            free_only=1 if only_free_flag else 0,
             keywords=settings.KEYWORDS,
             stop_words=settings.STOP_WORDS,
             llm_provider=settings.LLM_PROVIDER,
         )
         return HTMLResponse(content=html_content)
+
+    @app.post("/api/orders/{order_id}/generate-proposal")
+    async def api_generate_proposal(order_id: int):
+        """Сгенерировать отклик для заказа по требованию."""
+        order_data = await repository.get_by_id(order_id)
+        if not order_data:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "Заказ не найден"})
+
+        from src.analyzer.factory import get_llm_client
+        llm_client = get_llm_client()
+
+        raw_order = RawOrder(
+            source=SourcePlatform(order_data["source"]),
+            external_id=order_data["external_id"],
+            title=order_data["title"],
+            description=order_data["description"] or "",
+            url=order_data["url"],
+            price=order_data["price"],
+            is_negotiable=bool(order_data.get("is_negotiable", 0)),
+            is_pro_only=bool(order_data.get("is_pro_only", 0)),
+        )
+
+        analysis_data = (
+            json.loads(order_data["analysis_json"])
+            if order_data.get("analysis_json")
+            else None
+        )
+
+        try:
+            proposal_text = await llm_client.generate_proposal(raw_order, analysis_data)
+            await repository.update_proposal(order_id, proposal_text)
+            return {"ok": True, "proposal_text": proposal_text}
+        except Exception as e:
+            logger.error("Ошибка при генерации отклика для заказа #%d: %s", order_id, e)
+            return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
     @app.get("/api/orders", response_class=JSONResponse)
     async def get_orders_api(

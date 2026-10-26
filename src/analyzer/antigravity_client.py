@@ -4,9 +4,9 @@ import asyncio
 import json
 import logging
 import re
-from typing import Optional
+from typing import Any, Dict, Optional
 from src.analyzer.base import BaseLLMClient
-from src.analyzer.prompts import build_analysis_prompt
+from src.analyzer.prompts import build_analysis_prompt, build_proposal_prompt
 from src.config import settings
 from src.models.analysis import AnalysisResult
 from src.models.order import OrderPriority, RawOrder
@@ -112,3 +112,55 @@ class AntigravityClient(BaseLLMClient):
             )
 
         return AnalysisResult.model_validate(data)
+
+    async def generate_proposal(
+        self,
+        order: RawOrder,
+        analysis_data: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Сгенерировать отклик на заказ по требованию."""
+        prompt = build_proposal_prompt(order, analysis_data)
+        cmd = [
+            self.binary,
+            "-p",
+            prompt,
+            "--model",
+            self.model,
+            "--output-format",
+            "text",
+        ]
+
+        logger.info(
+            "Запуск генерации отклика Antigravity для заказа %s (%s)",
+            order.external_id,
+            order.title[:40],
+        )
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(),
+                timeout=self.timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            raise TimeoutError(
+                f"Antigravity CLI превысил таймаут {self.timeout_seconds} сек при генерации отклика"
+            )
+
+        if proc.returncode != 0:
+            err_msg = stderr_bytes.decode("utf-8", errors="ignore").strip()
+            raise RuntimeError(
+                f"Antigravity CLI завершился с ошибкой (код {proc.returncode}): {err_msg}"
+            )
+
+        output_text = stdout_bytes.decode("utf-8", errors="ignore").strip()
+        # Очищаем от markdown блоков если есть
+        output_text = re.sub(r"^```[a-zA-Z]*\n", "", output_text)
+        output_text = re.sub(r"\n```$", "", output_text).strip()
+        return self._sanitize_proposal(output_text)
