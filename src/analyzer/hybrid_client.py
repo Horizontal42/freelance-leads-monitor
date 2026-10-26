@@ -15,10 +15,12 @@ logger = logging.getLogger(__name__)
 class HybridLLMClient(BaseLLMClient):
     """Двухстадийный гибридный клиент:
 
-    1. Быстрый скоринг и отсев через Mistral (300-500 мс).
-    2. Глубокий анализ, PERT-сроки и генерация отклика через Antigravity (gemini-3.8-flash-medium).
-    Если Mistral API недоступен, напрямую передает заказ в Antigravity.
-    Если Antigravity дает сбой, переключается на полный анализ через Mistral.
+    1. Быстрый первичный анализ, 3-4 предложения краткой сути, PERT-сроки и оценка
+       рыночной цены выполняются через Mistral API.
+    2. Финальный продающий отклик/отчет генерируется через Antigravity (agy -p)
+       СТРОГО по требованию пользователя (при клике на кнопку в TG или Web UI).
+    Если Mistral API недоступен, анализ выполняется резервным Antigravity.
+    Если Antigravity дает сбой при генерации отклика, подключается резервный Mistral.
     """
 
     def __init__(
@@ -30,43 +32,25 @@ class HybridLLMClient(BaseLLMClient):
         self.antigravity = antigravity or AntigravityClient()
 
     async def analyze_order(self, order: RawOrder) -> AnalysisResult:
-        # Стадия 1: Быстрый скоринг через Mistral (если задан ключ)
+        """Первичный анализ заказа через Mistral (суть в 3-4 предложениях, PERT, рыночная цена)."""
         if self.mistral.api_key:
             try:
-                qc = await self.mistral.quick_classify(order)
-                is_relevant = qc.get("is_relevant", True)
-                quick_score = int(qc.get("quick_score", 7))
-                reason = qc.get("reason", "")
-
-                # Если заказ явно нерелевантен или скор ниже 5, не тратим квоту Antigravity
-                if not is_relevant or quick_score < 5:
-                    logger.info(
-                        "Mistral отсеял заказ [%s #%s]: score=%d, reason='%s'",
-                        order.source.value,
-                        order.external_id,
-                        quick_score,
-                        reason,
-                    )
-                    return AnalysisResult(
-                        take_order=False,
-                        score=quick_score,
-                        priority=OrderPriority.NORMAL,
-                        executive_summary=f"Отсеяно на 1-м этапе (Mistral): {reason}",
-                        complexity=2,
-                        pure_dev_hours=0.0,
-                        risks_and_pitfalls=[],
-                        proposal_text="",
-                    )
+                logger.info(
+                    "Первичный анализ заказа [%s #%s] через Mistral...",
+                    order.source.value,
+                    order.external_id,
+                )
+                return await self.mistral.analyze_order(order)
             except Exception as e:
-                logger.warning("Сбой этапа 1 (Mistral quick_classify): %s. Переход к Antigravity.", e)
+                logger.warning(
+                    "Сбой анализа через Mistral: %s. Переключение на Antigravity...", e
+                )
 
-        # Стадия 2: Глубокий анализ и генерация отклика через Antigravity
+        # Fallback на Antigravity, если Mistral API недоступен или вернул ошибку
         try:
             return await self.antigravity.analyze_order(order)
         except Exception as e:
-            logger.error("Сбой анализа Antigravity: %s. Пробуем резервный Mistral...", e)
-            if self.mistral.api_key:
-                return await self.mistral.analyze_order(order)
+            logger.error("Сбой анализа Antigravity: %s", e)
             raise
 
     async def generate_proposal(
@@ -74,12 +58,17 @@ class HybridLLMClient(BaseLLMClient):
         order: RawOrder,
         analysis_data: Optional[Dict[str, Any]] = None,
     ) -> str:
-        """Сгенерировать отклик с приоритетом Antigravity и fallback на Mistral."""
+        """Сгенерировать отклик с приоритетом Antigravity (по требованию) и fallback на Mistral."""
         try:
+            logger.info(
+                "Генерация отклика для заказа [%s #%s] через Antigravity...",
+                order.source.value,
+                order.external_id,
+            )
             return await self.antigravity.generate_proposal(order, analysis_data)
         except Exception as e:
             logger.warning(
-                "Сбой генерации отклика Antigravity: %s. Переход к Mistral...", e
+                "Сбой генерации отклика Antigravity: %s. Резервный вызов Mistral...", e
             )
             if self.mistral.api_key:
                 return await self.mistral.generate_proposal(order, analysis_data)

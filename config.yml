@@ -101,7 +101,7 @@ filter:
     - "гугл таблиц"
 
 llm:
-  provider: "hybrid"  # "hybrid" (Mistral быстрый отсев -> Antigravity глубокий анализ), "antigravity", "mistral"
+  provider: "hybrid"  # "hybrid" (Mistral первичный анализ -> Antigravity генерация отклика по требованию), "antigravity", "mistral"
   antigravity:
     binary: "agy"
     model: "gemini-3.8-flash-medium"
@@ -109,3 +109,131 @@ llm:
   mistral:
     model: "ministral-8b-latest"
     timeout_seconds: 60.0
+
+prompts:
+  developer_profile:
+    name: "Андрей Пименов"
+    username: "@horizontal42"
+    level: "Junior+ / Middle"
+    specialization: "Python Backend, Telegram-боты, сложный парсинг (curl_cffi, patchright), CRM Битрикс24 REST API, LLM/Whisper, RAG, Computer Vision (YOLOv8)"
+    min_budget: 10000
+    hourly_rate_rub: 750
+
+  projects_dossier:
+    - name: "Speech Analytics (Intervesp)"
+      stack: "Python 3.12, FastAPI, Celery, Redis, PostgreSQL, WhisperX, pyannote, Qwen 32B, Bitrix24 REST API, Weasyprint, Jinja2"
+      highlights: "Детерминированный роутинг оценок (difflib, flip-rate 0%), раздельные очереди IO/GPU с батчингом batch_size=3, освобождение памяти через malloc_trim ctypes, накопительный PDF-отчет O(n), детекция автоответчиков"
+      use_for: "Транскрибация звонков, речевая аналитика, интеграция Битрикс24/CRM, локальные нейросети (Whisper, Ollama), Celery-пайплайны, генерация PDF-отчетов"
+    - name: "Avia_Pars"
+      stack: "Python 3.12, asyncio, aiogram 3, SQLite WAL, curl_cffi, patchright (Chromium solver), residential proxy, pytest (208 тестов)"
+      highlights: "Обход ServicePipe JS-челленджей через curl_cffi и patchright в изолированном subprocess, обход WAF датацентровых IP через Tailscale residential SOCKS5, UX одного экрана screen.py, Circuit Breaker"
+      use_for: "Telegram-боты любой сложности, парсинг защищенных сайтов (Cloudflare, ServicePipe, WAF), обход блокировок, асинхронные пайплайны"
+    - name: "netsleuth"
+      stack: "Python 3.14+, Typer, Rich, httpx, ctypes, Win32 Iphlpapi, 857 тестов"
+      highlights: "Пинг и трассировка под Windows без прав администратора через Iphlpapi.dll (IcmpSendEcho2), скоринг VPN, OEM-кодировки Win32"
+      use_for: "Системные скрипты, CLI-утилиты, сетевые задачи, ctypes / Win32 API, высокий test coverage"
+    - name: "summarum"
+      stack: "Tauri 2 (Rust), TypeScript, CodeMirror 6, decimal.js, 259 тестов"
+      highlights: "Pratt-парсер естественного языка, точная десятеричная арифметика decimal.js, песочница DataDirGate"
+      use_for: "Десктопные приложения Tauri/Rust, парсеры текста и формул, сложная логика"
+    - name: "leads-monitor"
+      stack: "Python 3.11, API dev.hh.ru, DaData API, LLM, Google Sheets API (gspread), SQLite"
+      highlights: "Автоматический поиск вакансий на hh.ru, обогащение контактов через DaData, занесение B2B-лидов в Google Таблицы"
+      use_for: "Парсинг hh.ru / Авито, интеграция с Google Sheets, обогащение контактов DaData, B2B-скрейпинг"
+    - name: "Sort_YM"
+      stack: "Python 3.11+, yandex-music, Ollama, JSON Schema decoding"
+      highlights: "Сортировка медиатеки с LLM-анализом текстов через локальные модели, идемпотентность"
+      use_for: "Скрипты работы с медиа, структурированный JSON Schema вывод из локальных LLM"
+    - name: "Warehouse Master & LaptopTester"
+      stack: "Python, PyQt5, ReportLab, WMI, smartctl, Google Sheets API"
+      highlights: "Печать этикеток со штрихкодами (PDF 58x40мм), автоматический опрос SMART/CPU/RAM железа ноутбука"
+      use_for: "Десктопный GUI на PyQt5, WMI/SMART железа Windows, генерация PDF-этикеток, Google Sheets"
+    - name: "RAG-ассистент"
+      stack: "Python 3.11+, LangChain, Qdrant, FastAPI, WhisperX, Docker"
+      highlights: "Индексация номенклатуры, таблиц и ГОСТов в векторной СУБД Qdrant для отдела продаж 130+ менеджеров"
+      use_for: "Корпоративные RAG-системы, умный поиск по документам, векторные базы Qdrant, корпоративные базы знаний"
+    - name: "AgroTech CV"
+      stack: "Python, YOLOv8, YOLOv11m-cls, ByteTrack, IsolationForest, OpenCV, CUDA, FastAPI, Docker"
+      highlights: "Многокамерный RTSP-пайплайн 24/7 с IP-камер, трекинг ByteTrack, биометрия животных EfficientNet-B1, алерты с FSM"
+      use_for: "Компьютерное зрение, детекция объектов и аномалий, видеоаналитика с IP-камер / RTSP, локальный CUDA/GPU инференс"
+
+  rules:
+    strict_no_em_dash: true
+    preview_rule_140_chars: true
+    cold_start_strategy: true
+    no_ai_cliches: true
+
+  templates:
+    analysis_system_prompt: |
+      Ты - старший Python-разработчик и ассистент Андрея Пименова (@horizontal42, Junior+/Middle).
+      Твоя задача - объективно оценить заказ с биржи фриланса и сформировать ответ СТРОГО в формате JSON по заданной схеме.
+
+      БЭКГРАУНД РАЗРАБОТЧИКА (БАЗА ПРОЕКТОВ ИЗ ДОСЬЕ):
+      {dossier_text}
+
+      ЖЕСТКИЕ ПРАВИЛА:
+      1. Запрет длинных тире (em-dash)! Используй только обычные дефисы "-".
+      2. Краткая суть задачи (executive_summary): сформулируй ровно в 3-4 емких, плотных предложениях (что именно требуется сделать, специфика реализации/стека, ключевая техническая сложность). Чем меньше лишних слов, тем лучше, но ровно 3-4 предложения.
+      3. Оценивай реальные риски (лимиты, блокировки, капчи, WAF, нестабильные API).
+      4. Первоначальный расчет сроков по методике PERT: E = (O + 4M + P) / 6, sigma = (P - O) / 6.
+      5. Оценка рыночной цены:
+         - recommended_price: адекватная рыночная ставка с учетом сложности (не демпинг).
+         - price_justification: разбор бюджета заказчика, рыночная вилка, стратегия торга.
+      6. Поле proposal_text оставь пустым (""), так как отклик генерируется по отдельному требованию пользователя через Antigravity.
+
+      ФОРМАТ ОТВЕТА (СТРОГО JSON):
+      {{
+        "take_order": true,
+        "score": 8,
+        "priority": "hot",
+        "executive_summary": "Краткая суть задачи в 3-4 емких предложениях.",
+        "recommended_price": 25000,
+        "price_justification": "Разбор бюджета, стратегия холодного старта, порог торга",
+        "realistic_days": 4.0,
+        "matched_project": "Avia_Pars",
+        "complexity": 5,
+        "pure_dev_hours": 12.0,
+        "risks_and_pitfalls": [
+          "Лимиты API внешнего сервиса",
+          "Необходимость прокси при частом парсинге"
+        ],
+        "proposal_text": "",
+        "pert": {{
+          "optimistic_days": 2.0,
+          "most_likely_days": 4.0,
+          "pessimistic_days": 7.0,
+          "expected_days": 4.17,
+          "sigma": 0.83
+        }}
+      }}
+
+    proposal_prompt_template: |
+      Ты - старший Python-разработчик и ассистент Андрея Пименова (@horizontal42, Junior+/Middle).
+      Твоя задача - составить идеальный, продающий отклик на заказ с биржи фриланса.
+
+      БЭКГРАУНД РАЗРАБОТЧИКА (БАЗА ПРОЕКТОВ ИЗ ДОСЬЕ):
+      {dossier_text}
+
+      ЖЕСТКИЕ ПРАВИЛА СОСТАВЛЕНИЯ ОТКЛИКА (FREELANCE_PROFILE.md):
+      1. ЗАПРЕТ МАРКЕРОВ ИИ:
+         - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать длинное тире (em-dash)! Используй ТОЛЬКО обычный дефис "-".
+         - Никаких списков с жирными заголовками (**Стек:**, **Преимущества:**).
+         - Никакого канцелярита и пересказа ТЗ ("Здравствуйте! Задача понятна...").
+         - Никакого роботизированного официоза ("Буду рад сотрудничеству").
+      2. ПРАВИЛО ПЕРВЫХ 140 СИМВОЛОВ:
+         - Первые 2 предложения видны в превью на бирже. Сразу к сути и боли заказчика: "Добрый день. Делал похожий парсер с обходом Cloudflare..." или "Добрый день. По опыту интеграции с Битрикс24...".
+      3. ТОЧНЫЕ ФАКТЫ ИЗ ДОСЬЕ:
+         - Ссылайся на реальный опыт из досье выше (curl_cffi, patchright, FastAPI, aiogram 3, Bitrix24 REST API).
+      4. ПРИЗЫВ К ДЕЙСТВИЮ:
+         - В конце задай конкретный технический вопрос по задаче или предложи обсудить детали в чате.
+
+      ДАННЫЕ ЗАКАЗА:
+      Источник: {source}
+      Название: {title}
+      Бюджет: {price}
+      Описание задачи:
+      {description}
+
+      {extra_context}
+
+      Верни ТОЛЬКО готовый текст отклика для отправки клиенту. Никаких кавычек, никаких служебных префиксов, строго с обычными дефисами "-".
