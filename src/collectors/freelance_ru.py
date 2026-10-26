@@ -110,6 +110,12 @@ class FreelanceRuCollector(BaseCollector):
                 except ValueError:
                     pass
 
+            is_pro_only = (
+                "task-card__pro" in article_html
+                or "аккаунт pro" in article_html.lower()
+                or "только для pro" in article_html.lower()
+            )
+
             return RawOrder(
                 source=SourcePlatform.FREELANCE_RU,
                 external_id=external_id,
@@ -118,6 +124,7 @@ class FreelanceRuCollector(BaseCollector):
                 url=url,
                 price=price,
                 is_negotiable=is_negotiable,
+                is_pro_only=is_pro_only,
                 tags=tags,
                 created_at=created_at,
                 raw_payload={"path": path},

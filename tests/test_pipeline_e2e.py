@@ -41,6 +41,9 @@ class MockLLMClient(BaseLLMClient):
             ),
         )
 
+    async def generate_proposal(self, order: RawOrder, analysis_data=None) -> str:
+        return "Тестовый отклик."
+
 
 class ConcurrencyTrackingLLMClient(BaseLLMClient):
     """Мок для замера максимальной конкурентности при анализе."""
@@ -77,6 +80,9 @@ class ConcurrencyTrackingLLMClient(BaseLLMClient):
                 sigma=0.5,
             ),
         )
+
+    async def generate_proposal(self, order: RawOrder, analysis_data=None) -> str:
+        return "Тестовый отклик."
 
 
 @pytest.mark.asyncio

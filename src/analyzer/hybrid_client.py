@@ -1,7 +1,7 @@
 """Hybrid cascaded LLM client combining Mistral and Antigravity."""
 
 import logging
-from typing import Optional
+from typing import Any, Dict, Optional
 from src.analyzer.antigravity_client import AntigravityClient
 from src.analyzer.base import BaseLLMClient
 from src.analyzer.mistral_client import MistralClient
@@ -67,4 +67,20 @@ class HybridLLMClient(BaseLLMClient):
             logger.error("Сбой анализа Antigravity: %s. Пробуем резервный Mistral...", e)
             if self.mistral.api_key:
                 return await self.mistral.analyze_order(order)
+            raise
+
+    async def generate_proposal(
+        self,
+        order: RawOrder,
+        analysis_data: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Сгенерировать отклик с приоритетом Antigravity и fallback на Mistral."""
+        try:
+            return await self.antigravity.generate_proposal(order, analysis_data)
+        except Exception as e:
+            logger.warning(
+                "Сбой генерации отклика Antigravity: %s. Переход к Mistral...", e
+            )
+            if self.mistral.api_key:
+                return await self.mistral.generate_proposal(order, analysis_data)
             raise

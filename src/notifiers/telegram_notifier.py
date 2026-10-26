@@ -87,7 +87,8 @@ class TelegramNotifier:
             return False
 
         card_text = self.format_card(order, analysis)
-        keyboard = get_order_inline_keyboard(order_db_id, order.url)
+        has_proposal = bool(analysis.proposal_text and analysis.proposal_text.strip())
+        keyboard = get_order_inline_keyboard(order_db_id, order.url, has_proposal=has_proposal)
 
         try:
             await self.bot.send_message(

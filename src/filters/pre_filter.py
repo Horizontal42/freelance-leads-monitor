@@ -23,10 +23,14 @@ class HardFilter:
         min_budget: Optional[int] = None,
         stop_words: Optional[List[str]] = None,
         keywords: Optional[List[str]] = None,
+        filter_pro_only: Optional[bool] = None,
     ) -> None:
         self.min_budget = min_budget or settings.MIN_BUDGET
         self.stop_words = [w.lower().strip() for w in (stop_words or settings.STOP_WORDS)]
         self.keywords = [w.lower().strip() for w in (keywords or settings.KEYWORDS)]
+        self.filter_pro_only = (
+            filter_pro_only if filter_pro_only is not None else settings.FILTER_PRO_ONLY
+        )
 
     def _match_terms(self, text: str, terms: List[str]) -> Set[str]:
         """Найти совпадения терминов в тексте с учетом границ коротких слов."""
@@ -57,6 +61,13 @@ class HardFilter:
                 passed=False,
                 reason=f"Обнаружены стоп-слова: {', '.join(sorted(matched_stopwords))}",
                 matched_stopwords=list(matched_stopwords),
+            )
+
+        # 2. Проверка платных откликов / PRO
+        if self.filter_pro_only and order.is_pro_only:
+            return FilterResult(
+                passed=False,
+                reason="Требуется платный отклик / аккаунт PRO",
             )
 
         # 2. Проверка бюджета

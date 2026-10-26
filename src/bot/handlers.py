@@ -6,8 +6,9 @@ from aiogram import F, Router
 from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, Message
+from src.bot.keyboards import get_order_inline_keyboard
 from src.config import settings
-from src.models.order import OrderStatus
+from src.models.order import OrderStatus, RawOrder, SourcePlatform
 from src.storage.repository import OrderRepository
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,71 @@ async def handle_recent(message: Message, repo: OrderRepository) -> None:
         )
 
     await message.answer("\n\n".join(lines), parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+
+
+@router.callback_query(F.data.startswith("gen_prop:"))
+async def handle_generate_proposal(callback: CallbackQuery, repo: OrderRepository) -> None:
+    """Сгенерировать отклик по требованию по нажатию кнопки в боте."""
+    order_id_str = callback.data.split(":")[1]
+    order_id = int(order_id_str)
+
+    order_data = await repo.get_by_id(order_id)
+    if not order_data:
+        await callback.answer("Заказ не найден в базе данных.", show_alert=True)
+        return
+
+    await callback.answer("⏳ Генерирую персонализированный отклик...")
+
+    import json
+    from src.analyzer.factory import get_llm_client
+
+    llm_client = get_llm_client()
+    raw_order = RawOrder(
+        source=SourcePlatform(order_data["source"]),
+        external_id=order_data["external_id"],
+        title=order_data["title"],
+        description=order_data["description"] or "",
+        url=order_data["url"],
+        price=order_data["price"],
+        is_negotiable=bool(order_data.get("is_negotiable", 0)),
+    )
+
+    analysis_data = (
+        json.loads(order_data["analysis_json"])
+        if order_data.get("analysis_json")
+        else None
+    )
+
+    try:
+        proposal_text = await llm_client.generate_proposal(raw_order, analysis_data)
+        await repo.update_proposal(order_id, proposal_text)
+
+        # Обновляем кнопку в исходном сообщении на "Скопировать"
+        if callback.message:
+            try:
+                new_kb = get_order_inline_keyboard(
+                    order_id, raw_order.url, has_proposal=True
+                )
+                await callback.message.edit_reply_markup(reply_markup=new_kb)
+            except Exception:
+                pass
+
+            formatted_msg = (
+                f"✍️ <b>Сгенерированный отклик на заказ #{order_id}:</b>\n\n"
+                f"<blockquote>{html.escape(proposal_text)}</blockquote>\n\n"
+                f"<i>(Нажмите и удерживайте цитату выше для быстрого копирования)</i>"
+            )
+            await callback.message.reply(
+                text=formatted_msg,
+                parse_mode=ParseMode.HTML,
+            )
+
+    except Exception as e:
+        logger.error("Ошибка при генерации отклика для заказа #%d: %s", order_id, e)
+        if callback.message:
+            await callback.message.reply(
+                f"❌ Ошибка генерации отклика: {e}. Попробуйте позже."
+            )
 
 
 @router.callback_query(F.data.startswith("copy:"))

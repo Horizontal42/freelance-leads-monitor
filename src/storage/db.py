@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS orders (
     url TEXT NOT NULL,
     price REAL,
     is_negotiable INTEGER NOT NULL DEFAULT 0,
+    is_pro_only INTEGER NOT NULL DEFAULT 0,
     tags TEXT,
     status TEXT NOT NULL DEFAULT 'new',
     priority TEXT NOT NULL DEFAULT 'normal',
@@ -58,5 +59,9 @@ async def init_db(db_path: Path | str | None = None) -> None:
     """Инициализировать схему БД."""
     async with get_db_connection(db_path) as db:
         await db.executescript(CREATE_TABLES_SQL)
+        try:
+            await db.execute("ALTER TABLE orders ADD COLUMN is_pro_only INTEGER NOT NULL DEFAULT 0;")
+        except Exception:
+            pass  # колонка уже существует
         await db.commit()
 

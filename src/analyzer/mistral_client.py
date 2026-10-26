@@ -3,10 +3,10 @@
 import json
 import logging
 import re
-from typing import Optional
+from typing import Any, Dict, Optional
 import httpx
 from src.analyzer.base import BaseLLMClient
-from src.analyzer.prompts import build_analysis_prompt
+from src.analyzer.prompts import build_analysis_prompt, build_proposal_prompt
 from src.config import settings
 from src.models.analysis import AnalysisResult
 from src.models.order import OrderPriority, RawOrder
@@ -107,3 +107,33 @@ class MistralClient(BaseLLMClient):
         except Exception as e:
             logger.warning("Ошибка быстрого скоринга Mistral: %s", e)
         return {"is_relevant": True, "quick_score": 7, "reason": "Fallback to deep analysis"}
+
+    async def generate_proposal(
+        self,
+        order: RawOrder,
+        analysis_data: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Сгенерировать отклик через Mistral API."""
+        if not self.api_key:
+            raise ValueError("MISTRAL_API_KEY не задан в конфигурации (.env)")
+
+        prompt = build_proposal_prompt(order, analysis_data)
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+        }
+
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            resp = await client.post(self.api_url, headers=headers, json=payload)
+            if resp.status_code != 200:
+                raise RuntimeError(
+                    f"Mistral API вернул ошибку {resp.status_code}: {resp.text}"
+                )
+            content = resp.json()["choices"][0]["message"]["content"].strip()
+            return self._sanitize_proposal(content)

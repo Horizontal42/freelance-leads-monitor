@@ -107,6 +107,9 @@ class FlRuCollector(BaseCollector):
                 if hasattr(entry, "tags"):
                     tags = [t.get("term", "") for t in entry.tags if t.get("term")]
 
+                is_for_everyone = "(для всех)" in title.lower() or "(для всех)" in description.lower()
+                is_pro_only = not is_for_everyone
+
                 orders.append(
                     RawOrder(
                         source=SourcePlatform.FL_RU,
@@ -116,6 +119,7 @@ class FlRuCollector(BaseCollector):
                         url=link,
                         price=price,
                         is_negotiable=is_negotiable,
+                        is_pro_only=is_pro_only,
                         tags=tags,
                         created_at=created_at,
                         raw_payload={"guid": entry.get("id", link)},
