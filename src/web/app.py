@@ -114,7 +114,7 @@ DASHBOARD_HTML = """
             </div>
 
             <!-- Source Filter -->
-            <div class="flex items-center space-x-1 sm:space-x-2 text-sm">
+            <div class="flex items-center space-x-1 sm:space-x-2 text-sm flex-wrap gap-y-1">
                 <span class="text-xs text-slate-400 font-semibold mr-1 uppercase">Биржа:</span>
                 <a href="/?priority={{ selected_priority }}&source=" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if not selected_source %}bg-indigo-600 text-white{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
                     Все
@@ -124,6 +124,15 @@ DASHBOARD_HTML = """
                 </a>
                 <a href="/?priority={{ selected_priority }}&source=fl_ru" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'fl_ru' %}bg-indigo-600 text-white{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
                     FL.ru
+                </a>
+                <a href="/?priority={{ selected_priority }}&source=freelance_ru" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'freelance_ru' %}bg-indigo-600 text-white{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
+                    Freelance.ru
+                </a>
+                <a href="/?priority={{ selected_priority }}&source=pchel_net" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'pchel_net' %}bg-indigo-600 text-white{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
+                    Pchel.net
+                </a>
+                <a href="/?priority={{ selected_priority }}&source=remote_job" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'remote_job' %}bg-indigo-600 text-white{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
+                    Remote-job
                 </a>
             </div>
         </div>
@@ -144,7 +153,7 @@ DASHBOARD_HTML = """
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
                         <div class="flex items-center space-x-2">
                             <!-- Platform Badge -->
-                            <span class="text-xs font-bold uppercase px-2.5 py-1 rounded-md {% if order.source == 'kwork' %}bg-emerald-950 text-emerald-300 border border-emerald-800/60{% else %}bg-blue-950 text-blue-300 border border-blue-800/60{% endif %}">
+                            <span class="text-xs font-bold uppercase px-2.5 py-1 rounded-md {% if order.source == 'kwork' %}bg-emerald-950 text-emerald-300 border border-emerald-800/60{% elif order.source == 'fl_ru' %}bg-blue-950 text-blue-300 border border-blue-800/60{% elif order.source == 'freelance_ru' %}bg-purple-950 text-purple-300 border border-purple-800/60{% elif order.source == 'pchel_net' %}bg-amber-950 text-amber-300 border border-amber-800/60{% else %}bg-cyan-950 text-cyan-300 border border-cyan-800/60{% endif %}">
                                 {{ order.source }}
                             </span>
 

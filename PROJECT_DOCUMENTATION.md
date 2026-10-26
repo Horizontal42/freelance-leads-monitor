@@ -186,6 +186,15 @@ jobs/
   * Делает GET-запрос к `https://www.fl.ru/rss/all.xml`.
   * Парсит XML через `feedparser`.
   * Регулярным выражением вытаскивает бюджет (например, `Бюджет: 150 000 ₽` или `35 000 руб.`), корректно обрабатывая HTML-сущности. Извлекает ID проекта из ссылки вида `/projects/5526844/...`.
+- **`FreelanceRuCollector`**:
+  * Опрашивает страницы `https://freelance.ru/task` и `https://freelance.ru/task?q=python`.
+  * Парсит карточки `<article class="task-card">`, извлекает заголовки, описание, теги-чипсы и бюджет с обработкой статуса «договорная».
+- **`PchelNetCollector`**:
+  * Опрашивает IT-раздел `https://pchel.net/jobs/programming/`.
+  * Парсит блоки `<div class="project-block-cont">`, извлекает ID из ссылок, производит автоконвертацию бюджетов из долларов в рубли по заданному курсу (по умолчанию 95.0 ₽/$).
+- **`RemoteJobCollector`**:
+  * Опрашивает ленту заданий `https://remote-job.ru/search?search[searchType]=project`.
+  * Парсит карточки `<div class="vacancy_item">`, извлекает ID проекта, название без служебных пометок, очищенное описание и числовой бюджет.
 
 ### 5.4. Эвристический Hard-Filter ([`src/filters/pre_filter.py`](file:///home/horizontal42/jobs/src/filters/pre_filter.py))
 Отрабатывает за доли миллисекунды:
@@ -310,6 +319,13 @@ collectors:
       - 41  # Скрипты, боты и mini apps
   fl_ru:
     rss_url: "https://www.fl.ru/rss/all.xml"
+  freelance_ru:
+    base_url: "https://freelance.ru"
+  pchel_net:
+    base_url: "https://pchel.net"
+    usd_rate: 95.0
+  remote_job:
+    base_url: "https://remote-job.ru"
 
 filter:
   min_budget: 10000

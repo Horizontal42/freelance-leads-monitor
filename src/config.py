@@ -40,9 +40,25 @@ class FlRuCollectorConfig(BaseModel):
     rss_url: str = "https://www.fl.ru/rss/all.xml"
 
 
+class FreelanceRuCollectorConfig(BaseModel):
+    base_url: str = "https://freelance.ru"
+
+
+class PchelNetCollectorConfig(BaseModel):
+    base_url: str = "https://pchel.net"
+    usd_rate: float = 95.0
+
+
+class RemoteJobCollectorConfig(BaseModel):
+    base_url: str = "https://remote-job.ru"
+
+
 class CollectorsConfig(BaseModel):
     kwork: KworkCollectorConfig = Field(default_factory=KworkCollectorConfig)
     fl_ru: FlRuCollectorConfig = Field(default_factory=FlRuCollectorConfig)
+    freelance_ru: FreelanceRuCollectorConfig = Field(default_factory=FreelanceRuCollectorConfig)
+    pchel_net: PchelNetCollectorConfig = Field(default_factory=PchelNetCollectorConfig)
+    remote_job: RemoteJobCollectorConfig = Field(default_factory=RemoteJobCollectorConfig)
 
 
 class FilterConfig(BaseModel):
@@ -176,6 +192,22 @@ class Settings:
     @property
     def FL_RSS_URL(self) -> str:
         return self.app_config.collectors.fl_ru.rss_url
+
+    @property
+    def FREELANCE_RU_BASE_URL(self) -> str:
+        return self.app_config.collectors.freelance_ru.base_url
+
+    @property
+    def PCHEL_NET_BASE_URL(self) -> str:
+        return self.app_config.collectors.pchel_net.base_url
+
+    @property
+    def PCHEL_NET_USD_RATE(self) -> float:
+        return self.app_config.collectors.pchel_net.usd_rate
+
+    @property
+    def REMOTE_JOB_BASE_URL(self) -> str:
+        return self.app_config.collectors.remote_job.base_url
 
     # Фильтры
     @property
