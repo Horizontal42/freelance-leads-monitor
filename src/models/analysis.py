@@ -1,6 +1,6 @@
 """Domain models for LLM evaluation and proposals."""
 
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 from src.models.order import OrderPriority
 
@@ -31,23 +31,23 @@ class AnalysisResult(BaseModel):
     priority: OrderPriority = Field(..., description="Уровень приоритета (hot / normal)")
     executive_summary: str = Field(..., description="Краткое резюме: почему брать/не брать")
 
-    recommended_price: float = Field(..., description="Рекомендуемая цена для отклика в рублях")
-    price_justification: str = Field(..., description="Обоснование цены: вилка входа, порог торга")
-    realistic_days: float = Field(..., description="Реалистичный срок для клиента в днях")
+    recommended_price: float = Field(default=0.0, description="Рекомендуемая цена для отклика в рублях")
+    price_justification: str = Field(default="", description="Обоснование цены: вилка входа, порог торга")
+    realistic_days: float = Field(default=0.0, description="Реалистичный срок для клиента в днях")
 
     matched_project: str = Field(
-        ...,
+        default="",
         description="На какой проект из досье больше всего похоже (Speech Analytics, Avia_Pars, leads-monitor и др.)",
     )
-    complexity: int = Field(..., ge=1, le=10, description="Реальная техническая сложность 1-10")
-    pure_dev_hours: float = Field(..., description="Чистое расчетное время работы в часах")
+    complexity: int = Field(default=1, ge=1, le=10, description="Реальная техническая сложность 1-10")
+    pure_dev_hours: float = Field(default=0.0, description="Чистое расчетное время работы в часах")
     risks_and_pitfalls: List[str] = Field(
         default_factory=list,
         description="Скрытые риски, лимиты API, WAF, блокировки",
     )
 
     proposal_text: str = Field(
-        ...,
+        default="",
         description="Готовый отклик живым языком: без штампов, строго с дефисами '-', первые 140 симв с зацепкой",
     )
-    pert: PertEstimate = Field(..., description="PERT расчет сроков")
+    pert: Optional[PertEstimate] = Field(default=None, description="PERT расчет сроков")

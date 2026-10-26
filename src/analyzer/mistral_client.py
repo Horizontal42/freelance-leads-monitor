@@ -74,3 +74,36 @@ class MistralClient(BaseLLMClient):
                 )
 
             return AnalysisResult.model_validate(data)
+
+    async def quick_classify(self, order: RawOrder) -> dict:
+        """Быстрый скоринг заказа (до 500мс) для первичного отсева."""
+        if not self.api_key:
+            return {"is_relevant": True, "quick_score": 7, "reason": "No API key, passed"}
+
+        prompt = (
+            f"Оцени заказ для Python Middle разработчика (боты, парсеры, FastAPI, автоматизация, CRM):\n"
+            f"Заголовок: {order.title}\n"
+            f"Описание: {order.description[:350]}\n"
+            f"Бюджет: {order.price or 'Договорной'}\n\n"
+            f"Верни строго JSON: {{\"is_relevant\": true/false, \"quick_score\": 1-10, \"reason\": \"кратко\"}}"
+        )
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "response_format": {"type": "json_object"},
+            "temperature": 0.1,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(self.api_url, headers=headers, json=payload)
+                if resp.status_code == 200:
+                    content = resp.json()["choices"][0]["message"]["content"]
+                    return json.loads(content)
+        except Exception as e:
+            logger.warning("Ошибка быстрого скоринга Mistral: %s", e)
+        return {"is_relevant": True, "quick_score": 7, "reason": "Fallback to deep analysis"}

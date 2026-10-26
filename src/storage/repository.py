@@ -176,3 +176,37 @@ class OrderRepository:
             ) as cursor:
                 stats["sent_to_tg"] = (await cursor.fetchone())[0]
             return stats
+
+    async def get_extended_stats(self) -> Dict[str, Any]:
+        """Расширенная статистика с разбивкой по биржам и среднему чеку."""
+        async with self._get_conn() as db:
+            stats = await self.get_stats()
+            async with db.execute(
+                """
+                SELECT source,
+                       COUNT(*) as total,
+                       SUM(CASE WHEN priority='hot' THEN 1 ELSE 0 END) as hot,
+                       SUM(CASE WHEN priority='normal' THEN 1 ELSE 0 END) as normal,
+                       SUM(CASE WHEN priority='trash' THEN 1 ELSE 0 END) as trash
+                FROM orders GROUP BY source ORDER BY total DESC
+                """
+            ) as cursor:
+                rows = await cursor.fetchall()
+                stats["by_source"] = [
+                    {
+                        "source": r[0],
+                        "total": r[1],
+                        "hot": r[2] or 0,
+                        "normal": r[3] or 0,
+                        "trash": r[4] or 0,
+                    }
+                    for r in rows
+                ]
+
+            async with db.execute(
+                "SELECT AVG(price) FROM orders WHERE price IS NOT NULL AND price > 0 AND priority='hot'"
+            ) as cursor:
+                r = await cursor.fetchone()
+                stats["avg_hot_price"] = round(r[0], 0) if r and r[0] else 0
+
+            return stats

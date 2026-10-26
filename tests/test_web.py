@@ -59,3 +59,12 @@ async def test_web_dashboard_endpoints(tmp_path):
         assert "Freelance Leads Monitor" in html
         assert "jobs.3dvex.ru" in html
         assert "Разработка Telegram бота" in html
+
+        # 5. HTML Tabs (analytics, rules)
+        resp_analytics = await client.get("/?tab=analytics")
+        assert resp_analytics.status_code == 200
+        assert "Сводная статистика по биржам" in resp_analytics.text
+
+        resp_rules = await client.get("/?tab=rules")
+        assert resp_rules.status_code == 200
+        assert "Белый список ключевых слов" in resp_rules.text

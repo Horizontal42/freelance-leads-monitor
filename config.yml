@@ -101,7 +101,7 @@ filter:
     - "гугл таблиц"
 
 llm:
-  provider: "antigravity"  # "antigravity" или "mistral"
+  provider: "hybrid"  # "hybrid" (Mistral быстрый отсев -> Antigravity глубокий анализ), "antigravity", "mistral"
   antigravity:
     binary: "agy"
     model: "gemini-3.8-flash-medium"
