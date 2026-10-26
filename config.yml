@@ -16,8 +16,9 @@ collectors:
   kwork:
     base_url: "https://kwork.ru"
     category_ids:
-      - 11  # Разработка и IT
-      - 41  # Скрипты, боты и mini apps
+      - 11  # Разработка и IT (включает подкатегории: боты, скрипты, бэкенд, сервера)
+    max_pages: 5  # Глубина пагинации по категории (по 12 проектов на страницу)
+    include_all_pages: 3  # Общая лента биржи для выявления кросс-дисциплинарных лидов
   fl_ru:
     rss_url: "https://www.fl.ru/rss/all.xml"
   freelance_ru:
