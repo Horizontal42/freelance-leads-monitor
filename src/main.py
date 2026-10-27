@@ -11,6 +11,7 @@ from src.bot.bot import create_bot_and_dispatcher
 from src.collectors.base import BaseCollector
 from src.collectors.fl_ru import FlRuCollector
 from src.collectors.freelance_ru import FreelanceRuCollector
+from src.collectors.hh_ru import HhRuCollector
 from src.collectors.kwork import KworkCollector
 from src.collectors.pchel_net import PchelNetCollector
 from src.collectors.remote_job import RemoteJobCollector
@@ -111,6 +112,7 @@ async def main() -> None:
         FreelanceRuCollector(),
         PchelNetCollector(),
         RemoteJobCollector(),
+        HhRuCollector(),
     ]
 
     # 3. Режим разового сканирования (--once)

@@ -189,10 +189,16 @@ class OrderRepository:
         status: Optional[OrderStatus | str] = None,
         source: Optional[str] = None,
         only_free: bool = False,
+        section: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Получить список свежих заказов с возможностью фильтрации."""
+        """Получить список свежих заказов с возможностью фильтрации по секциям и биржам."""
         query = "SELECT * FROM orders WHERE 1=1"
         params: List[Any] = []
+
+        if section in ["hh_ru", "hh"]:
+            query += " AND source = 'hh_ru'"
+        elif section == "freelance":
+            query += " AND source != 'hh_ru'"
 
         if priority:
             p_val = priority.value if hasattr(priority, "value") else str(priority)
@@ -241,9 +247,56 @@ class OrderRepository:
             return stats
 
     async def get_extended_stats(self) -> Dict[str, Any]:
-        """Расширенная статистика с разбивкой по биржам и среднему чеку."""
+        """Расширенная статистика с разбивкой по биржам, секциям (фриланс / hh.ru) и среднему чеку."""
         async with self._get_conn() as db:
             stats = await self.get_stats()
+
+            # Фриланс статистика (биржи фриланса без hh_ru)
+            async with db.execute(
+                """
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN priority='hot' THEN 1 ELSE 0 END) as hot,
+                    SUM(CASE WHEN priority='normal' THEN 1 ELSE 0 END) as normal,
+                    SUM(CASE WHEN priority='trash' THEN 1 ELSE 0 END) as trash,
+                    SUM(CASE WHEN status='sent_to_tg' THEN 1 ELSE 0 END) as sent_to_tg,
+                    AVG(CASE WHEN price IS NOT NULL AND price > 0 AND priority='hot' THEN price ELSE NULL END) as avg_price
+                FROM orders WHERE source != 'hh_ru'
+                """
+            ) as cursor:
+                r_fr = await cursor.fetchone()
+                stats["freelance"] = {
+                    "total": r_fr[0] or 0,
+                    "hot": r_fr[1] or 0,
+                    "normal": r_fr[2] or 0,
+                    "trash": r_fr[3] or 0,
+                    "sent_to_tg": r_fr[4] or 0,
+                    "avg_hot_price": round(r_fr[5], 0) if r_fr and r_fr[5] else 0,
+                }
+
+            # HH.ru статистика вакансий
+            async with db.execute(
+                """
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN priority='hot' THEN 1 ELSE 0 END) as hot,
+                    SUM(CASE WHEN priority='normal' THEN 1 ELSE 0 END) as normal,
+                    SUM(CASE WHEN priority='trash' THEN 1 ELSE 0 END) as trash,
+                    SUM(CASE WHEN status='sent_to_tg' THEN 1 ELSE 0 END) as sent_to_tg,
+                    AVG(CASE WHEN price IS NOT NULL AND price > 0 AND priority='hot' THEN price ELSE NULL END) as avg_price
+                FROM orders WHERE source = 'hh_ru'
+                """
+            ) as cursor:
+                r_hh = await cursor.fetchone()
+                stats["hh_ru"] = {
+                    "total": r_hh[0] or 0,
+                    "hot": r_hh[1] or 0,
+                    "normal": r_hh[2] or 0,
+                    "trash": r_hh[3] or 0,
+                    "sent_to_tg": r_hh[4] or 0,
+                    "avg_hot_price": round(r_hh[5], 0) if r_hh and r_hh[5] else 0,
+                }
+
             async with db.execute(
                 """
                 SELECT source,

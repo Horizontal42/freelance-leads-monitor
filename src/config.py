@@ -64,12 +64,56 @@ class RemoteJobCollectorConfig(BaseModel):
     backfill_pages: int = 3
 
 
+class HhRuCollectorConfig(BaseModel):
+    base_url: str = "https://api.hh.ru"
+    enabled: bool = True
+    days: int = 30
+    area: Optional[List[int]] = None
+    work_format: List[str] = Field(default_factory=list)
+    max_pages: int = 2
+    per_page: int = 50
+    queries: List[str] = Field(
+        default_factory=lambda: [
+            "NAME:(AI OR ИИ) AND NAME:(инженер OR engineer OR разработчик OR developer)",
+            "NAME:(junior OR джуниор OR стажер OR стажёр OR intern) AND NAME:(AI OR ИИ OR LLM OR ML OR нейросет*)",
+            'NAME:(ML OR "machine learning" OR "машинное обучение") AND NAME:(инженер OR engineer OR разработчик OR developer OR стажер OR стажёр)',
+            "NAME:(LLM OR RAG OR GPT)",
+            "NAME:Python AND NAME:(AI OR ИИ OR LLM OR нейросет* OR ML)",
+            'NAME:"computer vision" OR NAME:"компьютерное зрение"',
+            'NAME:(AI-агент* OR ИИ-агент* OR "AI agent")',
+            'NAME:(промпт-инженер OR "prompt engineer")',
+        ]
+    )
+    drop_title: str = r"middle|мидл|senior|сеньор|\blead\b|тимлид|team lead|ведущ|старш|principal|head of|руководител|архитектор|architect"
+    junior_title: str = r"junior|джуниор|\bджун\b|стаж[её]р|стажировк|\bintern\b|\binternship\b|\btrainee\b|начинающ|младш"
+    drop_experience: List[str] = Field(default_factory=lambda: ["От 3 до 6 лет", "Более 6 лет"])
+    stop_title_hard: List[str] = Field(
+        default_factory=lambda: [
+            r"\bsmm\b",
+            "копирайт",
+            r"сбор\w* данных",
+            r"разметчик|разметк\w+ данных|ai[- ]?тренер|ai trainer",
+        ]
+    )
+    stop_title_soft: List[str] = Field(
+        default_factory=lambda: [
+            r"продаж|\bsales\b|продавец",
+            r"маркетолог|маркетинг|marketing",
+            r"наставник|куратор|тренер|преподав|менторств|\bкурс(?:ы|ов|а|е|у)?\b|школ|обучени\w*\s+(?:нейросет|ии\b|ai\b|персонал|сотрудник)",
+            r"системн\w+ администратор|администриров",
+            r"робот|\brobot",
+        ]
+    )
+    engineering_marker: str = r"инженер|engineer|разработчик|developer|программист|\bml\b|\bllm\b|\brag\b"
+
+
 class CollectorsConfig(BaseModel):
     kwork: KworkCollectorConfig = Field(default_factory=KworkCollectorConfig)
     fl_ru: FlRuCollectorConfig = Field(default_factory=FlRuCollectorConfig)
     freelance_ru: FreelanceRuCollectorConfig = Field(default_factory=FreelanceRuCollectorConfig)
     pchel_net: PchelNetCollectorConfig = Field(default_factory=PchelNetCollectorConfig)
     remote_job: RemoteJobCollectorConfig = Field(default_factory=RemoteJobCollectorConfig)
+    hh_ru: HhRuCollectorConfig = Field(default_factory=HhRuCollectorConfig)
 
 
 class FilterConfig(BaseModel):
@@ -159,6 +203,8 @@ class PromptRulesConfig(BaseModel):
 class PromptTemplatesConfig(BaseModel):
     analysis_system_prompt: str = ""
     proposal_prompt_template: str = ""
+    vacancy_analysis_system_prompt: str = ""
+    cover_letter_template: str = ""
 
 
 class PromptsConfig(BaseModel):
@@ -209,6 +255,8 @@ class Secrets(BaseSettings):
     BOT_TOKEN: str = ""
     ADMIN_CHAT_ID: int = 0
     MISTRAL_API_KEY: str = ""
+    HH_APP_TOKEN: str = ""
+    HH_USER_AGENT: str = "JobSearch/1.0 (frolka84@gmail.com)"
 
 
 # ==========================================
@@ -239,6 +287,14 @@ class Settings:
     @property
     def MISTRAL_API_KEY(self) -> str:
         return self.secrets.MISTRAL_API_KEY
+
+    @property
+    def HH_APP_TOKEN(self) -> str:
+        return self.secrets.HH_APP_TOKEN
+
+    @property
+    def HH_USER_AGENT(self) -> str:
+        return self.secrets.HH_USER_AGENT
 
     # База данных
     @property
@@ -328,6 +384,10 @@ class Settings:
     @property
     def REMOTE_JOB_BACKFILL_PAGES(self) -> int:
         return self.app_config.collectors.remote_job.backfill_pages
+
+    @property
+    def COLLECTORS_HH_RU(self) -> HhRuCollectorConfig:
+        return self.app_config.collectors.hh_ru
 
     @property
     def POLLING_INTERVAL_SECONDS(self) -> int:
@@ -470,6 +530,20 @@ class Settings:
         if not tmpl:
             return ""
         # Подставляем dossier_text, оставляя {source}, {title}, {price}, {description}, {extra_context} для format
+        return tmpl.replace("{dossier_text}", self.DOSSIER_TEXT).strip()
+
+    @property
+    def VACANCY_ANALYSIS_SYSTEM_PROMPT(self) -> str:
+        tmpl = self.app_config.prompts.templates.vacancy_analysis_system_prompt
+        if not tmpl:
+            return ""
+        return tmpl.format(dossier_text=self.DOSSIER_TEXT).strip()
+
+    @property
+    def COVER_LETTER_TEMPLATE(self) -> str:
+        tmpl = self.app_config.prompts.templates.cover_letter_template
+        if not tmpl:
+            return ""
         return tmpl.replace("{dossier_text}", self.DOSSIER_TEXT).strip()
 
 

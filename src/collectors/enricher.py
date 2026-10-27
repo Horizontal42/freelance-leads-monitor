@@ -45,6 +45,8 @@ class OrderEnricher:
                 await self._enrich_pchel_net(order)
             elif order.source == SourcePlatform.REMOTE_JOB:
                 await self._enrich_remote_job(order)
+            elif order.source == SourcePlatform.HH_RU:
+                await self._enrich_hh_ru(order)
         except Exception as e:
             logger.warning(
                 "Не удалось обогатить заказ [%s #%s] деталями: %s. Используется исходное описание.",
@@ -186,3 +188,38 @@ class OrderEnricher:
                 full_text = html.unescape("\n".join(l.strip() for l in clean.splitlines() if l.strip()))
                 if len(full_text) > len(order.description):
                     order.description = full_text
+
+    async def _enrich_hh_ru(self, order: RawOrder) -> None:
+        """HeadHunter: выгружаем полное описание вакансии и ключевые навыки через API."""
+        from src.config import settings
+
+        token = (settings.HH_APP_TOKEN or "").strip()
+        headers = {
+            "User-Agent": settings.HH_USER_AGENT,
+            "HH-User-Agent": settings.HH_USER_AGENT,
+            "Accept": "application/json",
+        }
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        api_url = f"https://api.hh.ru/vacancies/{order.external_id}"
+        async with httpx.AsyncClient(headers=headers, timeout=self.timeout) as client:
+            resp = await client.get(api_url)
+            if resp.status_code != 200:
+                return
+
+            data = resp.json()
+            desc_html = data.get("description", "")
+            if desc_html:
+                clean = re.sub(r"<[^>]+>", " ", desc_html)
+                clean_desc = " ".join(html.unescape(clean).split())
+                if len(clean_desc) > len(order.description):
+                    order.description = clean_desc
+
+            skills = [s.get("name") for s in data.get("key_skills", []) if s.get("name")]
+            if skills:
+                order.tags = list(dict.fromkeys(order.tags + skills))
+                if order.attachments_text:
+                    order.attachments_text += f"\n🔑 Навыки: {', '.join(skills)}"
+                else:
+                    order.attachments_text = f"🔑 Навыки: {', '.join(skills)}"

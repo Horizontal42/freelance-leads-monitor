@@ -31,6 +31,24 @@ class AnalysisResult(BaseModel):
     priority: OrderPriority = Field(..., description="Уровень приоритета (hot / normal)")
     executive_summary: str = Field(..., description="Краткое резюме: почему брать/не брать")
 
+    # Специфика вакансий (HH.ru) под резюме Андрея Пименова
+    company_overview: Optional[str] = Field(
+        default="",
+        description="Что за компания, ее сфера бизнеса, масштаб и продукт",
+    )
+    candidate_requirements: Optional[str] = Field(
+        default="",
+        description="Требования к кандидату, стек технологий, адекватность грейда",
+    )
+    job_responsibilities: Optional[str] = Field(
+        default="",
+        description="Чем предстоит заниматься на практике, реальные задачи",
+    )
+    match_reason: Optional[str] = Field(
+        default="",
+        description="Почему вакансия подходит Андрею Пименову с учетом его резюме",
+    )
+
     recommended_price: float = Field(default=0.0, description="Рекомендуемая цена для отклика в рублях")
     price_justification: str = Field(default="", description="Обоснование цены: вилка входа, порог торга")
     realistic_days: float = Field(default=0.0, description="Реалистичный срок для клиента в днях")
@@ -71,6 +89,50 @@ class AnalysisResult(BaseModel):
     @field_validator("executive_summary", mode="before")
     @classmethod
     def sanitize_executive_summary(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, (list, tuple)):
+            return " ".join(str(x) for x in v)
+        if isinstance(v, dict):
+            return " ".join(str(val) for val in v.values() if val)
+        return str(v)
+
+    @field_validator("company_overview", mode="before")
+    @classmethod
+    def sanitize_company_overview(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, (list, tuple)):
+            return " ".join(str(x) for x in v)
+        if isinstance(v, dict):
+            return " ".join(str(val) for val in v.values() if val)
+        return str(v)
+
+    @field_validator("candidate_requirements", mode="before")
+    @classmethod
+    def sanitize_candidate_requirements(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, (list, tuple)):
+            return " ".join(str(x) for x in v)
+        if isinstance(v, dict):
+            return " ".join(str(val) for val in v.values() if val)
+        return str(v)
+
+    @field_validator("job_responsibilities", mode="before")
+    @classmethod
+    def sanitize_job_responsibilities(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, (list, tuple)):
+            return " ".join(str(x) for x in v)
+        if isinstance(v, dict):
+            return " ".join(str(val) for val in v.values() if val)
+        return str(v)
+
+    @field_validator("match_reason", mode="before")
+    @classmethod
+    def sanitize_match_reason(cls, v: Any) -> str:
         if v is None:
             return ""
         if isinstance(v, (list, tuple)):
