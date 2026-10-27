@@ -89,6 +89,80 @@ DEFAULT_PROPOSAL_PROMPT_TEMPLATE = """Ты - старший Python-разраб�
 """
 
 
+DEFAULT_COVER_LETTER_TEMPLATE = """Ты - старший карьерный консультант и технический ментор Андрея Пименова (@horizontal42, Junior+/Middle AI/Python-разработчик).
+Твоя задача - составить идеальное, персонализированное и убедительное сопроводительное письмо (Cover Letter) для отклика на вакансию HeadHunter (hh.ru).
+
+ЖЕСТКИЕ ПРАВИЛА:
+1. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать длинное тире (em-dash)! Используй ТОЛЬКО обычный дефис "-".
+2. Никаких шаблонных робо-приветствий вроде "Я с большим энтузиазмом ознакомился с вашей вакансией..." и списков с жирными маркерами (**Стек:**, **О себе:**). Пиши живым, деловым языком уверенного разработчика.
+3. ПРАВИЛО ПЕРВЫХ 150 СИМВОЛОВ: первые 2-3 строчки HR видит в превью. Сразу зацепи релевантным стеком и реальным коммерческим опытом!
+4. ОПИРАЙСЯ НА РЕАЛЬНЫЙ ОПЫТ ИЗ РЕЗЮМЕ АНДРЕЯ:
+   - Cortex IT: B2B речевая аналитика звонков (WhisperX, pyannote, Qwen 32B, FastAPI, Celery, Bitrix24), корпоративный RAG на Qdrant/LangChain, компьютерное зрение YOLOv8/ByteTrack.
+   - Компьютерный Цехъ: разработка системы тестирования оборудования LaptopTester (WMI, smartctl, ReportLab).
+   - Стек: Python, FastAPI, Celery, Redis, PostgreSQL, Docker, Linux, Git.
+   - Ссылайся именно на те проекты и технологии, которые упомянуты в требованиях вакансии!
+5. Подчеркни умение быстро погружаться в бизнес-задачи (благодаря коммерческому бэкграунду в B2B-переговорах в Zoon и Cortex IT).
+6. В конце: готовность выполнить адекватное тестовое задание или созвониться для технического скрининга. Контакты: Telegram @horizontal42, email: frolka84@gmail.com.
+
+РЕЗЮМЕ КАНДИДАТА:
+{dossier_text}
+
+ДАННЫЕ ВАКАНСИИ:
+Название: {title}
+{extra_context}
+Описание вакансии:
+{description}
+
+ФОРМАТ ОТВЕТА (СТРОГО JSON):
+```json
+{{
+  "proposal_text": "Готовый текст сопроводительного письма..."
+}}
+```
+Верни ТОЛЬКО JSON-блок, строго с обычными дефисами "-" (без длинных тире).
+"""
+
+DEFAULT_VACANCY_SYSTEM_PROMPT = """Ты - старший AI/Python-разработчик и карьерный ментор Андрея Пименова (@horizontal42, Junior+/Middle).
+Твоя задача - объективно проанализировать вакансию с HeadHunter (hh.ru) под профиль и резюме Андрея и сформировать ответ СТРОГО в формате JSON по заданной схеме.
+
+БЭКГРАУНД И РЕЗЮМЕ КАНДИДАТА (АНДРЕЙ ПИМЕНОВ):
+{dossier_text}
+
+ЖЕСТКИЕ ПРАВИЛА:
+1. Запрет длинных тире (em-dash)! Используй только обычные дефисы "-".
+2. О компании (company_overview): 2-3 емких предложения (сфера бизнеса, масштаб, специфика продукта компании).
+3. Требования к кандидату (candidate_requirements): ключевой стек, требуемый опыт, адекватность требований к грейду.
+4. Чем предстоит заниматься (job_responsibilities): реальные рабочие задачи, разработка и поддержка каких модулей.
+5. Подводные камни и скрытые риски (risks_and_pitfalls): овертаймы, замаскированные продажи/холодные звонки, неоплачиваемое тестовое задание, требования сеньора под видом джуна, легаси кодовая база, размытые зоны ответственности.
+6. Почему подходит Андрею (match_reason): конкретные точки пересечения резюме Андрея (Cortex IT, Speech Analytics WhisperX, RAG Qdrant, CV YOLOv8, FastAPI, Celery) с требованиями вакансии.
+7. Оценка привлекательности от 1 до 10 (score): если стек хорошо совпадает и адекватные условия - score 7-10 (priority: "hot"). Если частичное совпадение или неясные условия - score 4-6 (priority: "normal"). Если неадекват или полный оффтоп - score 1-3 (priority: "trash").
+8. Поле proposal_text оставь пустым (""), так как сопроводительное письмо генерируется по отдельному требованию пользователя через Antigravity.
+
+ФОРМАТ ОТВЕТА (СТРОГО JSON):
+{{
+  "take_order": true,
+  "score": 8,
+  "priority": "hot",
+  "executive_summary": "Краткая суть вакансии в 2-3 емких предложениях.",
+  "company_overview": "Информация о компании и продукте.",
+  "candidate_requirements": "Требования к стеку и грейду.",
+  "job_responsibilities": "Чем предстоит заниматься на практике.",
+  "match_reason": "Конкретное совпадение со стеком и опытом Андрея.",
+  "recommended_price": 0,
+  "price_justification": "",
+  "realistic_days": 0,
+  "matched_project": "Cortex IT (RAG / Speech Analytics)",
+  "complexity": 5,
+  "pure_dev_hours": 0,
+  "risks_and_pitfalls": [
+    "Возможное объемное тестовое задание",
+    "Необходимость быстрого погружения в существующую кодовую базу"
+  ],
+  "proposal_text": ""
+}}
+"""
+
+
 def get_system_prompt() -> str:
     """Получить актуальный системный промпт из конфигурации config.yml."""
     prompt = getattr(settings, "ANALYSIS_SYSTEM_PROMPT", "")
@@ -104,13 +178,96 @@ def get_proposal_template() -> str:
     return DEFAULT_PROPOSAL_PROMPT_TEMPLATE.replace("{dossier_text}", dossier)
 
 
+def get_vacancy_system_prompt() -> str:
+    """Получить актуальный системный промпт анализа вакансий HH.ru."""
+    prompt = getattr(settings, "VACANCY_ANALYSIS_SYSTEM_PROMPT", "")
+    if prompt:
+        return prompt
+    dossier = getattr(settings, "DOSSIER_TEXT", "")
+    return DEFAULT_VACANCY_SYSTEM_PROMPT.format(dossier_text=dossier)
+
+
+def get_cover_letter_template() -> str:
+    """Получить актуальный шаблон сопроводительного письма."""
+    tmpl = getattr(settings, "COVER_LETTER_TEMPLATE", "")
+    if tmpl:
+        return tmpl
+    dossier = getattr(settings, "DOSSIER_TEXT", "")
+    return DEFAULT_COVER_LETTER_TEMPLATE.replace("{dossier_text}", dossier)
+
+
 # Для обратной совместимости
 SYSTEM_PROMPT = get_system_prompt()
 PROPOSAL_PROMPT_TEMPLATE = get_proposal_template()
 
 
+def build_vacancy_analysis_prompt(order: RawOrder) -> str:
+    """Сформировать промпт анализа вакансии HH.ru для LLM."""
+    salary_info = (
+        f"{int(order.price)} ₽"
+        if order.price
+        else ("По договоренности" if order.is_negotiable else "Не указана")
+    )
+    tags_info = ", ".join(order.tags) if order.tags else "Нет"
+    meta_info = (
+        f"\n\nМЕТАДАННЫЕ ВАКАНСИИ:\n{order.attachments_text.strip()}"
+        if order.attachments_text
+        else ""
+    )
+
+    user_content = f"""
+ПРОАНАЛИЗИРУЙ ВАКАНСИЮ:
+Источник: HEADHUNTER (hh.ru, ID: {order.external_id})
+Название: {order.title}
+Зарплата: {salary_info}
+Теги и навыки: {tags_info}{meta_info}
+
+ОПИСАНИЕ И ТРЕБОВАНИЯ ВАКАНСИИ:
+{order.description}
+
+ВАЖНО: Все материалы вакансии уже предоставлены выше.
+Сформируй JSON-ответ строго по инструкции. Обязательно заполни поля: company_overview, candidate_requirements, job_responsibilities, match_reason, risks_and_pitfalls, score, priority.
+Поле proposal_text оставь пустой строкой.
+"""
+    return f"{get_vacancy_system_prompt()}\n\n{user_content}"
+
+
+def build_cover_letter_prompt(
+    order: RawOrder,
+    analysis_data: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Сформировать промпт для генерации сопроводительного письма (Cover Letter) для HH.ru."""
+    extra_context = ""
+    if analysis_data:
+        company = analysis_data.get("company_overview", "")
+        reqs = analysis_data.get("candidate_requirements", "")
+        tasks = analysis_data.get("job_responsibilities", "")
+        match = analysis_data.get("match_reason", "")
+        extra_context = (
+            f"Контекст анализа вакансии:\n"
+            f"- О компании: {company}\n"
+            f"- Требования: {reqs}\n"
+            f"- Задачи: {tasks}\n"
+            f"- Точки совпадения со стеком Андрея: {match}\n"
+        )
+    if order.attachments_text and order.attachments_text.strip():
+        extra_context += f"\nДополнительные данные:\n{order.attachments_text.strip()}\n"
+
+    full_description = order.description
+    template = get_cover_letter_template()
+    return template.format(
+        title=order.title,
+        description=full_description,
+        extra_context=extra_context,
+    )
+
+
 def build_analysis_prompt(order: RawOrder) -> str:
-    """Сформировать промпт анализа заказа для LLM."""
+    """Сформировать промпт анализа заказа/вакансии для LLM."""
+    from src.models.order import SourcePlatform
+    if order.source == SourcePlatform.HH_RU:
+        return build_vacancy_analysis_prompt(order)
+
     price_info = (
         f"{int(order.price)} ₽"
         if order.price
@@ -145,7 +302,10 @@ def build_proposal_prompt(
     order: RawOrder,
     analysis_data: Optional[Dict[str, Any]] = None,
 ) -> str:
-    """Сформировать промпт для генерации отклика по требованию."""
+    """Сформировать промпт для генерации отклика или сопроводительного письма."""
+    from src.models.order import SourcePlatform
+    if order.source == SourcePlatform.HH_RU:
+        return build_cover_letter_prompt(order, analysis_data)
     price_info = (
         f"{int(order.price)} ₽"
         if order.price
