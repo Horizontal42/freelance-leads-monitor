@@ -140,3 +140,14 @@ async def test_order_repository_flow(tmp_path):
     stats = await repo.get_stats()
     assert stats["total"] == 1
     assert stats["hot"] == 1
+
+    # 5. Update proposal with market price from agy
+    await repo.update_proposal(
+        order_id,
+        proposal_text="Отклик от agy",
+        recommended_price=35000.0,
+        price_justification="Анализ цен на биржах",
+    )
+    updated = await repo.get_by_id(order_id)
+    assert updated["proposal_text"] == "Отклик от agy"
+    assert updated["recommended_price"] == 35000.0

@@ -15,7 +15,7 @@ from tenacity import (
 from src.analyzer.base import BaseLLMClient
 from src.analyzer.prompts import build_analysis_prompt, build_proposal_prompt
 from src.config import settings
-from src.models.analysis import AnalysisResult
+from src.models.analysis import AnalysisResult, ProposalResult
 from src.models.order import OrderPriority, RawOrder
 
 logger = logging.getLogger(__name__)
@@ -265,7 +265,27 @@ class MistralClient(BaseLLMClient):
         try:
             result_json = await self._execute_with_rate_limit(payload)
             content = result_json["choices"][0]["message"]["content"].strip()
-            return self._sanitize_proposal(content)
+            # Попытка извлечь JSON если есть
+            try:
+                json_str = self._clean_json_output(content)
+                parsed = json.loads(json_str)
+                if isinstance(parsed, dict) and "proposal_text" in parsed:
+                    rec_price = None
+                    if parsed.get("recommended_price"):
+                        try:
+                            rec_price = float(parsed["recommended_price"])
+                        except (ValueError, TypeError):
+                            pass
+                    price_just = parsed.get("price_justification")
+                    return ProposalResult(
+                        self._sanitize_proposal(str(parsed["proposal_text"]).strip()),
+                        recommended_price=rec_price,
+                        price_justification=str(price_just) if price_just else None,
+                    )
+            except Exception:
+                pass
+
+            return ProposalResult(self._sanitize_proposal(content))
         except Exception as e:
             logger.warning("Сбой генерации отклика Mistral: %s", e)
             if self.fallback_client:

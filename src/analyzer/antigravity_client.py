@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 from src.analyzer.base import BaseLLMClient
 from src.analyzer.prompts import build_analysis_prompt, build_proposal_prompt
 from src.config import settings
-from src.models.analysis import AnalysisResult
+from src.models.analysis import AnalysisResult, ProposalResult
 from src.models.order import OrderPriority, RawOrder
 
 logger = logging.getLogger(__name__)
@@ -186,7 +186,28 @@ class AntigravityClient(BaseLLMClient):
             )
 
         output_text = stdout_bytes.decode("utf-8", errors="ignore").strip()
-        # Очищаем от markdown блоков если есть
-        output_text = re.sub(r"^```[a-zA-Z]*\n", "", output_text)
-        output_text = re.sub(r"\n```$", "", output_text).strip()
-        return self._sanitize_proposal(output_text)
+        # Попытка извлечь структурированный JSON с рыночной оценкой и откликом
+        json_str = self._clean_json_output(output_text)
+        try:
+            parsed = json.loads(json_str)
+            if isinstance(parsed, dict) and "proposal_text" in parsed:
+                rec_price = None
+                if parsed.get("recommended_price"):
+                    try:
+                        rec_price = float(parsed["recommended_price"])
+                    except (ValueError, TypeError):
+                        pass
+                price_just = parsed.get("price_justification")
+                prop_text = self._sanitize_proposal(str(parsed["proposal_text"]).strip())
+                return ProposalResult(
+                    prop_text,
+                    recommended_price=rec_price,
+                    price_justification=str(price_just) if price_just else None,
+                )
+        except Exception:
+            pass
+
+        # Fallback если модель вернула плоский текст
+        cleaned_text = re.sub(r"^```[a-zA-Z]*\n", "", output_text)
+        cleaned_text = re.sub(r"\n```$", "", cleaned_text).strip()
+        return ProposalResult(self._sanitize_proposal(cleaned_text))

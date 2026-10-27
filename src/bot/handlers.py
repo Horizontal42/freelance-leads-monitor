@@ -119,8 +119,17 @@ async def handle_generate_proposal(callback: CallbackQuery, repo: OrderRepositor
     )
 
     try:
-        proposal_text = await llm_client.generate_proposal(raw_order, analysis_data)
-        await repo.update_proposal(order_id, proposal_text)
+        proposal_res = await llm_client.generate_proposal(raw_order, analysis_data)
+        proposal_text = str(proposal_res)
+        rec_price = getattr(proposal_res, "recommended_price", None)
+        price_just = getattr(proposal_res, "price_justification", None)
+
+        await repo.update_proposal(
+            order_id,
+            proposal_text=proposal_text,
+            recommended_price=rec_price,
+            price_justification=price_just,
+        )
 
         # Обновляем кнопку в исходном сообщении на "Скопировать"
         if callback.message:
@@ -132,8 +141,15 @@ async def handle_generate_proposal(callback: CallbackQuery, repo: OrderRepositor
             except Exception:
                 pass
 
+            price_block = ""
+            if rec_price and rec_price > 0:
+                price_block = f"🎯 <b>Рыночная ставка (agy):</b> <code>{int(rec_price):,} ₽</code>\n"
+                if price_just:
+                    price_block += f"💡 <b>Обоснование:</b> {html.escape(price_just)}\n\n"
+
             formatted_msg = (
                 f"✍️ <b>Сгенерированный отклик на заказ #{order_id}:</b>\n\n"
+                f"{price_block}"
                 f"<blockquote>{html.escape(proposal_text)}</blockquote>\n\n"
                 f"<i>(Нажмите и удерживайте цитату выше для быстрого копирования)</i>"
             )

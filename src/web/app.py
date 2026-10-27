@@ -274,14 +274,16 @@ DASHBOARD_HTML = """
 
                             <!-- Market / AI Recommended Price -->
                             {% set rec_price = order.recommended_price or (order.analysis.recommended_price if order.analysis else None) %}
-                            {% if rec_price %}
-                                <div class="flex items-center gap-1.5 bg-amber-950/40 border border-amber-800/60 px-3 py-1 rounded-lg" title="Оценка адекватной рыночной стоимости задачи от нейросети">
-                                    <span class="text-xs text-amber-400 font-medium">🎯 Рыночная оценка:</span>
-                                    <span class="text-sm font-bold text-amber-300 font-mono">
+                            <div id="market-price-pill-{{ order.id }}" class="flex items-center gap-1.5 {% if rec_price and rec_price > 0 %}bg-amber-950/40 border border-amber-800/60{% else %}bg-slate-950/60 border border-slate-800{% endif %} px-3 py-1 rounded-lg" title="Оценка рыночной стоимости задачи через Antigravity с веб-поиском">
+                                <span class="text-xs text-amber-400 font-medium">🎯 Рыночная:</span>
+                                <span class="text-sm font-bold text-amber-300 font-mono">
+                                    {% if rec_price and rec_price > 0 %}
                                         {{ "{:,.0f}".format(rec_price).replace(",", " ") }} ₽
-                                    </span>
-                                </div>
-                            {% endif %}
+                                    {% else %}
+                                        <span class="text-xs text-slate-400 font-normal">по кнопке (agy)</span>
+                                    {% endif %}
+                                </span>
+                            </div>
                         </div>
                     </div>
 
@@ -525,6 +527,33 @@ DASHBOARD_HTML = """
                 const res = await fetch(`/api/orders/${orderId}/generate-proposal`, { method: 'POST' });
                 const data = await res.json();
                 if (data.ok && data.proposal_text) {
+                    // Обновляем бейдж рыночной цены в карточке
+                    if (data.recommended_price) {
+                        const pill = document.getElementById(`market-price-pill-${orderId}`);
+                        if (pill) {
+                            pill.className = "flex items-center gap-1.5 bg-amber-950/40 border border-amber-800/60 px-3 py-1 rounded-lg";
+                            const formatted = new Intl.NumberFormat('ru-RU').format(data.recommended_price) + ' ₽';
+                            pill.innerHTML = `<span class="text-xs text-amber-400 font-medium">🎯 Рыночная:</span> <span class="text-sm font-bold text-amber-300 font-mono">${formatted}</span>`;
+                        }
+                    }
+
+                    // Формируем финансовый блок если есть данные
+                    let finBlock = '';
+                    if (data.recommended_price || data.price_justification) {
+                        const recFormatted = data.recommended_price ? new Intl.NumberFormat('ru-RU').format(data.recommended_price) + ' ₽' : '';
+                        finBlock = `
+                            <div class="text-xs bg-slate-900/90 border border-amber-900/50 p-2.5 rounded-lg text-slate-300 space-y-1 mb-2">
+                                <div class="flex flex-wrap items-center justify-between gap-1">
+                                    <span class="text-amber-400 font-semibold uppercase text-[10px] tracking-wider flex items-center gap-1">
+                                        <span>🎯</span> Рыночная оценка и стратегия торга (agy с веб-поиском):
+                                    </span>
+                                    ${recFormatted ? `<span class="font-mono font-bold text-amber-300">Рыночная ставка: ${recFormatted}</span>` : ''}
+                                </div>
+                                ${data.price_justification ? `<p class="text-slate-300 text-[11px] leading-relaxed">${data.price_justification}</p>` : ''}
+                            </div>
+                        `;
+                    }
+
                     const box = document.getElementById(`proposal-box-${orderId}`);
                     box.className = "mt-3 pt-3 border-t border-slate-800 space-y-2";
                     box.innerHTML = `
@@ -541,6 +570,7 @@ DASHBOARD_HTML = """
                                 </button>
                             </div>
                         </div>
+                        ${finBlock}
                         <div id="proposal-text-${orderId}" class="text-xs font-mono bg-slate-900/90 text-slate-200 p-3.5 rounded-lg border border-slate-800 whitespace-pre-wrap leading-relaxed select-all">${data.proposal_text}</div>
                     `;
                 } else {
@@ -673,9 +703,23 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
         )
 
         try:
-            proposal_text = await llm_client.generate_proposal(raw_order, analysis_data)
-            await repository.update_proposal(order_id, proposal_text)
-            return {"ok": True, "proposal_text": proposal_text}
+            proposal_res = await llm_client.generate_proposal(raw_order, analysis_data)
+            proposal_text = str(proposal_res)
+            rec_price = getattr(proposal_res, "recommended_price", None)
+            price_just = getattr(proposal_res, "price_justification", None)
+
+            await repository.update_proposal(
+                order_id,
+                proposal_text=proposal_text,
+                recommended_price=rec_price,
+                price_justification=price_just,
+            )
+            return {
+                "ok": True,
+                "proposal_text": proposal_text,
+                "recommended_price": rec_price,
+                "price_justification": price_just,
+            }
         except Exception as e:
             logger.error("Ошибка при генерации отклика для заказа #%d: %s", order_id, e)
             return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})

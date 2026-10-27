@@ -294,3 +294,48 @@ def test_mistral_model_specific_profiles():
     assert s14.MISTRAL_RPM_LIMIT == 25
     assert s14.MISTRAL_MAX_CONCURRENCY == 2
     assert s14.MISTRAL_TIMEOUT == 60.0
+
+
+@pytest.mark.asyncio
+async def test_antigravity_proposal_with_market_pricing_and_web_search(monkeypatch):
+    """Тест генерации отклика Antigravity с рыночной оценкой через веб-поиск и сохранением в ProposalResult."""
+    import asyncio
+    from unittest.mock import AsyncMock
+    from src.analyzer.antigravity_client import AntigravityClient
+    from src.models.analysis import ProposalResult
+
+    captured_cmds = []
+
+    async def mock_subprocess_exec(*cmd, **kwargs):
+        captured_cmds.append(list(cmd))
+        mock_proc = AsyncMock()
+        mock_proc.communicate.return_value = (
+            b'```json\n{"recommended_price": 45000, "price_justification": "\xd0\xa0\xd1\x8b\xd0\xbd\xd0\xbe\xd1\x87\xd0\xbd\xd0\xb0\xd1\x8f \xd1\x81\xd1\x82\xd0\xb0\xd0\xb2\xd0\xba\xd0\xb0 \xd0\xbf\xd0\xbe Kwork/FL: 40-50\xd0\xba", "proposal_text": "\xd0\x94\xd0\xbe\xd0\xb1\xd1\x80\xd1\x8b\xd0\xb9 \xd0\xb4\xd0\xb5\xd0\xbd\xd1\x8c. \xd0\xa1\xd0\xb4\xd0\xb5\xd0\xbb\xd0\xb0\xd0\xb5\xd0\xbc CRM \xd0\xb8\xd0\xbd\xd1\x82\xd0\xb5\xd0\xb3\xd1\x80\xd0\xb0\xd1\x86\xd0\xb8\xd1\x8e."}\n```',
+            b"",
+        )
+        mock_proc.returncode = 0
+        return mock_proc
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", mock_subprocess_exec)
+
+    client = AntigravityClient()
+    order = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="777",
+        title="Интеграция Битрикс24 и amoCRM",
+        description="Синхронизация сделок",
+        url="https://kwork.ru/777",
+        price=40000,
+    )
+
+    result = await client.generate_proposal(order)
+    assert isinstance(result, ProposalResult)
+    assert isinstance(result, str)
+    assert "CRM интеграцию" in result
+    assert result.recommended_price == 45000.0
+    assert "Kwork/FL" in result.price_justification
+
+    # Проверяем, что в промпт agy включена инструкция поиска в интернете
+    assert len(captured_cmds) == 1
+    prompt_arg = captured_cmds[0][2]
+    assert "search_web" in prompt_arg or "поиск в интернете" in prompt_arg.lower()

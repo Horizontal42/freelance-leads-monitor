@@ -84,7 +84,7 @@ async def test_web_dashboard_endpoints(tmp_path):
         assert "Разработка Telegram бота" in html
         assert "Бюджет клиента:" in html
         assert "30 000 ₽" in html
-        assert "Рыночная оценка:" in html
+        assert "Рыночная:" in html
         assert "35 000 ₽" in html
         assert "Финансовая оценка и стратегия торга" in html
         assert "Бюджет клиента 30к, рыночная цена 35к" in html
@@ -100,16 +100,25 @@ async def test_web_dashboard_endpoints(tmp_path):
 
         # 6. Generate proposal on-demand
         from unittest.mock import patch, AsyncMock
+        from src.models.analysis import ProposalResult
         with patch("src.analyzer.factory.get_llm_client") as mock_get_llm:
             mock_client = AsyncMock()
-            mock_client.generate_proposal.return_value = "Готовый отклик на aiogram."
+            mock_client.generate_proposal.return_value = ProposalResult(
+                "Готовый отклик на aiogram.",
+                recommended_price=42000,
+                price_justification="Ставка по рынку 42к",
+            )
             mock_get_llm.return_value = mock_client
 
             resp_gen = await client.post("/api/orders/1/generate-proposal")
             assert resp_gen.status_code == 200
-            assert resp_gen.json()["ok"] is True
-            assert resp_gen.json()["proposal_text"] == "Готовый отклик на aiogram."
+            data_gen = resp_gen.json()
+            assert data_gen["ok"] is True
+            assert data_gen["proposal_text"] == "Готовый отклик на aiogram."
+            assert data_gen["recommended_price"] == 42000
+            assert data_gen["price_justification"] == "Ставка по рынку 42к"
 
             # Verify it persisted to DB
             updated_order = await repo.get_by_id(1)
             assert updated_order["proposal_text"] == "Готовый отклик на aiogram."
+            assert updated_order["recommended_price"] == 42000
