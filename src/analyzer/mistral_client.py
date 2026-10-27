@@ -6,8 +6,8 @@ import logging
 from typing import Any, Dict, Optional
 import httpx
 from tenacity import (
+    AsyncRetrying,
     before_sleep_log,
-    retry,
     retry_if_exception,
     stop_after_attempt,
     wait_exponential,
@@ -63,59 +63,90 @@ class MistralClient(BaseLLMClient):
         timeout_seconds: Optional[float] = None,
         max_concurrency: Optional[int] = None,
         rpm_limit: Optional[int] = None,
+        retry_attempts: Optional[int] = None,
+        retry_min_wait: Optional[float] = None,
+        retry_max_wait: Optional[float] = None,
         fallback_client: Optional[BaseLLMClient] = None,
     ) -> None:
         self.api_key = api_key or settings.MISTRAL_API_KEY
         self.model = model or settings.MISTRAL_MODEL
+        self.fallback_client = fallback_client
+
+        # Лимиты и таймауты определяются с учетом профиля выбранной модели (8b vs 14b)
         self.timeout_seconds = (
             timeout_seconds if timeout_seconds is not None else settings.MISTRAL_TIMEOUT
         )
-        self.api_url = "https://api.mistral.ai/v1/chat/completions"
-        self.fallback_client = fallback_client
+        self.max_concurrency = (
+            max_concurrency
+            if max_concurrency is not None
+            else settings.MISTRAL_MAX_CONCURRENCY
+        )
+        self.rpm_limit = (
+            rpm_limit if rpm_limit is not None else settings.MISTRAL_RPM_LIMIT
+        )
+        self.retry_attempts = (
+            retry_attempts
+            if retry_attempts is not None
+            else getattr(settings, "MISTRAL_RETRY_ATTEMPTS", 3)
+        )
+        self.retry_min_wait = (
+            retry_min_wait
+            if retry_min_wait is not None
+            else getattr(settings, "MISTRAL_RETRY_MIN_WAIT", 2.0)
+        )
+        self.retry_max_wait = (
+            retry_max_wait
+            if retry_max_wait is not None
+            else getattr(settings, "MISTRAL_RETRY_MAX_WAIT", 10.0)
+        )
 
-        # Семафор конкурентности и интервальный rate limiter
-        concurrency = max_concurrency or getattr(settings, "MISTRAL_MAX_CONCURRENCY", 2)
-        rpm = rpm_limit or getattr(settings, "MISTRAL_RPM_LIMIT", 30)
-        self.semaphore = asyncio.Semaphore(concurrency)
-        self.rate_limiter = AsyncRateLimiter(rpm=rpm)
+        self.api_url = "https://api.mistral.ai/v1/chat/completions"
+        self.semaphore = asyncio.Semaphore(self.max_concurrency)
+        self.rate_limiter = AsyncRateLimiter(rpm=self.rpm_limit)
 
     def _sanitize_proposal(self, text: str) -> str:
         """Гарантированная замена длинных тире на дефисы."""
         return text.replace("—", "-").replace("–", "-")
 
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=2, min=2, max=10),
-        retry=retry_if_exception(is_retryable_mistral_error),
-        before_sleep=before_sleep_log(logger, logging.WARNING),
-        reraise=True,
-    )
     async def _post_chat_completion(
         self,
         client: httpx.AsyncClient,
         headers: Dict[str, str],
         payload: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """Отправка HTTP запроса к Mistral API с автоматическим retry на 429 и 5xx."""
-        resp = await client.post(self.api_url, headers=headers, json=payload)
-        if resp.status_code == 429:
-            err_body = resp.text
-            logger.warning("Mistral API 429 rate limit / capacity: %s. Запуск retry...", err_body[:200])
-            raise MistralRateLimitError(f"Mistral API 429: {err_body}")
+        """Отправка HTTP запроса к Mistral API с динамическим tenacity retry на 429 и 5xx."""
+        async for attempt in AsyncRetrying(
+            stop=stop_after_attempt(self.retry_attempts),
+            wait=wait_exponential(
+                multiplier=2, min=self.retry_min_wait, max=self.retry_max_wait
+            ),
+            retry=retry_if_exception(is_retryable_mistral_error),
+            before_sleep=before_sleep_log(logger, logging.WARNING),
+            reraise=True,
+        ):
+            with attempt:
+                resp = await client.post(self.api_url, headers=headers, json=payload)
+                if resp.status_code == 429:
+                    err_body = resp.text
+                    logger.warning(
+                        "Mistral API 429 rate limit / capacity: %s. Запуск retry...",
+                        err_body[:200],
+                    )
+                    raise MistralRateLimitError(f"Mistral API 429: {err_body}")
 
-        if resp.status_code >= 500:
-            raise httpx.HTTPStatusError(
-                message=f"Mistral server error {resp.status_code}: {resp.text}",
-                request=resp.request,
-                response=resp,
-            )
+                if resp.status_code >= 500:
+                    raise httpx.HTTPStatusError(
+                        message=f"Mistral server error {resp.status_code}: {resp.text}",
+                        request=resp.request,
+                        response=resp,
+                    )
 
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"Mistral API вернул ошибку {resp.status_code}: {resp.text}"
-            )
+                if resp.status_code != 200:
+                    raise RuntimeError(
+                        f"Mistral API вернул ошибку {resp.status_code}: {resp.text}"
+                    )
 
-        return resp.json()
+                return resp.json()
 
     async def _execute_with_rate_limit(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         """Выполнить запрос с учетом ограничений семафора и RPM."""
