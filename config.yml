@@ -72,45 +72,111 @@ filter:
     - "накрутк"
     - "отзыв"
     - "лайк"
+    - "antigate"
+    - "2captcha"
+    - "rucaptcha"
+    - "рукапча"
 
   # Белый список ключевых слов (наш профиль и стек)
   keywords:
+    # Python и Бэкенд
     - "python"
     - "питон"
-    - "парсер"
-    - "парсинг"
-    - "парсить"
-    - "скрейпинг"
-    - "скрейпер"
+    - "fastapi"
+    - "django"
+    - "flask"
+    - "asyncio"
+    - "celery"
+    - "redis"
+    - "postgresql"
+    - "postgres"
+    - "docker"
+    - "микросервис"
+    - "webhook"
+    - "вебхук"
+    - "api"
+    - "интеграци"
+    - "автоматизац"
+
+    # Telegram и Боты
     - "бот"
     - "telegram"
     - "телеграм"
     - "aiogram"
-    - "fastapi"
-    - "django"
-    - "flask"
+    - "чат-бот"
+    - "чат бот"
+
+    # B2B, CRM, ERP и Платежи
     - "crm"
     - "битрикс24"
     - "bitrix24"
-    - "api"
-    - "интеграци"
+    - "amocrm"
+    - "амосрм"
+    - "мойсклад"
+    - "moysklad"
+    - "planfix"
+    - "планфикс"
+    - "юкасса"
+    - "robokassa"
+    - "cloudpayments"
+    - "эквайринг"
+    - "платеж"
+    - "stars"
+    - "whatsapp"
+    - "green api"
+    - "wazzup"
+    - "google sheets"
+    - "гугл таблиц"
+
+    # AI, LLM, RAG и Голосовые технологии
     - "llm"
     - "ии"
     - "нейросет"
-    - "whisper"
-    - "автоматизац"
-    - "scraping"
-    - "selenium"
-    - "playwright"
-    - "curl_cffi"
-    - "opencv"
-    - "yolo"
+    - "ассистент"
+    - "база знаний"
+    - "базу знаний"
     - "rag"
     - "qdrant"
+    - "chromadb"
+    - "langchain"
+    - "llamaindex"
+    - "whisper"
+    - "транскрибац"
+    - "стенограмм"
+    - "голосов"
+    - "tts"
+    - "stt"
+    - "распознавание речи"
+    - "deepseek"
+    - "ollama"
+    - "vllm"
+
+    # Отчетность, документы и Data Processing
+    - "pdf"
+    - "weasyprint"
+    - "reportlab"
+    - "excel"
+    - "openpyxl"
+    - "pandas"
+    - "выгрузк"
+    - "отчет"
+
+    # Компьютерное зрение и OCR
+    - "ocr"
+    - "распознавание текста"
+    - "tesseract"
+    - "easyocr"
+    - "компьютерное зрение"
+    - "opencv"
+    - "yolo"
+
+    # Десктоп и GUI
+    - "pyqt"
+    - "pyside"
+    - "flet"
     - "tauri"
-    - "asyncio"
-    - "google sheets"
-    - "гугл таблиц"
+    - "gui"
+    - "десктоп"
 
 llm:
   provider: "hybrid"  # "hybrid" (Mistral первичный анализ -> Antigravity генерация отклика по требованию), "antigravity", "mistral"
@@ -143,7 +209,7 @@ prompts:
     name: "Андрей Пименов"
     username: "@horizontal42"
     level: "Junior+ / Middle"
-    specialization: "Python Backend, Telegram-боты, сложный парсинг (curl_cffi, patchright), CRM Битрикс24 REST API, LLM/Whisper, RAG, Computer Vision (YOLOv8)"
+    specialization: "Python Backend, Telegram-боты, B2B-интеграции (Битрикс24, amoCRM, МойСклад), LLM/Whisper, RAG-системы, речевая аналитика, Computer Vision (YOLOv8)"
     min_budget: 10000
     hourly_rate_rub: 750
 
@@ -153,9 +219,9 @@ prompts:
       highlights: "Детерминированный роутинг оценок (difflib, flip-rate 0%), раздельные очереди IO/GPU с батчингом batch_size=3, освобождение памяти через malloc_trim ctypes, накопительный PDF-отчет O(n), детекция автоответчиков"
       use_for: "Транскрибация звонков, речевая аналитика, интеграция Битрикс24/CRM, локальные нейросети (Whisper, Ollama), Celery-пайплайны, генерация PDF-отчетов"
     - name: "Avia_Pars"
-      stack: "Python 3.12, asyncio, aiogram 3, SQLite WAL, curl_cffi, patchright (Chromium solver), residential proxy, pytest (208 тестов)"
-      highlights: "Обход ServicePipe JS-челленджей через curl_cffi и patchright в изолированном subprocess, обход WAF датацентровых IP через Tailscale residential SOCKS5, UX одного экрана screen.py, Circuit Breaker"
-      use_for: "Telegram-боты любой сложности, парсинг защищенных сайтов (Cloudflare, ServicePipe, WAF), обход блокировок, асинхронные пайплайны"
+      stack: "Python 3.12, asyncio, aiogram 3, SQLite WAL, residential proxy, pytest (208 тестов)"
+      highlights: "UX одного экрана screen.py, Circuit Breaker, асинхронные очереди, высокая надежность и отказоустойчивость под нагрузкой"
+      use_for: "Telegram-боты любой сложности, асинхронные пайплайны, интеграция внешних API, автоматизация"
     - name: "netsleuth"
       stack: "Python 3.14+, Typer, Rich, httpx, ctypes, Win32 Iphlpapi, 857 тестов"
       highlights: "Пинг и трассировка под Windows без прав администратора через Iphlpapi.dll (IcmpSendEcho2), скоринг VPN, OEM-кодировки Win32"
@@ -167,7 +233,7 @@ prompts:
     - name: "leads-monitor"
       stack: "Python 3.11, API dev.hh.ru, DaData API, LLM, Google Sheets API (gspread), SQLite"
       highlights: "Автоматический поиск вакансий на hh.ru, обогащение контактов через DaData, занесение B2B-лидов в Google Таблицы"
-      use_for: "Парсинг hh.ru / Авито, интеграция с Google Sheets, обогащение контактов DaData, B2B-скрейпинг"
+      use_for: "Интеграция с сервисами вакансий, Google Sheets, обогащение контактов DaData, B2B-автоматизация"
     - name: "Sort_YM"
       stack: "Python 3.11+, yandex-music, Ollama, JSON Schema decoding"
       highlights: "Сортировка медиатеки с LLM-анализом текстов через локальные модели, идемпотентность"
@@ -224,7 +290,7 @@ prompts:
         "pure_dev_hours": 12.0,
         "risks_and_pitfalls": [
           "Лимиты API внешнего сервиса",
-          "Необходимость прокси при частом парсинге"
+          "Необходимость очередей и повторных попыток при высокой нагрузке"
         ],
         "proposal_text": "",
         "pert": {{
@@ -250,9 +316,9 @@ prompts:
          - Никакого канцелярита и пересказа ТЗ ("Здравствуйте! Задача понятна...").
          - Никакого роботизированного официоза ("Буду рад сотрудничеству").
       2. ПРАВИЛО ПЕРВЫХ 140 СИМВОЛОВ:
-         - Первые 2 предложения видны в превью на бирже. Сразу к сути и боли заказчика: "Добрый день. Делал похожий парсер с обходом Cloudflare..." или "Добрый день. По опыту интеграции с Битрикс24...".
+         - Первые 2 предложения видны в превью на бирже. Сразу к сути и боли заказчика: "Добрый день. По опыту интеграции с Битрикс24..." или "Добрый день. Разрабатывал аналогичного Telegram-бота...".
       3. ТОЧНЫЕ ФАКТЫ ИЗ ДОСЬЕ:
-         - Ссылайся на реальный опыт из досье выше (curl_cffi, patchright, FastAPI, aiogram 3, Bitrix24 REST API).
+         - Ссылайся на реальный опыт из досье выше (FastAPI, aiogram 3, Bitrix24 REST API, Celery, WhisperX, Qdrant).
       4. ПРИЗЫВ К ДЕЙСТВИЮ:
          - В конце задай конкретный технический вопрос по задаче или предложи обсудить детали в чате.
 

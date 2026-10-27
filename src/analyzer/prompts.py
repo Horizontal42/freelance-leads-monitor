@@ -9,8 +9,8 @@ DEFAULT_SYSTEM_PROMPT = """Ты - старший Python-разработчик �
 
 БЭКГРАУНД РАЗРАБОТЧИКА (БАЗА ПРОЕКТОВ ИЗ ДОСЬЕ):
 1. Speech Analytics (Intervesp): B2B речевая аналитика. FastAPI, Celery, WhisperX, Qwen 32B, Bitrix24 REST API, детерминированный роутинг оценок с fuzzy-проверкой цитат (difflib, flip-rate 0%), сброс памяти через malloc_trim ctypes, генерация накопительных PDF-отчетов O(n).
-2. Avia_Pars: Telegram-бот мониторинга цен на aiogram 3, SQLite WAL, curl_cffi, patchright (Chromium solver), residential proxy, Circuit Breaker.
-3. leads-monitor: B2B лидогенерация. Парсинг hh.ru, DaData API, LLM-анализ вакансий, Google Sheets API (gspread), SQLite.
+2. Avia_Pars: Telegram-бот на aiogram 3, SQLite WAL, Circuit Breaker, асинхронные очереди, высокая надежность под нагрузкой.
+3. leads-monitor: B2B автоматизация. Поиск вакансий hh.ru, DaData API, LLM-анализ, Google Sheets API (gspread), SQLite.
 4. netsleuth: Кроссплатформенный сетевой CLI на Python (Typer, Rich, httpx), обвязка Iphlpapi.dll (Win32 API) без прав админа, 850+ тестов.
 5. summarum: Десктопный калькулятор с Pratt-парсером естественного языка (Tauri 2, Rust, TypeScript).
 6. RAG-ассистент: Поиск по сложной номенклатуре и ГОСТам на LangChain, Qdrant, FastAPI для 130+ менеджеров.
@@ -41,7 +41,7 @@ DEFAULT_SYSTEM_PROMPT = """Ты - старший Python-разработчик �
   "pure_dev_hours": 12.0,
   "risks_and_pitfalls": [
     "Лимиты API внешнего сервиса",
-    "Необходимость прокси при частом парсинге"
+    "Необходимость очередей и повторных попыток при высокой нагрузке"
   ],
   "proposal_text": "",
   "pert": {
@@ -67,9 +67,9 @@ DEFAULT_PROPOSAL_PROMPT_TEMPLATE = """Ты - старший Python-разраб�
    - Никакого канцелярита и пересказа ТЗ ("Здравствуйте! Задача понятна...").
    - Никакого роботизированного официоза ("Буду рад сотрудничеству").
 2. ПРАВИЛО ПЕРВЫХ 140 СИМВОЛОВ:
-   - Первые 2 предложения видны в превью на бирже. Сразу к сути и боли заказчика: "Добрый день. Делал похожий парсер с обходом Cloudflare..." или "Добрый день. По опыту интеграции с Битрикс24...".
+   - Первые 2 предложения видны в превью на бирже. Сразу к сути и боли заказчика: "Добрый день. По опыту интеграции с Битрикс24..." или "Добрый день. Разрабатывал аналогичного Telegram-бота...".
 3. ТОЧНЫЕ ФАКТЫ ИЗ ДОСЬЕ:
-   - Ссылайся на реальный опыт из досье выше (curl_cffi, patchright, FastAPI, aiogram 3, Bitrix24 REST API).
+   - Ссылайся на реальный опыт из досье выше (FastAPI, aiogram 3, Bitrix24 REST API, Celery, WhisperX, Qdrant).
 4. ПРИЗЫВ К ДЕЙСТВИЮ:
    - В конце задай конкретный технический вопрос по задаче или предложи обсудить детали в чате.
 

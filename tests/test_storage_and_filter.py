@@ -44,15 +44,15 @@ def test_hard_filter_negotiable_budget_passes():
     order = RawOrder(
         source=SourcePlatform.FL_RU,
         external_id="3",
-        title="Разработка парсера на Python с обходом защиты",
-        description="Нужен парсер каталога цен, интеграция в Битрикс24",
+        title="Разработка сервиса на Python с открытым бюджетом",
+        description="Нужен сервис выгрузки каталога цен, интеграция в Битрикс24",
         url="https://example.com/3",
         price=None,
         is_negotiable=True,
     )
     result = filter_.evaluate(order)
     assert result.passed is True
-    assert "парсер" in result.matched_keywords or "python" in result.matched_keywords
+    assert "python" in result.matched_keywords or "битрикс24" in result.matched_keywords
 
 
 def test_hard_filter_valid_order_passes():
@@ -68,6 +68,39 @@ def test_hard_filter_valid_order_passes():
     result = filter_.evaluate(order)
     assert result.passed is True
     assert len(result.matched_keywords) >= 2
+
+
+def test_hard_filter_expanded_b2b_and_ai_keywords():
+    """Тест фильтрации заказов из новых сфер: amoCRM, МойСклад, RAG, Whisper, эквайринг."""
+    filter_ = HardFilter(min_budget=10000)
+
+    # 1. B2B / CRM / Платежи
+    order_b2b = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="10",
+        title="Синхронизация МойСклад и amoCRM, подключение ЮKassa",
+        description="Нужно настроить вебхуки и обмен заказами",
+        url="https://kwork.ru/10",
+        price=45000,
+    )
+    res_b2b = filter_.evaluate(order_b2b)
+    assert res_b2b.passed is True
+    assert "amocrm" in res_b2b.matched_keywords or "мойсклад" in res_b2b.matched_keywords
+    assert "юкасса" in res_b2b.matched_keywords or "вебхук" in res_b2b.matched_keywords
+
+    # 2. AI / RAG / Речевая аналитика
+    order_ai = RawOrder(
+        source=SourcePlatform.FL_RU,
+        external_id="11",
+        title="AI-ассистент с базой знаний (RAG) и транскрибация звонков",
+        description="Развернуть Qdrant, подключить Whisper и DeepSeek для отдела продаж",
+        url="https://fl.ru/11",
+        price=60000,
+    )
+    res_ai = filter_.evaluate(order_ai)
+    assert res_ai.passed is True
+    assert "rag" in res_ai.matched_keywords or "ассистент" in res_ai.matched_keywords
+    assert "qdrant" in res_ai.matched_keywords or "whisper" in res_ai.matched_keywords
 
 
 @pytest.mark.asyncio
