@@ -252,20 +252,35 @@ DASHBOARD_HTML = """
                             </span>
                         </div>
 
-                        <!-- Price Pill -->
-                        <div>
-                            {% if order.price %}
-                                <span class="text-sm font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-3 py-1 rounded-lg font-mono">
-                                    {{ "{:,.0f}".format(order.price).replace(",", " ") }} ₽
-                                </span>
-                            {% elif order.is_negotiable %}
-                                <span class="text-xs font-medium text-blue-400 bg-blue-950/60 border border-blue-800/60 px-2.5 py-1 rounded-lg">
-                                    Договорная
-                                </span>
-                            {% else %}
-                                <span class="text-xs font-medium text-slate-500 bg-slate-800 px-2 py-1 rounded-lg">
-                                    Бюджет не указан
-                                </span>
+                        <!-- Price Pills: Client Budget and Market Price -->
+                        <div class="flex flex-wrap items-center gap-2">
+                            <!-- Client Budget -->
+                            <div class="flex items-center gap-1.5 bg-slate-950/80 border border-slate-800 px-3 py-1 rounded-lg">
+                                <span class="text-xs text-slate-400 font-medium">💰 Бюджет клиента:</span>
+                                {% if order.price %}
+                                    <span class="text-sm font-bold text-emerald-400 font-mono">
+                                        {{ "{:,.0f}".format(order.price).replace(",", " ") }} ₽
+                                    </span>
+                                {% elif order.is_negotiable %}
+                                    <span class="text-xs font-semibold text-blue-400">
+                                        По договоренности
+                                    </span>
+                                {% else %}
+                                    <span class="text-xs font-medium text-slate-500">
+                                        Не указан
+                                    </span>
+                                {% endif %}
+                            </div>
+
+                            <!-- Market / AI Recommended Price -->
+                            {% set rec_price = order.recommended_price or (order.analysis.recommended_price if order.analysis else None) %}
+                            {% if rec_price %}
+                                <div class="flex items-center gap-1.5 bg-amber-950/40 border border-amber-800/60 px-3 py-1 rounded-lg" title="Оценка адекватной рыночной стоимости задачи от нейросети">
+                                    <span class="text-xs text-amber-400 font-medium">🎯 Рыночная оценка:</span>
+                                    <span class="text-sm font-bold text-amber-300 font-mono">
+                                        {{ "{:,.0f}".format(rec_price).replace(",", " ") }} ₽
+                                    </span>
+                                </div>
                             {% endif %}
                         </div>
                     </div>
@@ -327,6 +342,27 @@ DASHBOARD_HTML = """
                                     </div>
                                 {% endif %}
                             </div>
+
+                            <!-- Financial Evaluation and Price Strategy Box -->
+                            {% if order.analysis.recommended_price or order.analysis.price_justification %}
+                                <div class="text-xs bg-slate-900/80 border border-amber-900/40 p-2.5 rounded-lg text-slate-300 space-y-1">
+                                    <div class="flex flex-wrap items-center justify-between gap-2">
+                                        <span class="text-amber-400 font-semibold uppercase text-[10px] tracking-wider flex items-center gap-1">
+                                            <span>🎯</span> Финансовая оценка и стратегия торга (ИИ):
+                                        </span>
+                                        {% if order.analysis.recommended_price %}
+                                            <span class="font-mono font-bold text-amber-300">
+                                                Рыночная ставка: {{ "{:,.0f}".format(order.analysis.recommended_price).replace(",", " ") }} ₽
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                    {% if order.analysis.price_justification %}
+                                        <p class="text-slate-300 text-[11px] leading-relaxed">
+                                            {{ order.analysis.price_justification }}
+                                        </p>
+                                    {% endif %}
+                                </div>
+                            {% endif %}
 
                             {% if order.analysis.risks_and_pitfalls %}
                                 <div class="space-y-1">

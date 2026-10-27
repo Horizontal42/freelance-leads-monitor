@@ -2,6 +2,7 @@
 
 import pytest
 import httpx
+from src.models.analysis import AnalysisResult, PertEstimate
 from src.models.order import OrderPriority, OrderStatus, RawOrder, SourcePlatform
 from src.storage.db import init_db
 from src.storage.repository import OrderRepository
@@ -23,11 +24,33 @@ async def test_web_dashboard_endpoints(tmp_path):
         url="https://kwork.ru/projects/888",
         price=30000,
     )
-    await repo.insert_raw_order(
+    order_id = await repo.insert_raw_order(
         order=order,
         status=OrderStatus.ANALYZED,
         priority=OrderPriority.HOT,
     )
+    # Сохраняем анализ с рекомендуемой рыночной ценой
+    analysis = AnalysisResult(
+        take_order=True,
+        priority=OrderPriority.HOT,
+        score=9,
+        is_relevant=True,
+        pert=PertEstimate(
+            optimistic_days=1.0,
+            most_likely_days=2.0,
+            pessimistic_days=4.0,
+            expected_days=2.17,
+            sigma=0.5,
+        ),
+        realistic_days=2.0,
+        recommended_price=35000,
+        price_justification="Бюджет клиента 30к, рыночная цена 35к",
+        complexity=4,
+        pure_dev_hours=6.0,
+        matched_project="Avia_Pars",
+        executive_summary="Разработка бота",
+    )
+    await repo.update_analysis(order_id, analysis)
 
     app = create_web_app(repo=repo)
 
@@ -59,6 +82,12 @@ async def test_web_dashboard_endpoints(tmp_path):
         assert "Freelance Leads Monitor" in html
         assert "jobs.3dvex.ru" in html
         assert "Разработка Telegram бота" in html
+        assert "Бюджет клиента:" in html
+        assert "30 000 ₽" in html
+        assert "Рыночная оценка:" in html
+        assert "35 000 ₽" in html
+        assert "Финансовая оценка и стратегия торга" in html
+        assert "Бюджет клиента 30к, рыночная цена 35к" in html
 
         # 5. HTML Tabs (analytics, rules)
         resp_analytics = await client.get("/?tab=analytics")
