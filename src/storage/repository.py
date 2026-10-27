@@ -46,8 +46,8 @@ class OrderRepository:
                 """
                 INSERT INTO orders (
                     source, external_id, title, description, url, price,
-                    is_negotiable, is_pro_only, tags, status, priority, filter_reason, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    is_negotiable, is_pro_only, tags, status, priority, filter_reason, attachments_text, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     order.source.value,
@@ -62,6 +62,7 @@ class OrderRepository:
                     status.value,
                     priority.value,
                     filter_reason,
+                    order.attachments_text,
                     order.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                 ),
             )

@@ -24,6 +24,7 @@ class AntigravityClient(BaseLLMClient):
         timeout_seconds: Optional[float] = None,
     ) -> None:
         self.binary_path = binary_path or settings.ANTIGRAVITY_BIN
+        self.binary = self.binary_path
         self.model = model or settings.ANTIGRAVITY_MODEL
         self.timeout_seconds = (
             timeout_seconds if timeout_seconds is not None else settings.ANTIGRAVITY_TIMEOUT
@@ -102,6 +103,14 @@ class AntigravityClient(BaseLLMClient):
         if "proposal_text" in data and isinstance(data["proposal_text"], str):
             data["proposal_text"] = self._sanitize_proposal(data["proposal_text"])
 
+        if not data.get("matched_project"):
+            data["matched_project"] = "Общий бэкграунд (Python Backend)"
+
+        if isinstance(data.get("price_justification"), dict):
+            data["price_justification"] = " ".join(
+                f"{k}: {v}" for k, v in data["price_justification"].items() if v
+            )
+
         # Проставляем приоритет на основе скора, если не выставлен
         score = int(data.get("score", 5))
         if "priority" not in data or data["priority"] not in ["hot", "normal"]:
@@ -121,7 +130,7 @@ class AntigravityClient(BaseLLMClient):
         """Сгенерировать отклик на заказ по требованию."""
         prompt = build_proposal_prompt(order, analysis_data)
         cmd = [
-            self.binary,
+            self.binary_path,
             "-p",
             prompt,
             "--model",

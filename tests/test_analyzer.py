@@ -15,12 +15,35 @@ def test_build_analysis_prompt():
         description="Стек: curl_cffi, patchright, proxies",
         url="https://www.fl.ru/projects/5526844",
         price=25000,
+        attachments_text="[Файл: requirements.txt (45 байт)]\ncurl_cffi>=0.7.0",
     )
     prompt = build_analysis_prompt(order)
     assert "Speech Analytics" in prompt
     assert "Avia_Pars" in prompt
     assert "5526844" in prompt
     assert "Python-разработчик" in prompt
+    assert "requirements.txt" in prompt
+    # Гарантируем, что внешняя ссылка НЕ передается модели (модель не тратит токены на экспорт)
+    assert "https://www.fl.ru/projects/5526844" not in prompt
+    assert "Все материалы задачи и файлы уже полностью извлечены" in prompt
+
+
+def test_build_proposal_prompt_includes_attachments():
+    from src.analyzer.prompts import build_proposal_prompt
+
+    order = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="777",
+        title="Парсер цен конкурентов",
+        description="Нужно собрать цены",
+        url="https://kwork.ru/777",
+        price=20000,
+        attachments_text="[Файл: categories.json (150 байт)]",
+    )
+    proposal_prompt = build_proposal_prompt(order, {"matched_project": "Avia_Pars"})
+    assert "categories.json" in proposal_prompt
+    assert "Avia_Pars" in proposal_prompt
+    assert "https://kwork.ru/777" not in proposal_prompt
 
 
 def test_antigravity_clean_json_and_sanitize():
@@ -112,3 +135,21 @@ async def test_hybrid_client_flow():
     proposal = await client.generate_proposal(order, {"matched_project": "Avia_Pars"})
     assert "Avia_Pars" in proposal
     mock_antigravity.generate_proposal.assert_called_once()
+
+
+def test_analysis_result_resilient_parsing():
+    """Проверяем устойчивость Pydantic-модели к нестандартным ответам LLM (null в matched_project, dict в price_justification)."""
+    raw_payload = {
+        "take_order": True,
+        "score": 8,
+        "priority": "hot",
+        "executive_summary": ["Суть задачи 1.", "Суть задачи 2."],
+        "recommended_price": 25000,
+        "price_justification": {"budget_analysis": "Бюджет адекватен", "strategy": "Без торга"},
+        "matched_project": None,
+        "proposal_text": "",
+    }
+    result = AnalysisResult.model_validate(raw_payload)
+    assert result.matched_project == "Общий бэкграунд (Python Backend)"
+    assert "Бюджет адекватен" in result.price_justification
+    assert "Суть задачи 1." in result.executive_summary

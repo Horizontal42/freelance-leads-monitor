@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS orders (
     matched_project TEXT,
     proposal_text TEXT,
     analysis_json TEXT,
+    attachments_text TEXT,
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(source, external_id)
@@ -62,6 +63,10 @@ async def init_db(db_path: Path | str | None = None) -> None:
         await db.executescript(CREATE_TABLES_SQL)
         try:
             await db.execute("ALTER TABLE orders ADD COLUMN is_pro_only INTEGER NOT NULL DEFAULT 0;")
+        except Exception:
+            pass  # колонка уже существует
+        try:
+            await db.execute("ALTER TABLE orders ADD COLUMN attachments_text TEXT;")
         except Exception:
             pass  # колонка уже существует
         await db.commit()

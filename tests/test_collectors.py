@@ -156,6 +156,46 @@ def test_remote_job_card_parsing_negotiable_budget():
 
 
 @pytest.mark.asyncio
+async def test_order_enricher():
+    from src.collectors.enricher import OrderEnricher
+    from src.models.order import RawOrder
+
+    enricher = OrderEnricher()
+
+    # 1. Kwork enrichment with attached files in raw_payload
+    kwork_order = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="12345",
+        title="Скрипт с файлом ТЗ",
+        description="Краткое описание",
+        url="https://kwork.ru/projects/12345",
+        price=15000,
+        raw_payload={
+            "files": [
+                {"fname": "tz.pdf", "url": "https://kwork.ru/files/tz.pdf", "size": 102400},
+                {"fname": "archive.zip", "url": "https://kwork.ru/files/archive.zip", "size": 204800},
+            ]
+        },
+    )
+
+    enriched_kwork = await enricher.enrich(kwork_order)
+    assert enriched_kwork.attachments_text is not None
+    assert "tz.pdf" in enriched_kwork.attachments_text
+    assert "archive.zip" in enriched_kwork.attachments_text
+
+    # 2. FL.ru enrichment error resilience (e.g. invalid url doesn't crash)
+    broken_order = RawOrder(
+        source=SourcePlatform.FL_RU,
+        external_id="000",
+        title="Тест",
+        description="Исходное описание",
+        url="http://invalid-fl-url-test-404.example.com",
+    )
+    res = await enricher.enrich(broken_order)
+    assert res.description == "Исходное описание"
+
+
+@pytest.mark.asyncio
 async def test_live_fl_ru_rss():
     """Live smoke test to verify FL.ru RSS is reachable and parses."""
     collector = FlRuCollector()

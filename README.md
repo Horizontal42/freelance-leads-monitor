@@ -54,9 +54,15 @@ Built specifically for Andrey Pimenov ([`@horizontal42`](https://github.com/Hori
        ┌──────────────┴──────────────┐
        │ Rejected                    │ Passed (Target Leads)
        ▼                             ▼
-  [ Tier 3: Trash ]           [ 2. LLM Analysis (Mistral) ]
-  - Status: REJECTED          - 3-4 sentence concise executive summary
-  - No LLM calls              - Preliminary PERT estimate: E = (O + 4M + P)/6, σ
+  [ Tier 3: Trash ]           [ OrderEnricher ]
+  - Status: REJECTED          - Full task description pre-fetch
+  - No LLM calls              - Attachment reader (.txt, .json, .py)
+                                     │ Full text & files (No URLs passed)
+                                     ▼
+                              [ 2. LLM Analysis (Ministral 14B) ]
+                              - Prompt without URLs (saves tokens & time)
+                              - 3-4 sentence concise executive summary
+                              - Preliminary PERT estimate: E = (O + 4M + P)/6, σ
                               - Market price evaluation & justification
                               - Complexity, hours, risks, dossier matching
                               - proposal_text remains ""

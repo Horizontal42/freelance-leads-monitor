@@ -43,6 +43,7 @@ class RawOrder(BaseModel):
     tags: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.now)
     raw_payload: Optional[Dict[str, Any]] = None
+    attachments_text: Optional[str] = None
 
     @property
     def full_text(self) -> str:
