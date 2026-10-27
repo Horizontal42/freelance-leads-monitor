@@ -117,20 +117,26 @@ llm:
   antigravity:
     binary: "agy"
     model: "gemini-3.8-flash-medium"
-    proposal_model: "gemini-3.8-flash-high"
-    effort: "medium"
-    proposal_effort: "high"
-    high_budget_threshold: 30000
-    high_budget_effort: "high"
+    effort: "medium"  # Уровень рассуждений: low | medium | high | xhigh | max (пользователь задает сам)
     timeout_seconds: 180.0
   mistral:
-    model: "ministral-14b-latest"
-    timeout_seconds: 60.0
-    max_concurrency: 2
-    rpm_limit: 30
-    retry_attempts: 3
-    retry_min_wait: 2.0
-    retry_max_wait: 10.0
+    active_model: "ministral-14b-latest"  # Выбор модели: "ministral-14b-latest" или "ministral-8b-latest"
+    # Лимиты по моделям (проверено по официальным заголовкам x-ratelimit API Mistral)
+    models:
+      ministral-8b-latest:
+        rpm_limit: 150         # Официальный лимит API: 188 RPM (625k TPM)
+        max_concurrency: 4     # Параллельные запросы
+        timeout_seconds: 40.0  # Таймаут запроса
+        retry_attempts: 3      # Попытки ретрая при 429 / 5xx
+        retry_min_wait: 2.0    # Начальная пауза (сек)
+        retry_max_wait: 8.0    # Максимальная пауза (сек)
+      ministral-14b-latest:
+        rpm_limit: 25          # Официальный лимит API: 30 RPM (937.5k TPM)
+        max_concurrency: 2     # Параллельные запросы
+        timeout_seconds: 60.0  # Таймаут запроса
+        retry_attempts: 3      # Попытки ретрая при 429 / 5xx
+        retry_min_wait: 2.0    # Начальная пауза (сек)
+        retry_max_wait: 10.0   # Максимальная пауза (сек)
 
 prompts:
   developer_profile:

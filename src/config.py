@@ -83,22 +83,48 @@ class FilterConfig(BaseModel):
 class AntigravityConfig(BaseModel):
     binary: str = "agy"
     model: str = "gemini-3.8-flash-medium"
-    proposal_model: str = "gemini-3.8-flash-high"
-    effort: str = "medium"
-    proposal_effort: str = "high"
-    high_budget_threshold: int = 30000
-    high_budget_effort: str = "high"
+    effort: str = "medium"  # low | medium | high | xhigh | max (пользователь задает сам)
     timeout_seconds: float = 180.0
+
+
+class MistralModelProfile(BaseModel):
+    rpm_limit: int = 30
+    max_concurrency: int = 2
+    timeout_seconds: float = 60.0
+    retry_attempts: int = 3
+    retry_min_wait: float = 2.0
+    retry_max_wait: float = 10.0
 
 
 class MistralConfig(BaseModel):
     model: str = "ministral-14b-latest"
-    timeout_seconds: float = 60.0
-    max_concurrency: int = 2
-    rpm_limit: int = 30
-    retry_attempts: int = 3
-    retry_min_wait: float = 2.0
-    retry_max_wait: float = 10.0
+    active_model: Optional[str] = None
+    timeout_seconds: Optional[float] = None
+    max_concurrency: Optional[int] = None
+    rpm_limit: Optional[int] = None
+    retry_attempts: Optional[int] = None
+    retry_min_wait: Optional[float] = None
+    retry_max_wait: Optional[float] = None
+    models: Dict[str, MistralModelProfile] = Field(
+        default_factory=lambda: {
+            "ministral-8b-latest": MistralModelProfile(
+                rpm_limit=150,
+                max_concurrency=4,
+                timeout_seconds=40.0,
+                retry_attempts=3,
+                retry_min_wait=2.0,
+                retry_max_wait=8.0,
+            ),
+            "ministral-14b-latest": MistralModelProfile(
+                rpm_limit=25,
+                max_concurrency=2,
+                timeout_seconds=60.0,
+                retry_attempts=3,
+                retry_min_wait=2.0,
+                retry_max_wait=10.0,
+            ),
+        }
+    )
 
 
 class LLMConfig(BaseModel):
@@ -354,48 +380,63 @@ class Settings:
         return self.app_config.llm.antigravity.effort
 
     @property
-    def ANTIGRAVITY_PROPOSAL_EFFORT(self) -> str:
-        return self.app_config.llm.antigravity.proposal_effort
-
-    @property
-    def ANTIGRAVITY_HIGH_BUDGET_THRESHOLD(self) -> int:
-        return self.app_config.llm.antigravity.high_budget_threshold
-
-    @property
-    def ANTIGRAVITY_HIGH_BUDGET_EFFORT(self) -> str:
-        return self.app_config.llm.antigravity.high_budget_effort
-
-    @property
     def ANTIGRAVITY_TIMEOUT(self) -> float:
         return self.app_config.llm.antigravity.timeout_seconds
 
     @property
     def MISTRAL_MODEL(self) -> str:
-        return self.app_config.llm.mistral.model
+        cfg = self.app_config.llm.mistral
+        return cfg.active_model or cfg.model or "ministral-14b-latest"
+
+    @property
+    def _MISTRAL_ACTIVE_PROFILE(self) -> MistralModelProfile:
+        cfg = self.app_config.llm.mistral
+        model_name = self.MISTRAL_MODEL
+        if model_name in cfg.models:
+            return cfg.models[model_name]
+        return MistralModelProfile()
 
     @property
     def MISTRAL_TIMEOUT(self) -> float:
-        return self.app_config.llm.mistral.timeout_seconds
+        cfg = self.app_config.llm.mistral
+        if cfg.timeout_seconds is not None:
+            return cfg.timeout_seconds
+        return self._MISTRAL_ACTIVE_PROFILE.timeout_seconds
 
     @property
     def MISTRAL_MAX_CONCURRENCY(self) -> int:
-        return self.app_config.llm.mistral.max_concurrency
+        cfg = self.app_config.llm.mistral
+        if cfg.max_concurrency is not None:
+            return cfg.max_concurrency
+        return self._MISTRAL_ACTIVE_PROFILE.max_concurrency
 
     @property
     def MISTRAL_RPM_LIMIT(self) -> int:
-        return self.app_config.llm.mistral.rpm_limit
+        cfg = self.app_config.llm.mistral
+        if cfg.rpm_limit is not None:
+            return cfg.rpm_limit
+        return self._MISTRAL_ACTIVE_PROFILE.rpm_limit
 
     @property
     def MISTRAL_RETRY_ATTEMPTS(self) -> int:
-        return self.app_config.llm.mistral.retry_attempts
+        cfg = self.app_config.llm.mistral
+        if cfg.retry_attempts is not None:
+            return cfg.retry_attempts
+        return self._MISTRAL_ACTIVE_PROFILE.retry_attempts
 
     @property
     def MISTRAL_RETRY_MIN_WAIT(self) -> float:
-        return self.app_config.llm.mistral.retry_min_wait
+        cfg = self.app_config.llm.mistral
+        if cfg.retry_min_wait is not None:
+            return cfg.retry_min_wait
+        return self._MISTRAL_ACTIVE_PROFILE.retry_min_wait
 
     @property
     def MISTRAL_RETRY_MAX_WAIT(self) -> float:
-        return self.app_config.llm.mistral.retry_max_wait
+        cfg = self.app_config.llm.mistral
+        if cfg.retry_max_wait is not None:
+            return cfg.retry_max_wait
+        return self._MISTRAL_ACTIVE_PROFILE.retry_max_wait
 
     # Промпты и досье проектов из config.yml
     @property

@@ -211,8 +211,8 @@ async def test_mistral_rate_limit_retry_and_soft_fallback(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_antigravity_effort_and_high_budget(monkeypatch):
-    """Тест прокидывания флагов --effort high и proposal_model для дорогих проектов (>= 30 000 руб)."""
+async def test_antigravity_effort_configuration(monkeypatch):
+    """Тест того, что глубина рассуждений (--effort) берется из конфигурации пользователя или передается вручную."""
     import asyncio
     from unittest.mock import AsyncMock
     from src.analyzer.antigravity_client import AntigravityClient
@@ -231,25 +231,66 @@ async def test_antigravity_effort_and_high_budget(monkeypatch):
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", mock_subprocess_exec)
 
-    client = AntigravityClient()
+    client = AntigravityClient(effort="medium")
 
-    # 1. Дорогой проект (50 000 руб)
-    expensive_order = RawOrder(
+    order = RawOrder(
         source=SourcePlatform.KWORK,
         external_id="999",
-        title="Крупная CRM и парсинг",
+        title="CRM и парсинг",
         description="Архитектура",
         url="https://kwork.ru/999",
         price=50000,
     )
 
-    proposal = await client.generate_proposal(expensive_order)
+    # 1. По умолчанию берется effort из конфига (без эвристических переопределений)
+    proposal = await client.generate_proposal(order)
     assert "архитектуру" in proposal
     assert len(captured_cmds) == 1
-    cmd = captured_cmds[0]
-    assert "--effort" in cmd
-    effort_idx = cmd.index("--effort")
-    assert cmd[effort_idx + 1] == "high"
-    assert "--model" in cmd
-    model_idx = cmd.index("--model")
-    assert cmd[model_idx + 1] == "gemini-3.8-flash-high"
+    cmd1 = captured_cmds[0]
+    assert "--effort" in cmd1
+    assert cmd1[cmd1.index("--effort") + 1] == "medium"
+
+    # 2. Если пользователь явно передает effort (например "high") - прокидывается он
+    await client.generate_proposal(order, effort="high")
+    assert len(captured_cmds) == 2
+    cmd2 = captured_cmds[1]
+    assert "--effort" in cmd2
+    assert cmd2[cmd2.index("--effort") + 1] == "high"
+
+
+def test_mistral_model_specific_profiles():
+    """Тест раздельных профилей лимитов для ministral-8b-latest и ministral-14b-latest."""
+    from src.config import YamlAppConfig
+
+    # Профиль 8B
+    raw_yaml_8b = {
+        "llm": {
+            "mistral": {
+                "active_model": "ministral-8b-latest",
+            }
+        }
+    }
+    cfg_8b = YamlAppConfig.model_validate(raw_yaml_8b)
+    from src.config import Settings
+    s8 = Settings()
+    s8.app_config = cfg_8b
+    assert s8.MISTRAL_MODEL == "ministral-8b-latest"
+    assert s8.MISTRAL_RPM_LIMIT == 150
+    assert s8.MISTRAL_MAX_CONCURRENCY == 4
+    assert s8.MISTRAL_TIMEOUT == 40.0
+
+    # Профиль 14B
+    raw_yaml_14b = {
+        "llm": {
+            "mistral": {
+                "active_model": "ministral-14b-latest",
+            }
+        }
+    }
+    cfg_14b = YamlAppConfig.model_validate(raw_yaml_14b)
+    s14 = Settings()
+    s14.app_config = cfg_14b
+    assert s14.MISTRAL_MODEL == "ministral-14b-latest"
+    assert s14.MISTRAL_RPM_LIMIT == 25
+    assert s14.MISTRAL_MAX_CONCURRENCY == 2
+    assert s14.MISTRAL_TIMEOUT == 60.0
