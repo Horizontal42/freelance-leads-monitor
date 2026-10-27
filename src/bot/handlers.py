@@ -5,7 +5,7 @@ import logging
 from aiogram import F, Router
 from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, LinkPreviewOptions, Message
 from src.bot.keyboards import get_order_inline_keyboard
 from src.config import settings
 from src.models.order import OrderStatus, RawOrder, SourcePlatform
@@ -76,7 +76,11 @@ async def handle_recent(message: Message, repo: OrderRepository) -> None:
             f"   Бюджет: {price_str} | Статус: {o.get('status')}"
         )
 
-    await message.answer("\n\n".join(lines), parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+    await message.answer(
+        "\n\n".join(lines),
+        parse_mode=ParseMode.HTML,
+        link_preview_options=LinkPreviewOptions(is_disabled=True),
+    )
 
 
 @router.callback_query(F.data.startswith("gen_prop:"))
