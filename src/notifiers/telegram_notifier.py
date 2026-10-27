@@ -49,7 +49,11 @@ class TelegramNotifier:
             if order.price
             else ("По договоренности" if order.is_negotiable else "Не указан")
         )
-        rec_price_str = f"{int(analysis.recommended_price):,} ₽".replace(",", " ")
+        rec_price_str = (
+            f"{int(analysis.recommended_price):,} ₽".replace(",", " ")
+            if analysis.recommended_price and analysis.recommended_price > 0
+            else "По кнопке (agy с веб-поиском)"
+        )
 
         risks_list = (
             "\n".join([f"• {html.escape(r)}" for r in analysis.risks_and_pitfalls])

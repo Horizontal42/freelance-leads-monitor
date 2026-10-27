@@ -115,13 +115,62 @@ class OrderRepository:
             )
             await db.commit()
 
-    async def update_proposal(self, order_id: int, proposal_text: str) -> None:
-        """Сохранить сгенерированный по требованию отклик."""
+    async def update_proposal(
+        self,
+        order_id: int,
+        proposal_text: str,
+        recommended_price: Optional[float] = None,
+        price_justification: Optional[str] = None,
+    ) -> None:
+        """Сохранить сгенерированный по требованию отклик и обновленную рыночную оценку от agy."""
         async with self._get_conn() as db:
-            await db.execute(
-                "UPDATE orders SET proposal_text = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (proposal_text, order_id),
-            )
+            # Считываем существующий analysis_json если он есть, чтобы обновить в нем цену и обоснование
+            async with db.execute(
+                "SELECT analysis_json FROM orders WHERE id = ?", (order_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+
+            updated_analysis_json = None
+            if row and row[0]:
+                try:
+                    data = json.loads(row[0])
+                    if recommended_price is not None:
+                        data["recommended_price"] = recommended_price
+                    if price_justification is not None:
+                        data["price_justification"] = price_justification
+                    data["proposal_text"] = proposal_text
+                    updated_analysis_json = json.dumps(data, ensure_ascii=False)
+                except Exception:
+                    pass
+
+            if recommended_price is not None and updated_analysis_json:
+                await db.execute(
+                    """
+                    UPDATE orders SET
+                        proposal_text = ?,
+                        recommended_price = ?,
+                        analysis_json = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (proposal_text, recommended_price, updated_analysis_json, order_id),
+                )
+            elif recommended_price is not None:
+                await db.execute(
+                    """
+                    UPDATE orders SET
+                        proposal_text = ?,
+                        recommended_price = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                    """,
+                    (proposal_text, recommended_price, order_id),
+                )
+            else:
+                await db.execute(
+                    "UPDATE orders SET proposal_text = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (proposal_text, order_id),
+                )
             await db.commit()
 
     async def get_by_id(self, order_id: int) -> Optional[Dict[str, Any]]:

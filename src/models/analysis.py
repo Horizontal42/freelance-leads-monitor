@@ -78,3 +78,23 @@ class AnalysisResult(BaseModel):
         if isinstance(v, dict):
             return " ".join(str(val) for val in v.values() if val)
         return str(v)
+
+
+class ProposalResult(str):
+    """Результат генерации отклика Antigravity (agy) с финансовой оценкой на основе поиска в интернете.
+
+    Наследуется от str для 100% обратной совместимости со всеми существующими хэндлерами и тестами,
+    но несет в себе дополнительные поля recommended_price и price_justification.
+    """
+
+    def __new__(
+        cls,
+        text: str,
+        recommended_price: Optional[float] = None,
+        price_justification: Optional[str] = None,
+    ) -> "ProposalResult":
+        obj = super().__new__(cls, text)
+        obj.proposal_text = text
+        obj.recommended_price = recommended_price
+        obj.price_justification = price_justification
+        return obj
