@@ -1,7 +1,7 @@
 """Domain models for LLM evaluation and proposals."""
 
-from typing import List, Optional
-from pydantic import BaseModel, Field
+from typing import Any, List, Optional
+from pydantic import BaseModel, Field, field_validator
 from src.models.order import OrderPriority
 
 
@@ -36,7 +36,7 @@ class AnalysisResult(BaseModel):
     realistic_days: float = Field(default=0.0, description="Реалистичный срок для клиента в днях")
 
     matched_project: str = Field(
-        default="",
+        default="Общий бэкграунд (Python Backend)",
         description="На какой проект из досье больше всего похоже (Speech Analytics, Avia_Pars, leads-monitor и др.)",
     )
     complexity: int = Field(default=1, ge=1, le=10, description="Реальная техническая сложность 1-10")
@@ -51,3 +51,30 @@ class AnalysisResult(BaseModel):
         description="Готовый отклик живым языком: без штампов, строго с дефисами '-', первые 140 симв с зацепкой",
     )
     pert: Optional[PertEstimate] = Field(default=None, description="PERT расчет сроков")
+
+    @field_validator("matched_project", mode="before")
+    @classmethod
+    def sanitize_matched_project(cls, v: Any) -> str:
+        if v is None:
+            return "Общий бэкграунд (Python Backend)"
+        return str(v)
+
+    @field_validator("price_justification", mode="before")
+    @classmethod
+    def sanitize_price_justification(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, dict):
+            return " ".join(f"{k}: {val}" for k, val in v.items() if val)
+        return str(v)
+
+    @field_validator("executive_summary", mode="before")
+    @classmethod
+    def sanitize_executive_summary(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, (list, tuple)):
+            return " ".join(str(x) for x in v)
+        if isinstance(v, dict):
+            return " ".join(str(val) for val in v.values() if val)
+        return str(v)

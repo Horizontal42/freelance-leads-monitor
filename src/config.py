@@ -78,7 +78,7 @@ class AntigravityConfig(BaseModel):
 
 
 class MistralConfig(BaseModel):
-    model: str = "ministral-8b-latest"
+    model: str = "ministral-14b-latest"
     timeout_seconds: float = 60.0
 
 

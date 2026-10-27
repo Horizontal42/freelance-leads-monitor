@@ -4,6 +4,7 @@ import asyncio
 import logging
 from typing import List, Optional
 from src.analyzer.base import BaseLLMClient
+from src.collectors.enricher import OrderEnricher
 from src.config import settings
 from src.filters.pre_filter import HardFilter
 from src.models.order import OrderPriority, OrderStatus, RawOrder
@@ -22,12 +23,14 @@ class LeadsPipeline:
         hard_filter: HardFilter,
         llm_client: BaseLLMClient,
         tg_notifier: Optional[TelegramNotifier] = None,
+        enricher: Optional[OrderEnricher] = None,
         max_concurrency: int = 2,
     ) -> None:
         self.repo = repo
         self.hard_filter = hard_filter
         self.llm_client = llm_client
         self.tg_notifier = tg_notifier
+        self.enricher = enricher or OrderEnricher()
         self.semaphore = asyncio.Semaphore(max_concurrency)
 
     async def process_orders(self, orders: List[RawOrder]) -> dict:
@@ -71,10 +74,15 @@ class LeadsPipeline:
         # 2. Конкурентный анализ прошедших заказов через LLM с семафором
         async def _analyze_and_route(order: RawOrder) -> None:
             async with self.semaphore:
+                # Полная выгрузка ТЗ и файлов перед отправкой в LLM (экономия токенов модели)
+                order = await self.enricher.enrich(order)
+
                 logger.info(
-                    "Заказ [%s #%s] прошел фильтр. Отправка в LLM: '%s'...",
+                    "Заказ [%s #%s] обогащен (текст: %d симв, файлы: %s). Отправка в LLM: '%s'...",
                     order.source.value,
                     order.external_id,
+                    len(order.description),
+                    "да" if order.attachments_text else "нет",
                     order.title[:45],
                 )
                 try:

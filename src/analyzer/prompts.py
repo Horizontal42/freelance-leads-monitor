@@ -25,6 +25,7 @@ DEFAULT_SYSTEM_PROMPT = """Ты - старший Python-разработчик �
    - recommended_price: адекватная рыночная ставка с учетом сложности (не демпинг).
    - price_justification: разбор бюджета заказчика, рыночная вилка, стратегия торга.
 6. Поле proposal_text оставь пустым (""), так как отклик генерируется по требованию пользователя через Antigravity.
+7. Все материалы задачи и файлы уже полностью извлечены и предоставлены во входных данных. Тебе ЗАПРЕЩЕНО переходить по внешним ссылкам, использовать инструменты экспорта страниц или вызывать браузер.
 
 ФОРМАТ ОТВЕТА (СТРОГО JSON):
 {
@@ -94,7 +95,10 @@ def get_system_prompt() -> str:
 def get_proposal_template() -> str:
     """Получить актуальный шаблон отклика из конфигурации config.yml."""
     tmpl = getattr(settings, "PROPOSAL_PROMPT_TEMPLATE", "")
-    return tmpl if tmpl else DEFAULT_PROPOSAL_PROMPT_TEMPLATE
+    if tmpl:
+        return tmpl
+    dossier = getattr(settings, "DOSSIER_TEXT", "")
+    return DEFAULT_PROPOSAL_PROMPT_TEMPLATE.replace("{dossier_text}", dossier)
 
 
 # Для обратной совместимости
@@ -111,17 +115,24 @@ def build_analysis_prompt(order: RawOrder) -> str:
     )
     tags_info = ", ".join(order.tags) if order.tags else "Нет"
 
+    attachments_block = ""
+    if order.attachments_text and order.attachments_text.strip():
+        attachments_block = (
+            f"\n\nПРИКРЕПЛЕННЫЕ К ЗАКАЗУ ФАЙЛЫ И МАТЕРИАЛЫ:\n"
+            f"{order.attachments_text.strip()}"
+        )
+
     user_content = f"""
 ПРОАНАЛИЗИРУЙ ЗАКАЗ:
-Источник: {order.source.value.upper()}
+Источник: {order.source.value.upper()} (ID: {order.external_id})
 Название: {order.title}
 Бюджет заказчика: {price_info}
 Теги: {tags_info}
-Ссылка: {order.url}
 
-Описание задачи:
-{order.description}
+ПОЛНОЕ ТЕХНИЧЕСКОЕ ЗАДАНИЕ (ВЫГРУЖЕНО ИЗ СИСТЕМЫ):
+{order.description}{attachments_block}
 
+ВАЖНО: Все материалы задачи и файлы уже полностью извлечены и предоставлены выше. Тебе НЕ нужно переходить по внешним ссылкам, вызывать браузер или экспортировать заказ извне.
 Сформируй JSON-ответ строго по инструкции. Поле proposal_text оставь пустой строкой.
 """
     return f"{get_system_prompt()}\n\n{user_content}"
@@ -149,11 +160,17 @@ def build_proposal_prompt(
             f"- Риски: {', '.join(risks) if risks else 'стандартные'}\n"
         )
 
+    full_description = order.description
+    if order.attachments_text and order.attachments_text.strip():
+        full_description = (
+            f"{order.description}\n\n[Прикрепленные файлы и материалы]:\n{order.attachments_text.strip()}"
+        )
+
     template = get_proposal_template()
     return template.format(
         source=order.source.value.upper(),
         title=order.title,
         price=price_info,
-        description=order.description,
+        description=full_description,
         extra_context=extra_context,
     )

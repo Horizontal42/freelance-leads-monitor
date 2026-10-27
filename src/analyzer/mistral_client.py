@@ -65,6 +65,14 @@ class MistralClient(BaseLLMClient):
             if "proposal_text" in data and isinstance(data["proposal_text"], str):
                 data["proposal_text"] = self._sanitize_proposal(data["proposal_text"])
 
+            if not data.get("matched_project"):
+                data["matched_project"] = "Общий бэкграунд (Python Backend)"
+
+            if isinstance(data.get("price_justification"), dict):
+                data["price_justification"] = " ".join(
+                    f"{k}: {v}" for k, v in data["price_justification"].items() if v
+                )
+
             score = int(data.get("score", 5))
             if "priority" not in data or data["priority"] not in ["hot", "normal"]:
                 data["priority"] = (

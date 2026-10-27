@@ -627,6 +627,7 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
             price=order_data["price"],
             is_negotiable=bool(order_data.get("is_negotiable", 0)),
             is_pro_only=bool(order_data.get("is_pro_only", 0)),
+            attachments_text=order_data.get("attachments_text"),
         )
 
         analysis_data = (
