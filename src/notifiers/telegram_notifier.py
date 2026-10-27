@@ -4,7 +4,9 @@ import html
 import logging
 from typing import Optional
 from aiogram import Bot
+from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.types import LinkPreviewOptions
 from src.bot.keyboards import get_order_inline_keyboard
 from src.config import settings
 from src.models.analysis import AnalysisResult
@@ -30,7 +32,10 @@ class TelegramNotifier:
         if self._bot is None:
             if not settings.BOT_TOKEN:
                 raise ValueError("BOT_TOKEN не задан в конфигурации (.env)")
-            self._bot = Bot(token=settings.BOT_TOKEN)
+            self._bot = Bot(
+                token=settings.BOT_TOKEN,
+                default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+            )
         return self._bot
 
     def format_card(
@@ -104,7 +109,7 @@ class TelegramNotifier:
                 text=card_text,
                 parse_mode=ParseMode.HTML,
                 reply_markup=keyboard,
-                disable_web_page_preview=True,
+                link_preview_options=LinkPreviewOptions(is_disabled=True),
             )
             logger.info(
                 "Карточка заказа #%d успешно отправлена в Telegram (chat_id: %d)",
