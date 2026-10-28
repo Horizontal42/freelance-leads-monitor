@@ -231,6 +231,18 @@ class HhRuCollector(BaseCollector):
                             for f in item.get("work_format") or []
                             if f.get("name")
                         ]
+                        schedule_obj = item.get("schedule") or {}
+                        schedule_name = (schedule_obj.get("name") or "").strip()
+                        if schedule_name and schedule_name not in formats:
+                            formats.append(schedule_name)
+
+                        employment_obj = item.get("employment") or {}
+                        employment_name = (employment_obj.get("name") or "").strip()
+                        roles = [
+                            r.get("name", "").strip()
+                            for r in item.get("professional_roles") or []
+                            if r.get("name")
+                        ]
                         experience = ((item.get("experience") or {}).get("name") or "").strip()
 
                         # 1. Фильтр по уровню и стоп-словам
@@ -261,9 +273,12 @@ class HhRuCollector(BaseCollector):
                             f"🏢 Компания: {employer_name}" if employer_name else "",
                             f"📍 Локация: {city}" if city else "",
                             f"🏠 Формат работы: {', '.join(formats)}" if formats else "",
+                            f"💼 Занятость: {employment_name}" if employment_name else "",
                             f"⏳ Требуемый опыт: {experience}" if experience else "",
                             f"💰 Зарплата: {sal_str}",
                         ]
+                        if roles:
+                            meta_lines.append(f"🎯 Роль: {', '.join(roles)}")
                         attachments_text = "\n".join(line for line in meta_lines if line)
 
                         # 6. Теги
@@ -274,6 +289,11 @@ class HhRuCollector(BaseCollector):
                             tags.append(city)
                         if experience:
                             tags.append(experience)
+                        if employment_name and employment_name not in tags:
+                            tags.append(employment_name)
+                        for r in roles:
+                            if r not in tags:
+                                tags.append(r)
 
                         url = (item.get("alternate_url") or f"https://hh.ru/vacancy/{vac_id}").split("?")[0]
 
