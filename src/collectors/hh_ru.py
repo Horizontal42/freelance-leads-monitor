@@ -46,12 +46,14 @@ class HhRuCollector(BaseCollector):
         base_url: Optional[str] = None,
         token: Optional[str] = None,
         user_agent: Optional[str] = None,
+        repo: Optional[Any] = None,
     ) -> None:
         super().__init__(name="hh_ru")
         self.config = settings.COLLECTORS_HH_RU
         self.base_url = (base_url or self.config.base_url).rstrip("/")
         self.token = token or settings.HH_APP_TOKEN
         self.user_agent = user_agent or settings.HH_USER_AGENT
+        self.repo = repo
         self._logged_missing_token = False
 
         # Компиляция регулярных выражений для отсева нерелевантных вакансий
@@ -138,6 +140,29 @@ class HhRuCollector(BaseCollector):
             else self.config.max_pages
         )
 
+        # Динамические фильтры города и формата работы из базы настроек
+        area_param = self.config.area
+        schedule_param = None
+        if self.repo:
+            try:
+                city_setting = await self.repo.get_setting("vacancy_city", "all")
+                if city_setting == "moscow":
+                    area_param = [1]
+                elif city_setting == "spb":
+                    area_param = [2]
+                elif city_setting == "russia":
+                    area_param = [113]
+
+                format_setting = await self.repo.get_setting("vacancy_work_format", "all")
+                if format_setting == "remote":
+                    schedule_param = "remote"
+                elif format_setting == "hybrid":
+                    schedule_param = "flexible"
+                elif format_setting == "office":
+                    schedule_param = "fullDay"
+            except Exception as e:
+                logger.debug("Не удалось получить динамические настройки вакансий hh.ru: %s", e)
+
         found_orders: Dict[str, RawOrder] = {}
         seen_pairs: Set[tuple[str, str]] = set()
 
@@ -150,9 +175,11 @@ class HhRuCollector(BaseCollector):
                         "page": page,
                         "period": max(1, min(self.config.days, 30)),
                     }
-                    if self.config.area:
-                        params["area"] = self.config.area
-                    if self.config.work_format:
+                    if area_param:
+                        params["area"] = area_param
+                    if schedule_param:
+                        params["schedule"] = schedule_param
+                    elif self.config.work_format:
                         params["work_format"] = self.config.work_format
 
                     try:

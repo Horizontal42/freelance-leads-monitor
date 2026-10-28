@@ -190,3 +190,31 @@ def test_uptime_service():
     formatted = get_uptime_formatted()
     assert isinstance(formatted, str)
     assert len(formatted) > 0
+
+
+@pytest.mark.asyncio
+async def test_bot_vacancy_settings_cycling():
+    """Проверка переключения настроек вакансий (город, формат, мин. зп) в боте."""
+    from src.bot.handlers import handle_setting_cycle
+    from src.bot.keyboards import get_settings_inline_keyboard
+
+    mock_callback = AsyncMock()
+    mock_repo = AsyncMock()
+    mock_repo.get_setting.return_value = "all"
+    mock_repo.get_all_settings.return_value = {
+        "vacancy_city": "moscow",
+        "vacancy_work_format": "remote",
+        "vacancy_min_salary": 120000,
+    }
+
+    # 1. Цикл города
+    mock_callback.data = "set_cycle:vacancy_city"
+    await handle_setting_cycle(mock_callback, mock_repo)
+    mock_repo.set_setting.assert_called_with("vacancy_city", "moscow")
+
+    # 2. Проверка отображения в клавиатуре
+    kb = get_settings_inline_keyboard(mock_repo.get_all_settings.return_value)
+    texts = [b.text for row in kb.inline_keyboard for b in row]
+    assert any("Москва" in t for t in texts)
+    assert any("Удаленка" in t for t in texts)
+    assert any("120 000 ₽" in t for t in texts)

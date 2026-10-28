@@ -217,3 +217,120 @@ async def test_web_split_sections_freelance_vs_hh(tmp_path):
         assert "Речевая аналитика звонков" in resp_profile.text
         assert "Cortex IT" in resp_profile.text
         assert "Активные поисковые запросы hh.ru" in resp_profile.text
+
+
+@pytest.mark.asyncio
+async def test_compact_vacancy_telegram_card_and_buttons():
+    """Проверка компактного формата карточки вакансии в Telegram и наличия ссылки на сайт."""
+    from src.notifiers.telegram_notifier import TelegramNotifier
+    from src.bot.keyboards import get_order_inline_keyboard
+
+    notifier = TelegramNotifier(chat_id=12345, bot_token="123456:FAKE")
+    order = RawOrder(
+        source=SourcePlatform.HH_RU,
+        external_id="888",
+        title="AI Engineer / Python Developer",
+        description="Очень длинное описание на 5000 символов...",
+        url="https://hh.ru/vacancy/888",
+        price=180000.0,
+        attachments_text="Компания: Сбер AI\nЛокация: Москва",
+    )
+    analysis = AnalysisResult(
+        take_order=True,
+        priority=OrderPriority.HOT,
+        score=9,
+        is_relevant=True,
+        matched_project="RAG-ассистент Cortex IT",
+        match_reason="Идеальное совпадение по Python, FastAPI и LangChain",
+        candidate_requirements="Опыт от 1 года, Python 3.10+, знание асинхронного программирования, Docker, Git, CI/CD",
+        skills_gap="Требуется опыт с Kubernetes",
+        skills_gap_counter="Опыт развертывания через Docker Compose и Linux systemd",
+        executive_summary="Рекомендуется к отклику",
+    )
+
+    card = notifier.format_card(order, analysis)
+
+    # 1. Основные реквизиты должны быть на месте
+    assert "ВАКАНСИЯ | СКОР 9/10" in card
+    assert "AI Engineer / Python Developer" in card
+    assert "Сбер AI" in card
+    assert "180 000 ₽" in card
+    assert "HH_RU" in card
+    assert "Идеальное совпадение" in card
+    assert "Полное описание, стек и Cover Letter доступны на сайте" in card
+
+    # 2. Длинные блоки не должны захламлять карточку в Telegram
+    assert "Очень длинное описание" not in card
+    assert "Опыт развертывания через Docker Compose" not in card
+
+    # 3. Кнопки вакансии содержат переход на сайт
+    kb = get_order_inline_keyboard(order_id=888, order_url=order.url, has_proposal=False, is_vacancy=True)
+    all_btns = [b for row in kb.inline_keyboard for b in row]
+    site_btn = next((b for b in all_btns if "Открыть на сайте" in b.text), None)
+    assert site_btn is not None
+    assert "jobs.3dvex.ru" in site_btn.url
+
+
+@pytest.mark.asyncio
+async def test_vacancy_settings_api_and_pipeline_salary_filter(tmp_path):
+    """Проверка настроек города/формата/мин. зп через API и фильтрации вакансий ниже порога."""
+    db_path = tmp_path / "test_vac_settings.db"
+    await init_db(db_path)
+    repo = OrderRepository(db_path=db_path)
+
+    app = create_web_app(repo=repo)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        # Сохранение настроек вакансий
+        resp = await client.post(
+            "/api/settings",
+            json={
+                "vacancy_city": "moscow",
+                "vacancy_work_format": "remote",
+                "vacancy_min_salary": 150000,
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+        assert data["settings"]["vacancy_city"] == "moscow"
+        assert data["settings"]["vacancy_work_format"] == "remote"
+        assert data["settings"]["vacancy_min_salary"] == 150000
+
+    # Проверка работы фильтра в пайплайне
+    from src.filters.pre_filter import HardFilter
+    from src.notifiers.pipeline import LeadsPipeline
+
+    pipeline = LeadsPipeline(
+        repo=repo,
+        hard_filter=HardFilter(),
+        llm_client=None,
+    )
+
+    # 1. Вакансия с зарплатой 120 000 ₽ при пороге 150 000 ₽ должна быть отсеяна в трэш
+    low_order = RawOrder(
+        source=SourcePlatform.HH_RU,
+        external_id="vac_low_1",
+        title="Junior Python Dev",
+        description="Разработка бэкенда",
+        url="https://hh.ru/1",
+        price=120000.0,
+    )
+    # 2. Вакансия с зарплатой 180 000 ₽ должна пройти
+    high_order = RawOrder(
+        source=SourcePlatform.HH_RU,
+        external_id="vac_high_2",
+        title="AI Engineer",
+        description="Разработка LLM сервисов",
+        url="https://hh.ru/2",
+        price=180000.0,
+    )
+
+    stats = await pipeline.process_orders([low_order, high_order])
+    assert stats["filtered_trash"] >= 1
+
+    recent = await repo.get_recent_orders(limit=10)
+    saved_low = next((o for o in recent if o["external_id"] == "vac_low_1"), None)
+    assert saved_low is not None
+    assert saved_low["priority"] == "trash"
+    assert "ниже минимальной" in (saved_low.get("filter_reason") or "")
