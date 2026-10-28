@@ -1,6 +1,31 @@
-"""Inline keyboards for Telegram bot."""
+"""Inline and Reply keyboards for Telegram bot."""
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
+
+
+def get_main_reply_keyboard() -> ReplyKeyboardMarkup:
+    """Главная постоянная клавиатура рядом с полем ввода сообщения."""
+    buttons = [
+        [
+            KeyboardButton(text="⚙️ Настройки"),
+            KeyboardButton(text="🩺 Проверка здоровья"),
+        ],
+        [
+            KeyboardButton(text="⏱️ Аптайм и Статус"),
+            KeyboardButton(text="🔍 Сканировать"),
+        ],
+    ]
+    return ReplyKeyboardMarkup(
+        keyboard=buttons,
+        resize_keyboard=True,
+        is_persistent=True,
+        input_field_placeholder="Выберите действие или команду...",
+    )
 
 
 def get_order_inline_keyboard(

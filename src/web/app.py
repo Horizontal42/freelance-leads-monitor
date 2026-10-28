@@ -936,6 +936,9 @@ DASHBOARD_HTML = """
                     </p>
                 </div>
                 <div class="flex items-center gap-3">
+                    <span id="health-uptime-badge" class="text-xs bg-slate-800 text-teal-300 font-mono px-2.5 py-1 rounded-lg border border-slate-700">
+                        ⏳ Аптайм: {{ uptime_info.uptime if uptime_info else '0 мин.' }}
+                    </span>
                     <span id="health-last-checked" class="text-xs text-slate-400 font-mono">
                         {% if health_data and health_data.checked_at %}
                             Проверено: {{ health_data.checked_at }}
@@ -1699,6 +1702,9 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
                     "error": str(e),
                 }
 
+        from src.services.uptime import get_system_status_info
+        uptime_info = get_system_status_info()
+
         template = Template(DASHBOARD_HTML, autoescape=True)
         html_content = template.render(
             orders=formatted_orders,
@@ -1716,6 +1722,7 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
             dossier_items=settings.PROMPTS_CONFIG.projects_dossier,
             settings_map=effective_settings,
             health_data=health_data,
+            uptime_info=uptime_info,
         )
         return HTMLResponse(content=html_content)
 
@@ -1881,8 +1888,10 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
     async def api_health_check_full():
         """Запустить полную проверку доступности бирж, LLM и базы данных."""
         from src.services.health_check import HealthCheckService
+        from src.services.uptime import get_system_status_info
         service = HealthCheckService()
         result = await service.run_full_check()
+        result["uptime"] = get_system_status_info()
         return result
 
     @app.get("/api/settings", response_class=JSONResponse)

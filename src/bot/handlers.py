@@ -4,11 +4,16 @@ import html
 import logging
 from aiogram import F, Router
 from aiogram.enums import ParseMode
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandStart, or_f
 from aiogram.types import CallbackQuery, LinkPreviewOptions, Message
-from src.bot.keyboards import get_order_inline_keyboard, get_settings_inline_keyboard
+from src.bot.keyboards import (
+    get_main_reply_keyboard,
+    get_order_inline_keyboard,
+    get_settings_inline_keyboard,
+)
 from src.config import settings
 from src.models.order import OrderStatus, RawOrder, SourcePlatform
+from src.services.uptime import get_system_status_info
 from src.storage.repository import OrderRepository
 
 logger = logging.getLogger(__name__)
@@ -29,17 +34,16 @@ async def handle_start(message: Message) -> None:
 
     text = (
         "🤖 <b>Freelance Leads Monitor Bot</b>\n\n"
-        "Система автоматического мониторинга бирж фриланса (Kwork, FL.ru), "
+        "Система автоматического мониторинга бирж фриланса и вакансий, "
         "эвристической фильтрации и генерации откликов через нейросеть.\n\n"
         f"{admin_note}\n\n"
-        "<b>Доступные команды:</b>\n"
-        "• /scan - Запустить внеочередной сбор и анализ заказов прямо сейчас\n"
-        "• /settings - Панель интерактивного управления фильтрами и биржами\n"
-        "• /health - Мониторинг доступности и времени отклика всех бирж и ИИ\n"
-        "• /stats - Показать общую статистику по базе заказов\n"
-        "• /recent - Показать последние 5 найденных горячих лидов"
+        "<b>Быстрый доступ закреплен внизу экрана рядом с полем ввода:</b>\n"
+        "• ⚙️ <b>Настройки</b> - Управление источниками и фильтрами\n"
+        "• 🩺 <b>Проверка здоровья</b> - Health Check доступности бирж и ИИ\n"
+        "• ⏱️ <b>Аптайм и Статус</b> - Непрерывная работа и статистика базы\n"
+        "• 🔍 <b>Сканировать</b> - Внеочередной сбор заказов"
     )
-    await message.answer(text, parse_mode=ParseMode.HTML)
+    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=get_main_reply_keyboard())
 
 
 def format_health_message(res: dict) -> str:
@@ -65,10 +69,18 @@ def format_health_message(res: dict) -> str:
     return "\n".join(lines)
 
 
-@router.message(Command("health"))
+@router.message(
+    or_f(
+        Command("health"),
+        F.text.in_({"🩺 Проверка здоровья", "Проверка здоровья", "/health", "🩺 Health Check", "Health Check"}),
+    )
+)
 async def handle_health(message: Message) -> None:
     """Проверить доступность и время отклика бирж, ИИ и БД."""
-    wait_msg = await message.answer("⏳ Опрашиваю биржи и нейросети...")
+    wait_msg = await message.answer(
+        "⏳ Опрашиваю биржи и нейросети...",
+        reply_markup=get_main_reply_keyboard(),
+    )
     from src.services.health_check import HealthCheckService
     svc = HealthCheckService()
     res = await svc.run_full_check()
@@ -76,7 +88,7 @@ async def handle_health(message: Message) -> None:
     await wait_msg.edit_text(text, parse_mode=ParseMode.HTML)
 
 
-@router.message(Command("settings"))
+@router.message(or_f(Command("settings"), F.text.in_({"⚙️ Настройки", "Настройки", "/settings"})))
 async def handle_settings(message: Message, repo: OrderRepository) -> None:
     """Показать интерактивную панель настроек."""
     settings_map = await repo.get_all_settings()
@@ -141,19 +153,46 @@ async def handle_health_callback(callback: CallbackQuery) -> None:
         await callback.message.reply(text, parse_mode=ParseMode.HTML)
 
 
-@router.message(Command("stats"))
-async def handle_stats(message: Message, repo: OrderRepository) -> None:
-    """Вывести статистику базы данных."""
-    stats = await repo.get_stats()
-    text = (
-        "📊 <b>Статистика мониторинга заказов:</b>\n\n"
-        f"• Всего заказов в базе: <b>{stats.get('total', 0)}</b>\n"
-        f"• 🔥 Горячих лидов (Tier 1): <b>{stats.get('hot', 0)}</b>\n"
-        f"• ⚡ Обычных заказов (Tier 2): <b>{stats.get('normal', 0)}</b>\n"
-        f"• 🗑 Отсеяно фильтром (Tier 3): <b>{stats.get('trash', 0)}</b>\n"
-        f"• 📤 Отправлено в Telegram: <b>{stats.get('sent_to_tg', 0)}</b>"
+def format_uptime_and_stats_message(status_info: dict, stats: dict) -> str:
+    """Форматировать сводный отчет об аптайме и состоянии базы."""
+    total = stats.get("total", 0)
+    hot = stats.get("hot", 0)
+    normal = stats.get("normal", 0)
+    trash = stats.get("trash", 0)
+    sent_to_tg = stats.get("sent_to_tg", 0)
+
+    return (
+        "⏱️ <b>Аптайм и статус системы:</b>\n\n"
+        f"🟢 <b>Статус:</b> Работает стабильно\n"
+        f"⏳ <b>Аптайм:</b> <code>{status_info.get('uptime', '0 мин.')}</code>\n"
+        f"🚀 <b>Запущен:</b> {status_info.get('start_time')}\n"
+        f"🆔 <b>PID процесса:</b> <code>{status_info.get('pid')}</code>\n\n"
+        "📊 <b>Статистика базы заказов:</b>\n"
+        f"• Всего заказов/вакансий: <b>{total}</b>\n"
+        f"• 🔥 Горячих лидов (Tier 1): <b>{hot}</b>\n"
+        f"• ⚡ Обычных заказов (Tier 2): <b>{normal}</b>\n"
+        f"• 🗑 Отсеяно фильтром (Tier 3): <b>{trash}</b>\n"
+        f"• 📤 Отправлено в Telegram: <b>{sent_to_tg}</b>\n\n"
+        "<i>Используйте кнопки под полем ввода для быстрого перехода в Настройки или Health Check.</i>"
     )
-    await message.answer(text, parse_mode=ParseMode.HTML)
+
+
+@router.message(
+    or_f(
+        Command("uptime", "stats"),
+        F.text.in_({"⏱️ Аптайм и Статус", "Аптайм и Статус", "⏱️ Аптайм", "Аптайм", "Статус", "/stats", "/uptime"}),
+    )
+)
+async def handle_uptime_and_stats(message: Message, repo: OrderRepository) -> None:
+    """Вывести отчет об аптайме и статистику базы."""
+    stats = await repo.get_stats()
+    status_info = get_system_status_info()
+    text = format_uptime_and_stats_message(status_info, stats)
+    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=get_main_reply_keyboard())
+
+
+# Алиас для обратной совместимости в тестах
+handle_stats = handle_uptime_and_stats
 
 
 @router.message(Command("recent"))

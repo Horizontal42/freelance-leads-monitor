@@ -159,17 +159,36 @@ async def main() -> None:
         bot, dp = create_bot_and_dispatcher(repo)
         tg_notifier = TelegramNotifier(bot=bot, chat_id=settings.ADMIN_CHAT_ID)
 
-    if settings.VACANCIES_BOT_TOKEN and settings.VACANCIES_ADMIN_CHAT_ID:
-        if settings.VACANCIES_BOT_TOKEN != settings.BOT_TOKEN:
-            vacancies_notifier = TelegramNotifier(
-                chat_id=settings.VACANCIES_ADMIN_CHAT_ID,
-                bot_token=settings.VACANCIES_BOT_TOKEN,
-            )
+        if settings.VACANCIES_BOT_TOKEN and settings.VACANCIES_ADMIN_CHAT_ID:
+            if settings.VACANCIES_BOT_TOKEN != settings.BOT_TOKEN:
+                vacancies_notifier = TelegramNotifier(
+                    chat_id=settings.VACANCIES_ADMIN_CHAT_ID,
+                    bot_token=settings.VACANCIES_BOT_TOKEN,
+                )
+            else:
+                vacancies_notifier = tg_notifier
         else:
             vacancies_notifier = tg_notifier
 
-        # Привязываем команду /scan к нашему пайплайну
-        from aiogram.filters import Command
+        # Регистрация команд бота в меню Telegram
+        from aiogram.types import BotCommand
+        from src.bot.keyboards import get_main_reply_keyboard
+        try:
+            await bot.set_my_commands([
+                BotCommand(command="settings", description="⚙️ Настройки фильтров и бирж"),
+                BotCommand(command="health", description="🩺 Проверка здоровья сервисов"),
+                BotCommand(command="uptime", description="⏱️ Аптайм и статус системы"),
+                BotCommand(command="stats", description="📊 Статистика базы заказов"),
+                BotCommand(command="scan", description="🔍 Сканирование площадок"),
+                BotCommand(command="recent", description="📋 Последние горячие лиды"),
+                BotCommand(command="start", description="🤖 Главное меню и клавиатура"),
+            ])
+        except Exception as cmd_err:
+            logger.debug("Не удалось зарегистрировать команды меню бота: %s", cmd_err)
+
+        # Привязываем команду /scan и кнопку '🔍 Сканировать' к нашему пайплайну
+        from aiogram import F
+        from aiogram.filters import Command, or_f
         from aiogram.types import Message
         from src.bot.handlers import router
 
@@ -178,11 +197,15 @@ async def main() -> None:
             hard_filter=hard_filter,
             llm_client=llm_client,
             tg_notifier=tg_notifier,
+            vacancies_notifier=vacancies_notifier,
         )
 
-        @router.message(Command("scan"))
+        @router.message(or_f(Command("scan"), F.text.in_({"🔍 Сканировать", "Сканировать", "/scan"})))
         async def dynamic_scan_handler(message: Message) -> None:
-            await message.answer("🔍 Запускаю внеочередное сканирование бирж...")
+            await message.answer(
+                "🔍 Запускаю внеочередное сканирование бирж...",
+                reply_markup=get_main_reply_keyboard(),
+            )
             stats = await run_single_scan(collectors, pipeline_for_scan)
             summary = (
                 "✅ <b>Сканирование завершено:</b>\n\n"
@@ -192,7 +215,7 @@ async def main() -> None:
                 f"• Обычных сохранено (Tier 2): <b>{stats['analyzed_normal']}</b>\n"
                 f"• 🔥 Горячих лидов отправлено (Tier 1): <b>{stats['hot_leads_sent']}</b>"
             )
-            await message.answer(summary)
+            await message.answer(summary, reply_markup=get_main_reply_keyboard())
     else:
         logger.warning(
             "⚠️ BOT_TOKEN или ADMIN_CHAT_ID не настроены. "
