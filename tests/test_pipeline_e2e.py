@@ -195,3 +195,48 @@ async def test_pipeline_concurrency_semaphore(tmp_path):
     # Проверяем, что максимальная параллельность не превысила 2
     assert llm_client.max_concurrent_seen <= 2
     assert llm_client.max_concurrent_seen >= 1
+
+
+@pytest.mark.asyncio
+async def test_pipeline_vacancy_hot_threshold(tmp_path):
+    db_path = tmp_path / "test_vac_threshold.db"
+    await init_db(db_path)
+    repo = OrderRepository(db_path=db_path)
+    hard_filter = HardFilter(min_budget=10000)
+
+    # Вакансия с score=7 (ниже порога для вакансий 8) не должна идти в hot
+    llm_client_7 = MockLLMClient(score=7, priority=OrderPriority.HOT)
+    pipeline = LeadsPipeline(
+        repo=repo,
+        hard_filter=hard_filter,
+        llm_client=llm_client_7,
+        tg_notifier=None,
+    )
+
+    vac_order = RawOrder(
+        source=SourcePlatform.HH_RU,
+        external_id="hh_777",
+        title="Python AI Developer",
+        description="Разработка LLM сервисов на Python",
+        url="https://hh.ru/vacancy/777",
+        price=150000,
+    )
+
+    stats = await pipeline.process_orders([vac_order])
+    assert stats["hot_leads_sent"] == 0
+    assert stats["analyzed_normal"] == 1
+
+    # Вакансия с score=8 (достигает порога 8) должна идти в hot
+    llm_client_8 = MockLLMClient(score=8, priority=OrderPriority.NORMAL)
+    pipeline.llm_client = llm_client_8
+    vac_order_8 = RawOrder(
+        source=SourcePlatform.HABR_CAREER,
+        external_id="habr_888",
+        title="Junior Python Engineer",
+        description="Разработка сервисов на Python",
+        url="https://career.habr.com/vacancies/888",
+        price=120000,
+    )
+    stats2 = await pipeline.process_orders([vac_order_8])
+    assert stats2["hot_leads_sent"] == 1
+    assert stats2["analyzed_normal"] == 0

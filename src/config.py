@@ -28,6 +28,7 @@ class WebConfig(BaseModel):
 
 class PollingConfig(BaseModel):
     interval_seconds: int = 180
+    vacancies_interval_seconds: int = 1800
     kwork_interval: int = 180
     fl_interval: int = 180
     initial_backfill: bool = True
@@ -126,6 +127,7 @@ class CollectorsConfig(BaseModel):
 class FilterConfig(BaseModel):
     min_budget: int = 10000
     hot_score_threshold: int = 7
+    vacancy_hot_score_threshold: int = 8
     filter_pro_only: bool = False
     stop_words: List[str] = Field(default_factory=list)
     keywords: List[str] = Field(default_factory=list)
@@ -415,6 +417,10 @@ class Settings:
         return self.app_config.polling.interval_seconds
 
     @property
+    def VACANCIES_POLL_INTERVAL(self) -> int:
+        return self.app_config.polling.vacancies_interval_seconds
+
+    @property
     def INITIAL_BACKFILL(self) -> bool:
         return self.app_config.polling.initial_backfill
 
@@ -426,6 +432,10 @@ class Settings:
     @property
     def HOT_SCORE_THRESHOLD(self) -> int:
         return self.app_config.filter.hot_score_threshold
+
+    @property
+    def VACANCY_HOT_SCORE_THRESHOLD(self) -> int:
+        return self.app_config.filter.vacancy_hot_score_threshold
 
     @property
     def FILTER_PRO_ONLY(self) -> bool:

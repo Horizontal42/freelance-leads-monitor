@@ -52,6 +52,10 @@ class LeadsPipeline:
         min_budget = dyn_settings.get("min_budget", settings.MIN_BUDGET)
         vacancy_min_salary = dyn_settings.get("vacancy_min_salary", 0)
         hot_threshold = dyn_settings.get("hot_score_threshold", settings.HOT_SCORE_THRESHOLD)
+        vacancy_hot_threshold = dyn_settings.get(
+            "vacancy_hot_score_threshold",
+            getattr(settings, "VACANCY_HOT_SCORE_THRESHOLD", 8),
+        )
 
         passed_orders: List[RawOrder] = []
 
@@ -169,10 +173,16 @@ class LeadsPipeline:
                     status=OrderStatus.ANALYZED,
                 )
 
-                is_hot = (
-                    analysis.priority == OrderPriority.HOT
-                    or analysis.score >= hot_threshold
-                )
+                is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
+                effective_hot_threshold = vacancy_hot_threshold if is_vacancy else hot_threshold
+
+                if is_vacancy:
+                    is_hot = analysis.score >= effective_hot_threshold
+                else:
+                    is_hot = (
+                        analysis.priority == OrderPriority.HOT
+                        or analysis.score >= effective_hot_threshold
+                    )
 
                 if is_hot:
                     stats["hot_leads_sent"] += 1
@@ -181,7 +191,6 @@ class LeadsPipeline:
                         order_id,
                         analysis.score,
                     )
-                    is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
                     active_notifier = self.vacancies_notifier if is_vacancy else self.tg_notifier
                     if active_notifier is not None:
                         sent = await active_notifier.send_lead(
