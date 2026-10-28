@@ -1159,6 +1159,54 @@ DASHBOARD_HTML = """
                             </select>
                         </div>
                     </div>
+
+                    <!-- Vacancy Settings (City, Work Format, Min Salary) -->
+                    <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
+                        <h4 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                            <span>💼</span> Параметры поиска вакансий (hh.ru / Хабр Карьера)
+                        </h4>
+
+                        <!-- City / Region -->
+                        <div class="space-y-1.5">
+                            <label for="setting_vacancy_city" class="text-xs font-semibold text-slate-300 block">
+                                📍 Город / Регион:
+                            </label>
+                            <select id="setting_vacancy_city" onchange="autoSaveSetting('vacancy_city', this.value)" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2.5 focus:border-indigo-500 outline-none">
+                                <option value="all" {% if settings_map.vacancy_city == 'all' or not settings_map.vacancy_city %}selected{% endif %}>Все города (без привязки)</option>
+                                <option value="moscow" {% if settings_map.vacancy_city == 'moscow' %}selected{% endif %}>Москва</option>
+                                <option value="spb" {% if settings_map.vacancy_city == 'spb' %}selected{% endif %}>Санкт-Петербург</option>
+                                <option value="russia" {% if settings_map.vacancy_city == 'russia' %}selected{% endif %}>Вся Россия</option>
+                            </select>
+                        </div>
+
+                        <!-- Work Format -->
+                        <div class="space-y-1.5 pt-2">
+                            <label for="setting_vacancy_work_format" class="text-xs font-semibold text-slate-300 block">
+                                🏠 Формат работы:
+                            </label>
+                            <select id="setting_vacancy_work_format" onchange="autoSaveSetting('vacancy_work_format', this.value)" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2.5 focus:border-indigo-500 outline-none">
+                                <option value="all" {% if settings_map.vacancy_work_format == 'all' or not settings_map.vacancy_work_format %}selected{% endif %}>Любой формат работы</option>
+                                <option value="remote" {% if settings_map.vacancy_work_format == 'remote' %}selected{% endif %}>Только удаленная работа (Remote)</option>
+                                <option value="hybrid" {% if settings_map.vacancy_work_format == 'hybrid' %}selected{% endif %}>Гибридный график (Hybrid)</option>
+                                <option value="office" {% if settings_map.vacancy_work_format == 'office' %}selected{% endif %}>Офис / Полный день (Office)</option>
+                            </select>
+                        </div>
+
+                        <!-- Vacancy Min Salary -->
+                        <div class="space-y-1.5 pt-2">
+                            <label for="setting_vacancy_min_salary" class="text-xs font-semibold text-slate-300 block">
+                                💵 Минимальная зарплата вакансии (₽):
+                            </label>
+                            <p class="text-[11px] text-slate-400">Вакансии с указанной зарплатой ниже этой суммы отсеиваются.</p>
+                            <select id="setting_vacancy_min_salary" onchange="autoSaveSetting('vacancy_min_salary', parseInt(this.value, 10))" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2.5 focus:border-indigo-500 outline-none">
+                                <option value="0" {% if not settings_map.vacancy_min_salary %}selected{% endif %}>Любая (включая по договоренности)</option>
+                                <option value="80000" {% if settings_map.vacancy_min_salary == 80000 %}selected{% endif %}>от 80 000 ₽</option>
+                                <option value="120000" {% if settings_map.vacancy_min_salary == 120000 %}selected{% endif %}>от 120 000 ₽</option>
+                                <option value="150000" {% if settings_map.vacancy_min_salary == 150000 %}selected{% endif %}>от 150 000 ₽</option>
+                                <option value="200000" {% if settings_map.vacancy_min_salary == 200000 %}selected{% endif %}>от 200 000 ₽</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1684,6 +1732,9 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
             "filter_pro_only": False,
             "min_budget": 10000,
             "hot_score_threshold": 7,
+            "vacancy_city": "all",
+            "vacancy_work_format": "all",
+            "vacancy_min_salary": 0,
         }
         effective_settings = {**default_settings_map, **current_settings}
 
@@ -1908,6 +1959,9 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
             "filter_pro_only": False,
             "min_budget": 10000,
             "hot_score_threshold": 7,
+            "vacancy_city": "all",
+            "vacancy_work_format": "all",
+            "vacancy_min_salary": 0,
         }
         return {"ok": True, "settings": {**defaults, **settings_map}}
 
@@ -1932,6 +1986,9 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
             "filter_pro_only",
             "min_budget",
             "hot_score_threshold",
+            "vacancy_city",
+            "vacancy_work_format",
+            "vacancy_min_salary",
         }
 
         for key, val in body.items():

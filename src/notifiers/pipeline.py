@@ -50,6 +50,7 @@ class LeadsPipeline:
         dyn_settings = await self.repo.get_all_settings()
         filter_pro = dyn_settings.get("filter_pro_only", settings.FILTER_PRO_ONLY)
         min_budget = dyn_settings.get("min_budget", settings.MIN_BUDGET)
+        vacancy_min_salary = dyn_settings.get("vacancy_min_salary", 0)
         hot_threshold = dyn_settings.get("hot_score_threshold", settings.HOT_SCORE_THRESHOLD)
 
         passed_orders: List[RawOrder] = []
@@ -83,16 +84,28 @@ class LeadsPipeline:
                 )
                 continue
 
-            # Проверка минимального бюджета
-            if min_budget and order.price and order.price < min_budget and not order.is_negotiable:
-                stats["filtered_trash"] += 1
-                await self.repo.insert_raw_order(
-                    order=order,
-                    status=OrderStatus.REJECTED,
-                    priority=OrderPriority.TRASH,
-                    filter_reason=f"Бюджет {int(order.price)} ₽ ниже минимального ({min_budget} ₽)",
-                )
-                continue
+            # Проверка минимального бюджета (для фриланса) или минимальной зарплаты (для вакансий)
+            is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
+            if is_vacancy:
+                if vacancy_min_salary and order.price and order.price < vacancy_min_salary and not order.is_negotiable:
+                    stats["filtered_trash"] += 1
+                    await self.repo.insert_raw_order(
+                        order=order,
+                        status=OrderStatus.REJECTED,
+                        priority=OrderPriority.TRASH,
+                        filter_reason=f"Зарплата {int(order.price)} ₽ ниже минимальной ({vacancy_min_salary} ₽)",
+                    )
+                    continue
+            else:
+                if min_budget and order.price and order.price < min_budget and not order.is_negotiable:
+                    stats["filtered_trash"] += 1
+                    await self.repo.insert_raw_order(
+                        order=order,
+                        status=OrderStatus.REJECTED,
+                        priority=OrderPriority.TRASH,
+                        filter_reason=f"Бюджет {int(order.price)} ₽ ниже минимального ({min_budget} ₽)",
+                    )
+                    continue
 
             filter_res = self.hard_filter.evaluate(order)
             if not filter_res.passed:

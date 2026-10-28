@@ -4,7 +4,7 @@ from datetime import datetime
 import html
 import logging
 import re
-from typing import List, Optional
+from typing import Any, List, Optional
 import feedparser
 import httpx
 from src.collectors.base import BaseCollector
@@ -17,9 +17,10 @@ logger = logging.getLogger(__name__)
 class HabrCareerCollector(BaseCollector):
     """Сборщик вакансий и проектов с Хабр Карьеры через RSS."""
 
-    def __init__(self, rss_base_url: Optional[str] = None) -> None:
+    def __init__(self, rss_base_url: Optional[str] = None, repo: Optional[Any] = None) -> None:
         super().__init__(name="habr_career")
         self.rss_base_url = rss_base_url or "https://career.habr.com/vacancies/rss"
+        self.repo = repo
         self.headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -67,9 +68,24 @@ class HabrCareerCollector(BaseCollector):
         seen_ids = set()
         all_vacancies: List[RawOrder] = []
 
+        # Динамические параметры фильтрации
+        extra_params = ""
+        if self.repo:
+            try:
+                v_fmt = await self.repo.get_setting("vacancy_work_format", "all")
+                if v_fmt == "remote":
+                    extra_params += "&s[]=remote"
+                v_city = await self.repo.get_setting("vacancy_city", "all")
+                if v_city == "moscow":
+                    extra_params += "&city_id=678"
+                elif v_city == "spb":
+                    extra_params += "&city_id=679"
+            except Exception as e:
+                logger.debug("Не удалось получить настройки вакансий для Хабр Карьеры: %s", e)
+
         async with httpx.AsyncClient(headers=self.headers, timeout=15.0, follow_redirects=True) as client:
             for query in queries:
-                url = f"{rss_base}?q={query}"
+                url = f"{rss_base}?q={query}{extra_params}"
                 try:
                     resp = await client.get(url)
                     if resp.status_code != 200:

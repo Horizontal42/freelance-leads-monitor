@@ -117,7 +117,7 @@ async def handle_setting_toggle(callback: CallbackQuery, repo: OrderRepository) 
 
 @router.callback_query(F.data.startswith("set_cycle:"))
 async def handle_setting_cycle(callback: CallbackQuery, repo: OrderRepository) -> None:
-    """Циклически переключить числовую настройку."""
+    """Циклически переключить числовую или строковую настройку."""
     key = callback.data.split(":")[1]
     if key == "min_budget":
         cur_val = await repo.get_setting("min_budget", 10000)
@@ -129,6 +129,21 @@ async def handle_setting_cycle(callback: CallbackQuery, repo: OrderRepository) -
         options = [7, 8, 9]
         idx = options.index(cur_val) if cur_val in options else 0
         new_val = options[(idx + 1) % len(options)]
+    elif key == "vacancy_city":
+        cur_val = await repo.get_setting("vacancy_city", "all")
+        options = ["all", "moscow", "spb", "russia"]
+        idx = options.index(cur_val) if cur_val in options else 0
+        new_val = options[(idx + 1) % len(options)]
+    elif key == "vacancy_work_format":
+        cur_val = await repo.get_setting("vacancy_work_format", "all")
+        options = ["all", "remote", "hybrid", "office"]
+        idx = options.index(cur_val) if cur_val in options else 0
+        new_val = options[(idx + 1) % len(options)]
+    elif key == "vacancy_min_salary":
+        cur_val = await repo.get_setting("vacancy_min_salary", 0)
+        options = [0, 80000, 120000, 150000, 200000]
+        idx = options.index(cur_val) if cur_val in options else 0
+        new_val = options[(idx + 1) % len(options)]
     else:
         await callback.answer()
         return
@@ -138,7 +153,7 @@ async def handle_setting_cycle(callback: CallbackQuery, repo: OrderRepository) -
     keyboard = get_settings_inline_keyboard(all_settings)
     if callback.message:
         await callback.message.edit_reply_markup(reply_markup=keyboard)
-    await callback.answer(f"Новое значение: {new_val}")
+    await callback.answer(f"Сохранено: {new_val}")
 
 
 @router.callback_query(F.data == "action:health")
