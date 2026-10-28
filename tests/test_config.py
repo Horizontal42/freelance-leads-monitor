@@ -36,7 +36,7 @@ def test_yaml_config_loading(tmp_path):
 def test_settings_facade(tmp_path):
     yaml_file = tmp_path / "config.yml"
     yaml_file.write_text(
-        "polling:\n  vacancies_interval_seconds: 3600\nfilter:\n  min_budget: 15000\n  vacancy_hot_score_threshold: 9\n",
+        "polling:\n  vacancies_interval_seconds: 3600\nfilter:\n  min_budget: 15000\n  vacancy_hot_score_threshold: 9\n  vacancy_min_salary: 100000\n  vacancy_allow_negotiable: false\n",
         encoding="utf-8",
     )
 
@@ -49,6 +49,8 @@ def test_settings_facade(tmp_path):
     assert settings.MIN_BUDGET == 15000
     assert settings.VACANCIES_POLL_INTERVAL == 3600
     assert settings.VACANCY_HOT_SCORE_THRESHOLD == 9
+    assert settings.VACANCY_MIN_SALARY == 100000
+    assert settings.VACANCY_ALLOW_NEGOTIABLE is False
 
 
 def test_prompts_and_dossier_from_config():

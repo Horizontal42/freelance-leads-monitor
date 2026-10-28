@@ -335,6 +335,24 @@ async def test_vacancy_settings_api_and_pipeline_salary_filter(tmp_path):
     assert saved_low["priority"] == "trash"
     assert "ниже минимальной" in (saved_low.get("filter_reason") or "")
 
+    # 3. Вакансия без зарплаты при vacancy_allow_negotiable=False должна отсеиваться
+    await repo.set_setting("vacancy_allow_negotiable", False)
+    no_salary_order = RawOrder(
+        source=SourcePlatform.HH_RU,
+        external_id="vac_no_sal_3",
+        title="Python Dev",
+        description="Разработка",
+        url="https://hh.ru/3",
+        price=None,
+        is_negotiable=True,
+    )
+    stats3 = await pipeline.process_orders([no_salary_order])
+    assert stats3["filtered_trash"] == 1
+    saved_no_sal = next((o for o in (await repo.get_recent_orders(limit=10)) if o["external_id"] == "vac_no_sal_3"), None)
+    assert saved_no_sal is not None
+    assert saved_no_sal["priority"] == "trash"
+    assert "не указана" in (saved_no_sal.get("filter_reason") or "").lower()
+
 
 @pytest.mark.asyncio
 async def test_hh_enricher_full_details(monkeypatch):

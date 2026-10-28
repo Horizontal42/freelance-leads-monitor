@@ -128,6 +128,8 @@ class FilterConfig(BaseModel):
     min_budget: int = 10000
     hot_score_threshold: int = 7
     vacancy_hot_score_threshold: int = 8
+    vacancy_min_salary: int = 80000
+    vacancy_allow_negotiable: bool = True
     filter_pro_only: bool = False
     stop_words: List[str] = Field(default_factory=list)
     keywords: List[str] = Field(default_factory=list)
@@ -436,6 +438,14 @@ class Settings:
     @property
     def VACANCY_HOT_SCORE_THRESHOLD(self) -> int:
         return self.app_config.filter.vacancy_hot_score_threshold
+
+    @property
+    def VACANCY_MIN_SALARY(self) -> int:
+        return self.app_config.filter.vacancy_min_salary
+
+    @property
+    def VACANCY_ALLOW_NEGOTIABLE(self) -> bool:
+        return self.app_config.filter.vacancy_allow_negotiable
 
     @property
     def FILTER_PRO_ONLY(self) -> bool:
