@@ -133,7 +133,17 @@ async def test_web_dashboard_endpoints(tmp_path):
         assert resp_config_tab.status_code == 200
         assert "Системная конфигурация" in resp_config_tab.text
         assert "yamlConfigEditor" in resp_config_tab.text
-        assert "Опрос (Интервалы)" in resp_config_tab.text
+        assert "cfg_poll_interval" in resp_config_tab.text
+        assert "cfg_filter_min_budget" in resp_config_tab.text
+        assert "saveGuiConfig" in resp_config_tab.text
+
+        # Verify advanced filter controls on main dashboard
+        resp_main = await client.get("/?tab=hot")
+        assert resp_main.status_code == 200
+        assert "orderSortSelect" in resp_main.text
+        assert "topicChipsContainer" in resp_main.text
+        assert "filterPriceMin" in resp_main.text
+        assert "applyClientFilters" in resp_main.text
 
         # GET /api/config
         resp_get_config = await client.get("/api/config")
@@ -142,10 +152,28 @@ async def test_web_dashboard_endpoints(tmp_path):
         assert "storage" in resp_get_config.json()["yaml"]
         assert "polling" in resp_get_config.json()["config"]
 
-        # POST /api/config validation error test
-        resp_post_config_err = await client.post("/api/config", json={"yaml": "storage: invalid_format_not_dict"})
-        assert resp_post_config_err.status_code == 400
-        assert resp_post_config_err.json()["ok"] is False
+        # POST /api/config with structured GUI config (using mock to avoid mutating production config.yml)
+        import copy
+        from src.config import settings
+        original_cfg = copy.deepcopy(settings.app_config)
+        test_yaml_path = tmp_path / "test_config.yml"
+        test_yaml_path.write_text(resp_get_config.json()["yaml"], encoding="utf-8")
+
+        with patch("src.config.CONFIG_YAML_PATH", test_yaml_path):
+            try:
+                resp_post_gui_config = await client.post(
+                    "/api/config",
+                    json={"config": {"filter": {"min_budget": 25000}}},
+                )
+                assert resp_post_gui_config.status_code == 200
+                assert resp_post_gui_config.json()["ok"] is True
+
+                # POST /api/config validation error test
+                resp_post_config_err = await client.post("/api/config", json={"yaml": "storage: invalid_format_not_dict"})
+                assert resp_post_config_err.status_code == 400
+                assert resp_post_config_err.json()["ok"] is False
+            finally:
+                settings.app_config = original_cfg
 
         # GET /api/settings
         resp_get_settings = await client.get("/api/settings")
