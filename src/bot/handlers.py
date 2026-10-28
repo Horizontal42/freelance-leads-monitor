@@ -6,7 +6,7 @@ from aiogram import F, Router
 from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, LinkPreviewOptions, Message
-from src.bot.keyboards import get_order_inline_keyboard
+from src.bot.keyboards import get_order_inline_keyboard, get_settings_inline_keyboard
 from src.config import settings
 from src.models.order import OrderStatus, RawOrder, SourcePlatform
 from src.storage.repository import OrderRepository
@@ -34,10 +34,111 @@ async def handle_start(message: Message) -> None:
         f"{admin_note}\n\n"
         "<b>Доступные команды:</b>\n"
         "• /scan - Запустить внеочередной сбор и анализ заказов прямо сейчас\n"
+        "• /settings - Панель интерактивного управления фильтрами и биржами\n"
+        "• /health - Мониторинг доступности и времени отклика всех бирж и ИИ\n"
         "• /stats - Показать общую статистику по базе заказов\n"
         "• /recent - Показать последние 5 найденных горячих лидов"
     )
     await message.answer(text, parse_mode=ParseMode.HTML)
+
+
+def format_health_message(res: dict) -> str:
+    """Сформировать аккуратный HTML-отчет о доступности сервисов."""
+    status_icon = "🟢 Все системы в норме" if res.get("all_ok") else "⚠️ Обнаружены сбои или задержки"
+    lines = [
+        f"🩺 <b>Health Check: {status_icon}</b>\n",
+        "<b>Биржи и площадки вакансий:</b>",
+    ]
+    for ex in res.get("exchanges", []):
+        icon = "🟢" if ex.get("ok") else "🔴"
+        st = f"{ex.get('status_code')}" if ex.get("status_code") else "ERR"
+        lines.append(f"• {ex.get('name')}: {icon} {st} ({ex.get('latency_ms')} ms)")
+
+    lines.append("\n<b>Нейросети и База данных:</b>")
+    for s in res.get("services", []):
+        icon = "🟢" if s.get("ok") else "🔴"
+        det = f" [{s.get('details')}]" if s.get("details") else ""
+        err = f" ({s.get('error')})" if s.get("error") else f" ({s.get('latency_ms')} ms)"
+        lines.append(f"• {s.get('name')}: {icon}{det}{err}")
+
+    lines.append(f"\n🕒 <i>Проверено: {res.get('checked_at')}</i>")
+    return "\n".join(lines)
+
+
+@router.message(Command("health"))
+async def handle_health(message: Message) -> None:
+    """Проверить доступность и время отклика бирж, ИИ и БД."""
+    wait_msg = await message.answer("⏳ Опрашиваю биржи и нейросети...")
+    from src.services.health_check import HealthCheckService
+    svc = HealthCheckService()
+    res = await svc.run_full_check()
+    text = format_health_message(res)
+    await wait_msg.edit_text(text, parse_mode=ParseMode.HTML)
+
+
+@router.message(Command("settings"))
+async def handle_settings(message: Message, repo: OrderRepository) -> None:
+    """Показать интерактивную панель настроек."""
+    settings_map = await repo.get_all_settings()
+    keyboard = get_settings_inline_keyboard(settings_map)
+    text = (
+        "⚙️ <b>Панель управления настройками мониторинга:</b>\n\n"
+        "Нажимайте на кнопки, чтобы включать/отключать источники и менять пороги.\n"
+        "<i>Настройки сохраняются в базу данных и синхронизируются с сайтом.</i>"
+    )
+    await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=keyboard)
+
+
+@router.callback_query(F.data.startswith("set_toggle:"))
+async def handle_setting_toggle(callback: CallbackQuery, repo: OrderRepository) -> None:
+    """Переключить булеву настройку."""
+    key = callback.data.split(":")[1]
+    cur_val = await repo.get_setting(key, False if key == "filter_pro_only" else True)
+    new_val = not bool(cur_val)
+    await repo.set_setting(key, new_val)
+    all_settings = await repo.get_all_settings()
+    keyboard = get_settings_inline_keyboard(all_settings)
+    if callback.message:
+        await callback.message.edit_reply_markup(reply_markup=keyboard)
+    await callback.answer(f"Настройка сохранена: {'ВКЛ' if new_val else 'ВЫКЛ'}")
+
+
+@router.callback_query(F.data.startswith("set_cycle:"))
+async def handle_setting_cycle(callback: CallbackQuery, repo: OrderRepository) -> None:
+    """Циклически переключить числовую настройку."""
+    key = callback.data.split(":")[1]
+    if key == "min_budget":
+        cur_val = await repo.get_setting("min_budget", 10000)
+        options = [5000, 10000, 15000, 20000, 30000, 50000]
+        idx = options.index(cur_val) if cur_val in options else 1
+        new_val = options[(idx + 1) % len(options)]
+    elif key == "hot_score_threshold":
+        cur_val = await repo.get_setting("hot_score_threshold", 7)
+        options = [7, 8, 9]
+        idx = options.index(cur_val) if cur_val in options else 0
+        new_val = options[(idx + 1) % len(options)]
+    else:
+        await callback.answer()
+        return
+
+    await repo.set_setting(key, new_val)
+    all_settings = await repo.get_all_settings()
+    keyboard = get_settings_inline_keyboard(all_settings)
+    if callback.message:
+        await callback.message.edit_reply_markup(reply_markup=keyboard)
+    await callback.answer(f"Новое значение: {new_val}")
+
+
+@router.callback_query(F.data == "action:health")
+async def handle_health_callback(callback: CallbackQuery) -> None:
+    """Запустить проверку здоровья из клавиатуры настроек."""
+    await callback.answer("Запускаю Health Check...")
+    from src.services.health_check import HealthCheckService
+    svc = HealthCheckService()
+    res = await svc.run_full_check()
+    text = format_health_message(res)
+    if callback.message:
+        await callback.message.reply(text, parse_mode=ParseMode.HTML)
 
 
 @router.message(Command("stats"))

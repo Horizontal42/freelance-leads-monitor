@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS orders (
     filter_reason TEXT,
     score INTEGER,
     recommended_price REAL,
+    market_price REAL,
     realistic_days REAL,
     matched_project TEXT,
     proposal_text TEXT,
@@ -31,6 +32,12 @@ CREATE TABLE IF NOT EXISTS orders (
     created_at TIMESTAMP NOT NULL,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(source, external_id)
+);
+
+CREATE TABLE IF NOT EXISTS system_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS order_messages (
@@ -80,6 +87,17 @@ async def init_db(db_path: Path | str | None = None) -> None:
             await db.execute("ALTER TABLE orders ADD COLUMN attachments_text TEXT;")
         except Exception:
             pass  # колонка уже существует
+        try:
+            await db.execute("ALTER TABLE orders ADD COLUMN market_price REAL;")
+        except Exception:
+            pass  # колонка уже существует
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS system_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
         await db.execute("""
             CREATE TABLE IF NOT EXISTS order_messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

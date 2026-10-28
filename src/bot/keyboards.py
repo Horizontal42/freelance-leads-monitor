@@ -53,3 +53,74 @@ def get_order_inline_keyboard(
         ],
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def get_settings_inline_keyboard(settings_map: dict) -> InlineKeyboardMarkup:
+    """Сформировать интерактивную клавиатуру управления настройками."""
+    # Статусы источников
+    kwork_on = settings_map.get("platform_kwork", True)
+    fl_on = settings_map.get("platform_fl_ru", True)
+    freelance_on = settings_map.get("platform_freelance_ru", True)
+    pchel_on = settings_map.get("platform_pchel_net", True)
+    hh_on = settings_map.get("platform_hh_ru", True)
+    habr_on = settings_map.get("platform_habr_career", True)
+
+    pro_filtered = settings_map.get("filter_pro_only", False)
+    min_budget = settings_map.get("min_budget", 10000)
+    hot_score = settings_map.get("hot_score_threshold", 7)
+
+    buttons = [
+        [
+            InlineKeyboardButton(
+                text=f"{'🟢' if kwork_on else '🔴'} Kwork",
+                callback_data="set_toggle:platform_kwork",
+            ),
+            InlineKeyboardButton(
+                text=f"{'🟢' if fl_on else '🔴'} FL.ru",
+                callback_data="set_toggle:platform_fl_ru",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=f"{'🟢' if freelance_on else '🔴'} Freelance.ru",
+                callback_data="set_toggle:platform_freelance_ru",
+            ),
+            InlineKeyboardButton(
+                text=f"{'🟢' if pchel_on else '🔴'} Pchel.net",
+                callback_data="set_toggle:platform_pchel_net",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=f"{'🟢' if hh_on else '🔴'} HeadHunter",
+                callback_data="set_toggle:platform_hh_ru",
+            ),
+            InlineKeyboardButton(
+                text=f"{'🟢' if habr_on else '🔴'} Хабр Карьера",
+                callback_data="set_toggle:platform_habr_career",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=f"{'⭐ Фильтровать PRO (только free)' if pro_filtered else '🔓 Принимать PRO заказы'}",
+                callback_data="set_toggle:filter_pro_only",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=f"🔥 Порог Hot: {hot_score}/10 ▾",
+                callback_data="set_cycle:hot_score_threshold",
+            ),
+            InlineKeyboardButton(
+                text=f"💰 Мин. бюджет: {min_budget:,} ₽ ▾".replace(",", " "),
+                callback_data="set_cycle:min_budget",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="🩺 Проверить статус бирж (Health)",
+                callback_data="action:health",
+            ),
+        ],
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
