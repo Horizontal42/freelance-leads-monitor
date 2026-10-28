@@ -35,7 +35,10 @@ def test_yaml_config_loading(tmp_path):
 
 def test_settings_facade(tmp_path):
     yaml_file = tmp_path / "config.yml"
-    yaml_file.write_text("filter:\n  min_budget: 15000\n", encoding="utf-8")
+    yaml_file.write_text(
+        "polling:\n  vacancies_interval_seconds: 3600\nfilter:\n  min_budget: 15000\n  vacancy_hot_score_threshold: 9\n",
+        encoding="utf-8",
+    )
 
     env_file = tmp_path / ".env"
     env_file.write_text("BOT_TOKEN=test_token_123\nADMIN_CHAT_ID=99999\n", encoding="utf-8")
@@ -44,6 +47,8 @@ def test_settings_facade(tmp_path):
     assert settings.BOT_TOKEN == "test_token_123"
     assert settings.ADMIN_CHAT_ID == 99999
     assert settings.MIN_BUDGET == 15000
+    assert settings.VACANCIES_POLL_INTERVAL == 3600
+    assert settings.VACANCY_HOT_SCORE_THRESHOLD == 9
 
 
 def test_prompts_and_dossier_from_config():

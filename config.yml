@@ -10,6 +10,7 @@ web:
 
 polling:
   interval_seconds: 180  # базовый интервал цикла опроса (сек)
+  vacancies_interval_seconds: 1800  # интервал опроса вакансий (сек, дефолт 30 минут)
   kwork_interval: 180    # секунды
   fl_interval: 180       # секунды
   initial_backfill: true # при холодном старте опрашивать 3-5 страниц
@@ -80,6 +81,7 @@ collectors:
 filter:
   min_budget: 10000
   hot_score_threshold: 7  # Порог скора (1-10) для отправки в Telegram (Tier 1)
+  vacancy_hot_score_threshold: 8  # Порог скора (1-10) для вакансий (повышенное качество совпадения)
 
   # Черный список стоп-слов (отсев мусора и студенческих работ)
   stop_words:

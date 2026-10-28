@@ -68,6 +68,7 @@ async def polling_worker(
     collectors: List[BaseCollector],
     pipeline: LeadsPipeline,
     interval_seconds: Optional[int] = None,
+    name: str = "Сборщик",
 ) -> None:
     """Фоновый воркер периодического сбора заказов с поддержкой холодного старта."""
     interval = (
@@ -75,17 +76,17 @@ async def polling_worker(
         if interval_seconds is not None
         else getattr(settings, "POLLING_INTERVAL_SECONDS", 180)
     )
-    logger.info("Фоновый воркер сбора запущен (интервал: %d сек)", interval)
+    logger.info("Фоновый воркер [%s] запущен (интервал: %d сек)", name, interval)
     is_first = getattr(settings, "INITIAL_BACKFILL", True)
     while True:
         try:
             await run_single_scan(collectors, pipeline, is_cold_start=is_first)
             is_first = False
         except asyncio.CancelledError:
-            logger.info("Фоновый воркер сбора остановлен.")
+            logger.info("Фоновый воркер [%s] остановлен.", name)
             break
         except Exception as e:
-            logger.error("Непредвиденная ошибка в фоновом воркере: %s", e)
+            logger.error("Непредвиденная ошибка в фоновом воркере [%s]: %s", name, e)
 
         await asyncio.sleep(interval)
 
@@ -105,15 +106,18 @@ async def main() -> None:
     hard_filter = HardFilter()
     llm_client = get_llm_client()
 
-    # 2. Инициализация сборщиков
-    collectors: List[BaseCollector] = [
+    # 2. Инициализация сборщиков: разделение на фриланс и вакансии
+    freelance_collectors: List[BaseCollector] = [
         KworkCollector(),
         FlRuCollector(),
         FreelanceRuCollector(),
         PchelNetCollector(),
+    ]
+    vacancy_collectors: List[BaseCollector] = [
         HhRuCollector(repo=repo),
         HabrCareerCollector(repo=repo),
     ]
+    all_collectors = freelance_collectors + vacancy_collectors
 
     # 3. Режим разового сканирования (--once)
     if args.once:
@@ -126,7 +130,7 @@ async def main() -> None:
         )
         try:
             await run_single_scan(
-                collectors, pipeline, is_cold_start=getattr(settings, "INITIAL_BACKFILL", True)
+                all_collectors, pipeline, is_cold_start=getattr(settings, "INITIAL_BACKFILL", True)
             )
         finally:
             if tg_notifier:
@@ -206,7 +210,7 @@ async def main() -> None:
                 "🔍 Запускаю внеочередное сканирование бирж...",
                 reply_markup=get_main_reply_keyboard(),
             )
-            stats = await run_single_scan(collectors, pipeline_for_scan)
+            stats = await run_single_scan(all_collectors, pipeline_for_scan)
             summary = (
                 "✅ <b>Сканирование завершено:</b>\n\n"
                 f"• Найдено новых заказов: <b>{stats['received']}</b>\n"
@@ -234,9 +238,16 @@ async def main() -> None:
     tasks = [
         server.serve(),
         polling_worker(
-            collectors=collectors,
+            collectors=freelance_collectors,
             pipeline=pipeline,
             interval_seconds=min(settings.KWORK_POLL_INTERVAL, settings.FL_POLL_INTERVAL),
+            name="Фриланс",
+        ),
+        polling_worker(
+            collectors=vacancy_collectors,
+            pipeline=pipeline,
+            interval_seconds=getattr(settings, "VACANCIES_POLL_INTERVAL", 1800),
+            name="Вакансии",
         ),
     ]
 
