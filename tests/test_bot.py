@@ -218,3 +218,110 @@ async def test_bot_vacancy_settings_cycling():
     assert any("Москва" in t for t in texts)
     assert any("Удаленка" in t for t in texts)
     assert any("120 000 ₽" in t for t in texts)
+
+
+def test_split_plain_text_and_chunks():
+    """Проверка разбиения длинного текста на части без превышения лимитов Telegram."""
+    from src.bot.handlers import split_plain_text, split_proposal_chunks
+
+    # Короткий текст
+    assert split_plain_text("Короткий текст", max_chars=100) == ["Короткий текст"]
+
+    # Длинный текст из абзацев
+    long_text = "\n\n".join([f"Параграф {i}: " + ("x" * 150) for i in range(10)])
+    chunks = split_plain_text(long_text, max_chars=400)
+    assert len(chunks) > 1
+    for c in chunks:
+        assert len(c) <= 400
+
+    # Один очень длинный непрерывный абзац
+    huge_para = "A" * 1500
+    sub = split_plain_text(huge_para, max_chars=500)
+    assert len(sub) == 3
+    for s in sub:
+        assert len(s) <= 500
+
+    # Проверка split_proposal_chunks
+    prop_chunks = split_proposal_chunks(long_text, max_chunk_escaped_len=500)
+    for pc in prop_chunks:
+        assert len(pc) <= 500
+
+
+@pytest.mark.asyncio
+async def test_handle_generate_proposal_splits_long_message():
+    """Проверка генерации отклика, превышающего лимит 4096 символов."""
+    from unittest.mock import patch
+    from src.bot.handlers import handle_generate_proposal
+    from src.models.analysis import ProposalResult
+
+    mock_callback = AsyncMock()
+    mock_callback.data = "gen_prop:42"
+    mock_callback.message = AsyncMock()
+
+    mock_repo = AsyncMock()
+    mock_repo.get_by_id.return_value = {
+        "id": 42,
+        "source": "kwork",
+        "external_id": "ext_42",
+        "title": "Сложная система с ИИ",
+        "description": "Описание ТЗ",
+        "url": "https://kwork.ru/projects/42",
+        "price": 50000,
+        "is_negotiable": 0,
+        "is_pro_only": 0,
+        "analysis_json": "{}",
+    }
+
+    # Генерируем очень длинный отклик (6000 символов)
+    long_proposal_text = "\n\n".join([f"Раздел #{i}: " + ("текст описания решения " * 25) for i in range(10)])
+    long_justification = "Обоснование: " + ("детализированный расчет ставки " * 10)
+
+    with patch("src.analyzer.factory.get_llm_client") as mock_get_llm:
+        mock_llm = AsyncMock()
+        mock_llm.generate_proposal.return_value = ProposalResult(
+            long_proposal_text,
+            recommended_price=65000,
+            market_price=70000,
+            price_justification=long_justification,
+        )
+        mock_get_llm.return_value = mock_llm
+
+        await handle_generate_proposal(mock_callback, mock_repo)
+
+        # Проверяем, что отклик сохранился в базе
+        mock_repo.update_proposal.assert_called_once()
+
+        # Проверяем, что сообщения были отправлены частями и ни одно не превысило 4000 символов
+        reply_calls = mock_callback.message.reply.call_args_list
+        assert len(reply_calls) >= 2
+        for call in reply_calls:
+            text = call.kwargs.get("text") or (call.args[0] if call.args else "")
+            assert len(text) <= 4000
+            assert "❌ Ошибка" not in text
+
+
+@pytest.mark.asyncio
+async def test_handle_copy_proposal_splits_long_message():
+    """Проверка копирования длинного отклика частями."""
+    from src.bot.handlers import handle_copy_proposal
+
+    mock_callback = AsyncMock()
+    mock_callback.data = "copy:42"
+    mock_callback.message = AsyncMock()
+
+    mock_repo = AsyncMock()
+    long_proposal_text = "\n\n".join([f"Часть #{i}: " + ("готовое сопроводительное письмо " * 20) for i in range(8)])
+    mock_repo.get_by_id.return_value = {
+        "id": 42,
+        "proposal_text": long_proposal_text,
+    }
+
+    await handle_copy_proposal(mock_callback, mock_repo)
+
+    reply_calls = mock_callback.message.reply.call_args_list
+    assert len(reply_calls) >= 2
+    for call in reply_calls:
+        text = call.kwargs.get("text") or (call.args[0] if call.args else "")
+        assert len(text) <= 4000
+        assert "📋" in text
+

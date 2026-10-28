@@ -2,6 +2,7 @@
 
 import html
 import logging
+from typing import Optional
 from aiogram import F, Router
 from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart, or_f
@@ -238,6 +239,98 @@ async def handle_recent(message: Message, repo: OrderRepository) -> None:
     )
 
 
+def split_plain_text(text: str, max_chars: int = 3400) -> list[str]:
+    """Разбить текст на логические части по абзацам или строкам, не превышая max_chars."""
+    if not text:
+        return [""]
+    if len(text) <= max_chars:
+        return [text]
+
+    chunks: list[str] = []
+    current_chunk: list[str] = []
+    current_len = 0
+
+    paragraphs = text.split("\n\n")
+    for para in paragraphs:
+        para_len = len(para) + (2 if current_chunk else 0)
+        if current_len + para_len <= max_chars:
+            current_chunk.append(para)
+            current_len += para_len
+        else:
+            if current_chunk:
+                chunks.append("\n\n".join(current_chunk))
+                current_chunk = []
+                current_len = 0
+
+            if len(para) > max_chars:
+                lines = para.split("\n")
+                sub_chunk: list[str] = []
+                sub_len = 0
+                for line in lines:
+                    line_len = len(line) + (1 if sub_chunk else 0)
+                    if sub_len + line_len <= max_chars:
+                        sub_chunk.append(line)
+                        sub_len += line_len
+                    else:
+                        if sub_chunk:
+                            chunks.append("\n".join(sub_chunk))
+                            sub_chunk = []
+                            sub_len = 0
+                        if len(line) > max_chars:
+                            for i in range(0, len(line), max_chars):
+                                chunks.append(line[i : i + max_chars])
+                        else:
+                            sub_chunk.append(line)
+                            sub_len = len(line)
+                if sub_chunk:
+                    chunks.append("\n".join(sub_chunk))
+            else:
+                current_chunk.append(para)
+                current_len = len(para)
+
+    if current_chunk:
+        chunks.append("\n\n".join(current_chunk))
+
+    return [c for c in chunks if c.strip()] or [text]
+
+
+def split_proposal_chunks(text: str, max_chunk_escaped_len: int = 3200) -> list[str]:
+    """Разбить текст отклика на части с гарантией соблюдения лимита Telegram (4096 символов)."""
+    raw_chunks = split_plain_text(text, max_chars=max_chunk_escaped_len)
+    final_chunks: list[str] = []
+    for chunk in raw_chunks:
+        escaped = html.escape(chunk)
+        if len(escaped) <= max_chunk_escaped_len:
+            final_chunks.append(chunk)
+        else:
+            step = max(500, max_chunk_escaped_len // 2)
+            sub_chunks = split_plain_text(chunk, max_chars=step)
+            final_chunks.extend(sub_chunks)
+    return final_chunks or [text]
+
+
+async def safe_reply(
+    message: Message,
+    html_text: str,
+    plain_fallback: Optional[str] = None,
+) -> None:
+    """Безопасная отправка сообщения с фоллбеком на plain text и защитой от переполнения 4096 символов."""
+    try:
+        if len(html_text) <= 4000:
+            await message.reply(text=html_text, parse_mode=ParseMode.HTML)
+            return
+    except Exception as e:
+        logger.warning("Ошибка отправки HTML в Telegram (%s), пробуем фоллбек...", e)
+
+    clean = plain_fallback or html_text
+    if len(clean) > 4000:
+        clean = clean[:3950] + "\n...[текст сокращен]"
+    try:
+        await message.reply(text=clean)
+    except Exception as e:
+        logger.error("Критическая ошибка отправки ответа в Telegram: %s", e)
+
+
 @router.callback_query(F.data.startswith("gen_prop:"))
 async def handle_generate_proposal(callback: CallbackQuery, repo: OrderRepository) -> None:
     """Сгенерировать отклик по требованию по нажатию кнопки в боте."""
@@ -278,47 +371,91 @@ async def handle_generate_proposal(callback: CallbackQuery, repo: OrderRepositor
         proposal_text = str(proposal_res)
         rec_price = getattr(proposal_res, "recommended_price", None)
         price_just = getattr(proposal_res, "price_justification", None)
+        market_price = getattr(proposal_res, "market_price", None)
 
         await repo.update_proposal(
             order_id,
             proposal_text=proposal_text,
             recommended_price=rec_price,
             price_justification=price_just,
+            market_price=market_price,
         )
+
+        is_vacancy = raw_order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
 
         # Обновляем кнопку в исходном сообщении на "Скопировать"
         if callback.message:
             try:
                 new_kb = get_order_inline_keyboard(
-                    order_id, raw_order.url, has_proposal=True
+                    order_id, raw_order.url, has_proposal=True, is_vacancy=is_vacancy
                 )
                 await callback.message.edit_reply_markup(reply_markup=new_kb)
             except Exception:
                 pass
 
             price_block = ""
+            if market_price and market_price > 0:
+                price_block += f"🎯 <b>Рыночная ставка (agy):</b> <code>{int(market_price):,} ₽</code>\n".replace(",", " ")
             if rec_price and rec_price > 0:
-                price_block = f"🎯 <b>Рыночная ставка (agy):</b> <code>{int(rec_price):,} ₽</code>\n"
-                if price_just:
-                    price_block += f"💡 <b>Обоснование:</b> {html.escape(price_just)}\n\n"
+                price_block += f"💡 <b>Рекомендуем предложить:</b> <code>{int(rec_price):,} ₽</code>\n".replace(",", " ")
+            if price_just:
+                price_block += f"📝 <b>Обоснование:</b> {html.escape(price_just)}\n\n"
 
-            formatted_msg = (
-                f"✍️ <b>Сгенерированный отклик на заказ #{order_id}:</b>\n\n"
+            type_title = "сопроводительное письмо" if is_vacancy else "отклик"
+            header = f"✍️ <b>Сгенерированный {type_title} на #{order_id}:</b>\n\n"
+            single_msg = (
+                f"{header}"
                 f"{price_block}"
                 f"<blockquote>{html.escape(proposal_text)}</blockquote>\n\n"
                 f"<i>(Нажмите и удерживайте цитату выше для быстрого копирования)</i>"
             )
-            await callback.message.reply(
-                text=formatted_msg,
-                parse_mode=ParseMode.HTML,
-            )
+
+            # Если всё помещается в лимит (<= 3800 символов), отправляем одним сообщением
+            if len(single_msg) <= 3800:
+                await safe_reply(
+                    callback.message,
+                    html_text=single_msg,
+                    plain_fallback=f"✍️ {type_title.capitalize()} на #{order_id}:\n\n{proposal_text}",
+                )
+            else:
+                # Если сообщение длинное, разбиваем на логические части во избежание ошибки message is too long:
+                # 1. Отправляем финансовое обоснование отдельным сообщением
+                if price_block:
+                    info_msg = (
+                        f"📊 <b>Оценка стоимости и ставка к #{order_id}:</b>\n\n"
+                        f"{price_block}"
+                    )
+                    await safe_reply(
+                        callback.message,
+                        html_text=info_msg,
+                        plain_fallback=f"Оценка #{order_id}:\n{price_just or ''}",
+                    )
+
+                # 2. Отправляем текст отклика частями (каждая внутри blockquote)
+                chunks = split_proposal_chunks(proposal_text, max_chunk_escaped_len=3200)
+                for idx, chunk in enumerate(chunks, 1):
+                    part_label = f" (часть {idx}/{len(chunks)})" if len(chunks) > 1 else ""
+                    chunk_msg = (
+                        f"✍️ <b>Сгенерированный {type_title} на #{order_id}{part_label}:</b>\n\n"
+                        f"<blockquote>{html.escape(chunk)}</blockquote>\n\n"
+                        f"<i>(Нажмите и удерживайте цитату выше для быстрого копирования)</i>"
+                    )
+                    await safe_reply(
+                        callback.message,
+                        html_text=chunk_msg,
+                        plain_fallback=f"{type_title.capitalize()} #{order_id}{part_label}:\n\n{chunk}",
+                    )
 
     except Exception as e:
         logger.error("Ошибка при генерации отклика для заказа #%d: %s", order_id, e)
         if callback.message:
-            await callback.message.reply(
-                f"❌ Ошибка генерации отклика: {e}. Попробуйте позже."
-            )
+            err_msg = f"❌ Ошибка генерации отклика: {e}. Попробуйте позже."
+            if len(err_msg) > 3500:
+                err_msg = err_msg[:3500] + "..."
+            try:
+                await callback.message.reply(err_msg)
+            except Exception:
+                pass
 
 
 @router.callback_query(F.data.startswith("copy:"))
@@ -337,19 +474,21 @@ async def handle_copy_proposal(callback: CallbackQuery, repo: OrderRepository) -
         await callback.answer("Для этого заказа отклик еще не сгенерирован.", show_alert=True)
         return
 
-    # Отправляем текст отдельным сообщением
-    # Форматируем так, чтобы в Telegram можно было тапнуть и скопировать
-    formatted_msg = (
-        f"📋 <b>Готовый отклик на заказ #{order_id}:</b>\n\n"
-        f"<blockquote>{html.escape(proposal_text)}</blockquote>\n\n"
-        f"<i>(Нажмите и удерживайте цитату выше для быстрого копирования)</i>"
-    )
-
+    # Разбиваем текст отклика на части, если он длинный (Telegram лимит 4096 символов)
+    chunks = split_proposal_chunks(proposal_text, max_chunk_escaped_len=3200)
     if callback.message:
-        await callback.message.reply(
-            text=formatted_msg,
-            parse_mode=ParseMode.HTML,
-        )
+        for idx, chunk in enumerate(chunks, 1):
+            part_label = f" (часть {idx}/{len(chunks)})" if len(chunks) > 1 else ""
+            formatted_msg = (
+                f"📋 <b>Готовый текст отклика на #{order_id}{part_label}:</b>\n\n"
+                f"<blockquote>{html.escape(chunk)}</blockquote>\n\n"
+                f"<i>(Нажмите и удерживайте цитату выше для быстрого копирования)</i>"
+            )
+            await safe_reply(
+                callback.message,
+                html_text=formatted_msg,
+                plain_fallback=f"Отклик #{order_id}{part_label}:\n\n{chunk}",
+            )
 
     await callback.answer("Отклик отправлен сообщением ниже!")
 
