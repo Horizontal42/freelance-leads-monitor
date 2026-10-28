@@ -185,6 +185,9 @@ DASHBOARD_HTML = """
                     <a href="/?section=freelance&tab=settings" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'settings' %}active border-b-2 border-indigo-500 text-indigo-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                         <span>⚙️</span> Настройки и фильтры
                     </a>
+                    <a href="/?section=freelance&tab=config" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'config' %}active border-b-2 border-amber-500 text-amber-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        <span>🛠</span> Конфиг системы
+                    </a>
                 {% else %}
                     <!-- HH.ru Tabs -->
                     <a href="/?section=hh_ru&tab=hot" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'hot' %}active border-b-2 border-amber-500 text-amber-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
@@ -211,6 +214,9 @@ DASHBOARD_HTML = """
                     </a>
                     <a href="/?section=hh_ru&tab=settings" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'settings' %}active border-b-2 border-indigo-500 text-indigo-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                         <span>⚙️</span> Настройки и фильтры
+                    </a>
+                    <a href="/?section=hh_ru&tab=config" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'config' %}active border-b-2 border-amber-500 text-amber-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        <span>🛠</span> Конфиг системы
                     </a>
                 {% endif %}
             </nav>
@@ -1212,6 +1218,169 @@ DASHBOARD_HTML = """
         </div>
         {% endif %}
 
+        {% if active_tab == 'config' %}
+        <!-- Full System Config (config.yml) Editor -->
+        <div class="space-y-6">
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <span>🛠</span> Системная конфигурация (config.yml)
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">
+                        Полная настройка параметров сборщиков, интервалов опроса, фильтрации, LLM-моделей и промптов.
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="window.location.reload()" class="text-xs text-slate-300 bg-slate-800 hover:bg-slate-700 px-3.5 py-2 rounded-lg border border-slate-700 transition">
+                        Сбросить
+                    </button>
+                    <button id="saveYamlBtn" onclick="saveYamlConfig()" class="text-xs bg-amber-600 hover:bg-amber-500 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-md">
+                        <span>💾</span> Сохранить config.yml
+                    </button>
+                </div>
+            </div>
+
+            <!-- Security Badge -->
+            <div class="bg-slate-900/60 border border-blue-900/40 p-3.5 rounded-xl flex items-center gap-2.5 text-xs text-blue-300">
+                <span class="text-base">🔒</span>
+                <span><strong>Безопасность:</strong> Все учетные данные (.env: BOT_TOKEN, MISTRAL_API_KEY, HH_APP_TOKEN) изолированы и не хранятся в открытом виде.</span>
+            </div>
+
+            <!-- Quick Overview Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Polling -->
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
+                    <div class="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>⏱</span> Опрос (Интервалы)
+                    </div>
+                    <div class="text-xs space-y-1 text-slate-300">
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Фриланс базовый:</span>
+                            <span class="font-mono text-white font-semibold">{{ yaml_app_config.polling.interval_seconds }} сек</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Вакансии (HH/Habr):</span>
+                            <span class="font-mono text-emerald-400 font-semibold">{{ yaml_app_config.polling.vacancies_interval_seconds }} сек</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Kwork:</span>
+                            <span class="font-mono text-slate-300">{{ yaml_app_config.polling.kwork_interval }} сек</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">FL.ru:</span>
+                            <span class="font-mono text-slate-300">{{ yaml_app_config.polling.fl_interval }} сек</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Холодный старт:</span>
+                            <span class="font-mono text-slate-300">{{ "Да" if yaml_app_config.polling.initial_backfill else "Нет" }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LLM & AI -->
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
+                    <div class="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>🤖</span> LLM и Модели
+                    </div>
+                    <div class="text-xs space-y-1 text-slate-300">
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Провайдер:</span>
+                            <span class="font-mono text-blue-300 font-semibold">{{ yaml_app_config.llm.provider|upper }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Agy модель:</span>
+                            <span class="font-mono text-slate-300 text-[11px] truncate max-w-[120px]" title="{{ yaml_app_config.llm.antigravity.model }}">{{ yaml_app_config.llm.antigravity.model }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Agy effort:</span>
+                            <span class="font-mono text-slate-300">{{ yaml_app_config.llm.antigravity.effort }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Таймаут Agy:</span>
+                            <span class="font-mono text-slate-300">{{ yaml_app_config.llm.antigravity.timeout_seconds }} сек</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Mistral модель:</span>
+                            <span class="font-mono text-slate-300 text-[11px] truncate max-w-[120px]">{{ yaml_app_config.llm.mistral.model }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filter & Scoring -->
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
+                    <div class="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>🎯</span> Фильтры и Пороги
+                    </div>
+                    <div class="text-xs space-y-1 text-slate-300">
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Мин. бюджет:</span>
+                            <span class="font-mono text-white font-semibold">{{ yaml_app_config.filter.min_budget }} ₽</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Порог Hot (фриланс):</span>
+                            <span class="font-mono text-amber-300 font-semibold">{{ yaml_app_config.filter.hot_score_threshold }} / 10</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Порог Hot (вакансии):</span>
+                            <span class="font-mono text-emerald-300 font-semibold">{{ yaml_app_config.filter.vacancy_hot_score_threshold }} / 10</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Ключевых слов:</span>
+                            <span class="font-mono text-slate-300">{{ yaml_app_config.filter.keywords|length }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Стоп-слов:</span>
+                            <span class="font-mono text-slate-300">{{ yaml_app_config.filter.stop_words|length }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Web & Storage -->
+                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
+                    <div class="text-xs font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>🌐</span> Сервер и Сборщики
+                    </div>
+                    <div class="text-xs space-y-1 text-slate-300">
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Web Host/Port:</span>
+                            <span class="font-mono text-slate-300">{{ yaml_app_config.web.host }}:{{ yaml_app_config.web.port }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">База SQLite:</span>
+                            <span class="font-mono text-slate-300 text-[11px] truncate max-w-[120px]">{{ yaml_app_config.storage.db_path }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">HH.ru запросов:</span>
+                            <span class="font-mono text-slate-300">{{ yaml_app_config.collectors.hh_ru.queries|length }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Habr запросов:</span>
+                            <span class="font-mono text-slate-300">{{ yaml_app_config.collectors.habr_career.queries|length }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-slate-400">Досье проектов:</span>
+                            <span class="font-mono text-slate-300">{{ yaml_app_config.prompts.projects_dossier|length }} кейсов</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interactive YAML Editor -->
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-3">
+                <div class="flex items-center justify-between">
+                    <h4 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                        <span>📝</span> Редактор config.yml (YAML с валидацией схемы)
+                    </h4>
+                    <span class="text-xs text-slate-400 font-mono">config.yml</span>
+                </div>
+                <p class="text-xs text-slate-400">
+                    Вы можете напрямую изменять любые параметры: поисковые запросы, стоп-слова, интервалы, промпты и досье. Перед сохранением файл валидируется через Pydantic.
+                </p>
+                <textarea id="yamlConfigEditor" rows="26" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-xs text-slate-200 focus:outline-none focus:border-amber-500 custom-scroll leading-relaxed tracking-wide selection:bg-amber-600 selection:text-white" spellcheck="false">{{ raw_config_yaml }}</textarea>
+            </div>
+        </div>
+        {% endif %}
+
     </main>
 
     <!-- Toast Notification for Copy -->
@@ -1649,6 +1818,39 @@ DASHBOARD_HTML = """
                 input.focus();
             }
         }
+
+        async function saveYamlConfig() {
+            const editor = document.getElementById('yamlConfigEditor');
+            if (!editor) return;
+            const yamlText = editor.value;
+            const btn = document.getElementById('saveYamlBtn');
+            const origHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span>⏳ Проверка схемы...</span>';
+            }
+            try {
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ yaml: yamlText })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    alert('✅ Конфигурация успешно сохранена и применена!');
+                    window.location.reload();
+                } else {
+                    alert('❌ Ошибка валидации конфигурации:\n' + (data.error || 'Неверный формат YAML'));
+                }
+            } catch (e) {
+                alert('❌ Ошибка отправки запроса: ' + e);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origHtml;
+                }
+            }
+        }
     </script>
 </body>
 </html>
@@ -1756,6 +1958,15 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
         from src.services.uptime import get_system_status_info
         uptime_info = get_system_status_info()
 
+        from src.config import CONFIG_YAML_PATH
+        raw_config_yaml = ""
+        if CONFIG_YAML_PATH.exists():
+            try:
+                with open(CONFIG_YAML_PATH, "r", encoding="utf-8") as f:
+                    raw_config_yaml = f.read()
+            except Exception as e:
+                logger.error("Ошибка чтения %s: %s", CONFIG_YAML_PATH, e)
+
         template = Template(DASHBOARD_HTML, autoescape=True)
         html_content = template.render(
             orders=formatted_orders,
@@ -1774,6 +1985,8 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
             settings_map=effective_settings,
             health_data=health_data,
             uptime_info=uptime_info,
+            raw_config_yaml=raw_config_yaml,
+            yaml_app_config=settings.app_config,
         )
         return HTMLResponse(content=html_content)
 
@@ -1997,6 +2210,55 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
 
         all_settings = await repository.get_all_settings()
         return {"ok": True, "settings": all_settings}
+
+    @app.get("/api/config", response_class=JSONResponse)
+    async def api_get_config():
+        """Получить текущий config.yml без секретов."""
+        from src.config import CONFIG_YAML_PATH, settings
+        if not CONFIG_YAML_PATH.exists():
+            return JSONResponse(status_code=404, content={"ok": False, "error": "config.yml не найден"})
+
+        with open(CONFIG_YAML_PATH, "r", encoding="utf-8") as f:
+            raw_text = f.read()
+
+        return {
+            "ok": True,
+            "yaml": raw_text,
+            "config": settings.app_config.model_dump(),
+        }
+
+    @app.post("/api/config", response_class=JSONResponse)
+    async def api_save_config(request: Request):
+        """Сохранить и применить обновленный config.yml с валидацией схемы."""
+        import yaml
+        from src.config import CONFIG_YAML_PATH, YamlAppConfig, settings
+
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Невалидный JSON"})
+
+        yaml_text = body.get("yaml")
+        if not yaml_text or not isinstance(yaml_text, str):
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Поле yaml обязательно"})
+
+        try:
+            parsed = yaml.safe_load(yaml_text)
+            if not isinstance(parsed, dict):
+                return JSONResponse(status_code=400, content={"ok": False, "error": "YAML должен быть словарем"})
+            validated = YamlAppConfig.model_validate(parsed)
+        except Exception as e:
+            return JSONResponse(status_code=400, content={"ok": False, "error": f"Ошибка валидации YAML: {e}"})
+
+        # Сохраняем на диск и применяем в памяти
+        try:
+            with open(CONFIG_YAML_PATH, "w", encoding="utf-8") as f:
+                f.write(yaml_text)
+            settings.app_config = validated
+            return {"ok": True, "message": "Конфигурация успешно сохранена и применена"}
+        except Exception as e:
+            logger.error("Ошибка записи config.yml: %s", e)
+            return JSONResponse(status_code=500, content={"ok": False, "error": f"Ошибка записи файла: {e}"})
 
     @app.get("/health")
     async def health_check():
