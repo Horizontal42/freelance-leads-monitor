@@ -160,8 +160,22 @@ class HhRuCollector(BaseCollector):
                     schedule_param = "flexible"
                 elif format_setting == "office":
                     schedule_param = "fullDay"
+
+                min_sal = await self.repo.get_setting("vacancy_min_salary", getattr(settings, "VACANCY_MIN_SALARY", 80000))
+                if min_sal and int(min_sal) > 0:
+                    salary_param = int(min_sal)
+                else:
+                    salary_param = None
+
+                allow_neg = await self.repo.get_setting("vacancy_allow_negotiable", getattr(settings, "VACANCY_ALLOW_NEGOTIABLE", True))
+                only_with_salary_param = not allow_neg
             except Exception as e:
                 logger.debug("Не удалось получить динамические настройки вакансий hh.ru: %s", e)
+                salary_param = None
+                only_with_salary_param = False
+        else:
+            salary_param = getattr(settings, "VACANCY_MIN_SALARY", None)
+            only_with_salary_param = not getattr(settings, "VACANCY_ALLOW_NEGOTIABLE", True)
 
         found_orders: Dict[str, RawOrder] = {}
         seen_pairs: Set[tuple[str, str]] = set()
@@ -181,6 +195,10 @@ class HhRuCollector(BaseCollector):
                         params["schedule"] = schedule_param
                     elif self.config.work_format:
                         params["work_format"] = self.config.work_format
+                    if salary_param:
+                        params["salary"] = salary_param
+                    if only_with_salary_param:
+                        params["only_with_salary"] = "true"
 
                     try:
                         resp = await client.get(

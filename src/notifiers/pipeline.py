@@ -50,7 +50,11 @@ class LeadsPipeline:
         dyn_settings = await self.repo.get_all_settings()
         filter_pro = dyn_settings.get("filter_pro_only", settings.FILTER_PRO_ONLY)
         min_budget = dyn_settings.get("min_budget", settings.MIN_BUDGET)
-        vacancy_min_salary = dyn_settings.get("vacancy_min_salary", 0)
+        vacancy_min_salary = dyn_settings.get("vacancy_min_salary", getattr(settings, "VACANCY_MIN_SALARY", 80000))
+        vacancy_allow_negotiable = dyn_settings.get(
+            "vacancy_allow_negotiable",
+            getattr(settings, "VACANCY_ALLOW_NEGOTIABLE", True),
+        )
         hot_threshold = dyn_settings.get("hot_score_threshold", settings.HOT_SCORE_THRESHOLD)
         vacancy_hot_threshold = dyn_settings.get(
             "vacancy_hot_score_threshold",
@@ -91,7 +95,17 @@ class LeadsPipeline:
             # Проверка минимального бюджета (для фриланса) или минимальной зарплаты (для вакансий)
             is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
             if is_vacancy:
-                if vacancy_min_salary and order.price and order.price < vacancy_min_salary and not order.is_negotiable:
+                if order.is_negotiable or not order.price:
+                    if not vacancy_allow_negotiable:
+                        stats["filtered_trash"] += 1
+                        await self.repo.insert_raw_order(
+                            order=order,
+                            status=OrderStatus.REJECTED,
+                            priority=OrderPriority.TRASH,
+                            filter_reason="Зарплата не указана (вакансии без указания вилки отключены)",
+                        )
+                        continue
+                elif vacancy_min_salary and order.price < vacancy_min_salary:
                     stats["filtered_trash"] += 1
                     await self.repo.insert_raw_order(
                         order=order,
