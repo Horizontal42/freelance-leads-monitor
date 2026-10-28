@@ -83,6 +83,7 @@ class OrderRepository:
                 UPDATE orders SET
                     score = ?,
                     recommended_price = ?,
+                    market_price = ?,
                     realistic_days = ?,
                     matched_project = ?,
                     proposal_text = ?,
@@ -95,6 +96,7 @@ class OrderRepository:
                 (
                     analysis.score,
                     analysis.recommended_price,
+                    analysis.market_price,
                     analysis.realistic_days,
                     analysis.matched_project,
                     analysis.proposal_text,
@@ -121,6 +123,7 @@ class OrderRepository:
         proposal_text: str,
         recommended_price: Optional[float] = None,
         price_justification: Optional[str] = None,
+        market_price: Optional[float] = None,
     ) -> None:
         """Сохранить сгенерированный по требованию отклик и обновленную рыночную оценку от agy."""
         async with self._get_conn() as db:
@@ -136,6 +139,8 @@ class OrderRepository:
                     data = json.loads(row[0])
                     if recommended_price is not None:
                         data["recommended_price"] = recommended_price
+                    if market_price is not None:
+                        data["market_price"] = market_price
                     if price_justification is not None:
                         data["price_justification"] = price_justification
                     data["proposal_text"] = proposal_text
@@ -149,11 +154,12 @@ class OrderRepository:
                     UPDATE orders SET
                         proposal_text = ?,
                         recommended_price = ?,
+                        market_price = COALESCE(?, market_price),
                         analysis_json = ?,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                     """,
-                    (proposal_text, recommended_price, updated_analysis_json, order_id),
+                    (proposal_text, recommended_price, market_price, updated_analysis_json, order_id),
                 )
             elif recommended_price is not None:
                 await db.execute(
@@ -161,10 +167,11 @@ class OrderRepository:
                     UPDATE orders SET
                         proposal_text = ?,
                         recommended_price = ?,
+                        market_price = COALESCE(?, market_price),
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                     """,
-                    (proposal_text, recommended_price, order_id),
+                    (proposal_text, recommended_price, market_price, order_id),
                 )
             else:
                 await db.execute(
@@ -371,3 +378,46 @@ class OrderRepository:
             ) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
+
+    async def get_setting(self, key: str, default: Any = None) -> Any:
+        """Получить значение настройки из БД (или дефолтное)."""
+        async with self._get_conn() as db:
+            async with db.execute(
+                "SELECT value FROM system_settings WHERE key = ? LIMIT 1", (key,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if row and row[0] is not None:
+                    try:
+                        return json.loads(row[0])
+                    except Exception:
+                        return row[0]
+                return default
+
+    async def set_setting(self, key: str, value: Any) -> None:
+        """Сохранить или обновить настройку в БД."""
+        val_str = json.dumps(value, ensure_ascii=False)
+        async with self._get_conn() as db:
+            await db.execute(
+                """
+                INSERT INTO system_settings (key, value, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (key, val_str),
+            )
+            await db.commit()
+
+    async def get_all_settings(self) -> Dict[str, Any]:
+        """Получить все сохраненные настройки."""
+        async with self._get_conn() as db:
+            async with db.execute("SELECT key, value FROM system_settings") as cursor:
+                rows = await cursor.fetchall()
+                res = {}
+                for r in rows:
+                    try:
+                        res[r[0]] = json.loads(r[1])
+                    except Exception:
+                        res[r[0]] = r[1]
+                return res
