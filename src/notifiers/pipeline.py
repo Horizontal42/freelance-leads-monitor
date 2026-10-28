@@ -46,12 +46,52 @@ class LeadsPipeline:
             "errors": 0,
         }
 
+        # Считываем динамические настройки из БД (или используем дефолты из конфига)
+        dyn_settings = await self.repo.get_all_settings()
+        filter_pro = dyn_settings.get("filter_pro_only", settings.FILTER_PRO_ONLY)
+        min_budget = dyn_settings.get("min_budget", settings.MIN_BUDGET)
+        hot_threshold = dyn_settings.get("hot_score_threshold", settings.HOT_SCORE_THRESHOLD)
+
         passed_orders: List[RawOrder] = []
 
         # 1. Первичная фильтрация и отсев дубликатов
         for order in orders:
             if await self.repo.is_duplicate(order.source.value, order.external_id):
                 stats["duplicates"] += 1
+                continue
+
+            # Проверка выключен ли источник
+            platform_key = f"platform_{order.source.value}"
+            if dyn_settings.get(platform_key) is False:
+                stats["filtered_trash"] += 1
+                await self.repo.insert_raw_order(
+                    order=order,
+                    status=OrderStatus.REJECTED,
+                    priority=OrderPriority.TRASH,
+                    filter_reason=f"Источник {order.source.value} отключен в настройках",
+                )
+                continue
+
+            # Проверка фильтра PRO
+            if filter_pro and order.is_pro_only:
+                stats["filtered_trash"] += 1
+                await self.repo.insert_raw_order(
+                    order=order,
+                    status=OrderStatus.REJECTED,
+                    priority=OrderPriority.TRASH,
+                    filter_reason="Заказ только для PRO (отключен в настройках)",
+                )
+                continue
+
+            # Проверка минимального бюджета
+            if min_budget and order.price and order.price < min_budget and not order.is_negotiable:
+                stats["filtered_trash"] += 1
+                await self.repo.insert_raw_order(
+                    order=order,
+                    status=OrderStatus.REJECTED,
+                    priority=OrderPriority.TRASH,
+                    filter_reason=f"Бюджет {int(order.price)} ₽ ниже минимального ({min_budget} ₽)",
+                )
                 continue
 
             filter_res = self.hard_filter.evaluate(order)
@@ -118,7 +158,7 @@ class LeadsPipeline:
 
                 is_hot = (
                     analysis.priority == OrderPriority.HOT
-                    or analysis.score >= settings.HOT_SCORE_THRESHOLD
+                    or analysis.score >= hot_threshold
                 )
 
                 if is_hot:

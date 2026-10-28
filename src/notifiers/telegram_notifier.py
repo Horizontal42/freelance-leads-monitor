@@ -106,7 +106,15 @@ class TelegramNotifier:
             f"🕒 <b>Опубликован:</b> {pub_time_str}\n"
             f"📝 <b>Заказ:</b> <a href=\"{html.escape(order.url, quote=True)}\">{html.escape(order.title)}</a>\n\n"
             f"💰 <b>Бюджет клиента:</b> {price_str}\n"
-            f"🎯 <b>Рекомендуемая цена:</b> {rec_price_str}\n"
+        )
+        if analysis.market_price and analysis.market_price > 0:
+            card_html += f"🎯 <b>Рыночная стоимость:</b> {int(analysis.market_price):,} ₽\n".replace(",", " ")
+        if analysis.recommended_price and analysis.recommended_price > 0:
+            card_html += f"💡 <b>Рекомендуем предложить:</b> {int(analysis.recommended_price):,} ₽\n".replace(",", " ")
+        elif rec_price_str:
+            card_html += f"🎯 <b>Рекомендуемая цена:</b> {rec_price_str}\n"
+
+        card_html += (
             f"⏱ <b>Срок (PERT):</b> {analysis.realistic_days} дн. "
             f"(E={analysis.pert.expected_days:.1f} дн., σ={analysis.pert.sigma:.1f})\n"
             f"💼 <b>Кейс из досье:</b> <code>{html.escape(analysis.matched_project)}</code> "
