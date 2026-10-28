@@ -2,9 +2,11 @@
 
 import html
 import logging
+import os
 from typing import Optional
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from aiogram.types import LinkPreviewOptions
 from src.bot.keyboards import get_order_inline_keyboard
@@ -34,9 +36,12 @@ class TelegramNotifier:
         if self._bot is None:
             if not self.bot_token:
                 raise ValueError("BOT_TOKEN не задан в конфигурации (.env)")
+            proxy = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY")
+            session = AiohttpSession(proxy=proxy) if proxy else None
             self._bot = Bot(
                 token=self.bot_token,
                 default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+                session=session,
             )
         return self._bot
 
