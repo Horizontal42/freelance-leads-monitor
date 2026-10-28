@@ -28,8 +28,10 @@ class HybridLLMClient(BaseLLMClient):
         mistral: Optional[MistralClient] = None,
         antigravity: Optional[AntigravityClient] = None,
     ) -> None:
-        self.mistral = mistral or MistralClient()
         self.antigravity = antigravity or AntigravityClient()
+        self.mistral = mistral or MistralClient(fallback_client=self.antigravity)
+        if self.mistral and not getattr(self.mistral, "fallback_client", None):
+            self.mistral.fallback_client = self.antigravity
 
     async def analyze_order(self, order: RawOrder) -> AnalysisResult:
         """Первичный анализ заказа через Mistral (суть в 3-4 предложениях, PERT, рыночная цена)."""
