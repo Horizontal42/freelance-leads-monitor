@@ -1,5 +1,6 @@
 """Pipeline dispatcher for end-to-end processing of freelance orders."""
 
+import asyncio
 import logging
 from typing import List, Optional
 from src.analyzer.base import BaseLLMClient
@@ -21,11 +22,13 @@ class LeadsPipeline:
         hard_filter: HardFilter,
         llm_client: BaseLLMClient,
         tg_notifier: Optional[TelegramNotifier] = None,
+        max_concurrency: int = 2,
     ) -> None:
         self.repo = repo
         self.hard_filter = hard_filter
         self.llm_client = llm_client
-        self.tg_notifier = tg_notifier or TelegramNotifier()
+        self.tg_notifier = tg_notifier
+        self.semaphore = asyncio.Semaphore(max_concurrency)
 
     async def process_orders(self, orders: List[RawOrder]) -> dict:
         """Обработать пачку свежих заказов."""
@@ -38,17 +41,17 @@ class LeadsPipeline:
             "errors": 0,
         }
 
+        passed_orders: List[RawOrder] = []
+
+        # 1. Первичная фильтрация и отсев дубликатов
         for order in orders:
-            # 1. Проверка дедупликации
             if await self.repo.is_duplicate(order.source.value, order.external_id):
                 stats["duplicates"] += 1
                 continue
 
-            # 2. Эвристический Hard-Filter
             filter_res = self.hard_filter.evaluate(order)
             if not filter_res.passed:
                 stats["filtered_trash"] += 1
-                # Сохраняем в базу с флагом REJECTED, чтобы не анализировать повторно
                 await self.repo.insert_raw_order(
                     order=order,
                     status=OrderStatus.REJECTED,
@@ -63,70 +66,77 @@ class LeadsPipeline:
                 )
                 continue
 
-            # 3. Анализ нейросетью (Antigravity / Mistral)
-            logger.info(
-                "Заказ [%s #%s] прошел фильтр. Отправка в LLM: '%s'...",
-                order.source.value,
-                order.external_id,
-                order.title[:45],
-            )
-            try:
-                analysis = await self.llm_client.analyze_order(order)
-            except Exception as e:
-                stats["errors"] += 1
-                logger.error(
-                    "Ошибка при анализе заказа [%s #%s] в LLM: %s",
+            passed_orders.append(order)
+
+        # 2. Конкурентный анализ прошедших заказов через LLM с семафором
+        async def _analyze_and_route(order: RawOrder) -> None:
+            async with self.semaphore:
+                logger.info(
+                    "Заказ [%s #%s] прошел фильтр. Отправка в LLM: '%s'...",
                     order.source.value,
                     order.external_id,
-                    e,
+                    order.title[:45],
                 )
-                # Сохраняем как непроанализированный заказ
-                await self.repo.insert_raw_order(
+                try:
+                    analysis = await self.llm_client.analyze_order(order)
+                except Exception as e:
+                    stats["errors"] += 1
+                    logger.error(
+                        "Ошибка при анализе заказа [%s #%s] в LLM: %s",
+                        order.source.value,
+                        order.external_id,
+                        e,
+                    )
+                    await self.repo.insert_raw_order(
+                        order=order,
+                        status=OrderStatus.NEW,
+                        priority=OrderPriority.NORMAL,
+                        filter_reason=f"Ошибка LLM: {e}",
+                    )
+                    return
+
+                order_id = await self.repo.insert_raw_order(
                     order=order,
-                    status=OrderStatus.NEW,
-                    priority=OrderPriority.NORMAL,
-                    filter_reason=f"Ошибка LLM: {e}",
+                    status=OrderStatus.ANALYZED,
+                    priority=analysis.priority,
                 )
-                continue
-
-            # 4. Сохранение результатов анализа
-            order_id = await self.repo.insert_raw_order(
-                order=order,
-                status=OrderStatus.ANALYZED,
-                priority=analysis.priority,
-            )
-            await self.repo.update_analysis(
-                order_id=order_id,
-                analysis=analysis,
-                status=OrderStatus.ANALYZED,
-            )
-
-            # 5. Роутинг по уровням (Tiering)
-            is_hot = (
-                analysis.priority == OrderPriority.HOT
-                or analysis.score >= settings.HOT_SCORE_THRESHOLD
-            )
-
-            if is_hot:
-                stats["hot_leads_sent"] += 1
-                logger.info(
-                    "🔥 Горячий лид найден (#%d, скор: %d)! Отправка в Telegram...",
-                    order_id,
-                    analysis.score,
-                )
-                sent = await self.tg_notifier.send_lead(
-                    order=order,
+                await self.repo.update_analysis(
+                    order_id=order_id,
                     analysis=analysis,
-                    order_db_id=order_id,
+                    status=OrderStatus.ANALYZED,
                 )
-                if sent:
-                    await self.repo.update_status(order_id, OrderStatus.SENT_TO_TG)
-            else:
-                stats["analyzed_normal"] += 1
-                logger.info(
-                    "⚡ Обычный заказ (#%d, скор: %d) сохранен в базу (без пуша в Telegram).",
-                    order_id,
-                    analysis.score,
+
+                is_hot = (
+                    analysis.priority == OrderPriority.HOT
+                    or analysis.score >= settings.HOT_SCORE_THRESHOLD
                 )
+
+                if is_hot:
+                    stats["hot_leads_sent"] += 1
+                    logger.info(
+                        "🔥 Горячий лид найден (#%d, скор: %d)!",
+                        order_id,
+                        analysis.score,
+                    )
+                    if self.tg_notifier is not None:
+                        sent = await self.tg_notifier.send_lead(
+                            order=order,
+                            analysis=analysis,
+                            order_db_id=order_id,
+                        )
+                        if sent:
+                            await self.repo.update_status(order_id, OrderStatus.SENT_TO_TG)
+                    else:
+                        logger.debug("tg_notifier не задан, пропуск отправки в Telegram")
+                else:
+                    stats["analyzed_normal"] += 1
+                    logger.info(
+                        "⚡ Обычный заказ (#%d, скор: %d) сохранен в базу (без пуша в Telegram).",
+                        order_id,
+                        analysis.score,
+                    )
+
+        if passed_orders:
+            await asyncio.gather(*(_analyze_and_route(o) for o in passed_orders))
 
         return stats

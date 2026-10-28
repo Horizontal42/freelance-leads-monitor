@@ -125,19 +125,25 @@ class OrderRepository:
     async def get_recent_orders(
         self,
         limit: int = 50,
-        priority: Optional[OrderPriority] = None,
-        status: Optional[OrderStatus] = None,
+        priority: Optional[OrderPriority | str] = None,
+        status: Optional[OrderStatus | str] = None,
+        source: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Получить список свежих заказов с возможностью фильтрации."""
         query = "SELECT * FROM orders WHERE 1=1"
         params: List[Any] = []
 
         if priority:
+            p_val = priority.value if hasattr(priority, "value") else str(priority)
             query += " AND priority = ?"
-            params.append(priority.value)
+            params.append(p_val)
         if status:
+            s_val = status.value if hasattr(status, "value") else str(status)
             query += " AND status = ?"
-            params.append(status.value)
+            params.append(s_val)
+        if source:
+            query += " AND source = ?"
+            params.append(str(source).lower())
 
         query += " ORDER BY created_at DESC LIMIT ?"
         params.append(limit)

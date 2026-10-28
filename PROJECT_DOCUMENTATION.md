@@ -122,8 +122,11 @@ jobs/
 │   │   └── repository.py        # OrderRepository (CRUD, дедупликация, статистика)
 │   ├── notifiers/               # Пайплайн и доставка уведомлений
 │   │   ├── __init__.py
-│   │   ├── pipeline.py          # LeadsPipeline (оркестрация и роутинг по уровням)
+│   │   ├── pipeline.py          # LeadsPipeline (оркестрация, семафор конкурентности, роутинг)
 │   │   └── telegram_notifier.py # Форматирование карточки и отправка в Telegram
+│   ├── web/                     # Веб-дашборд на FastAPI (jobs.3dvex.ru)
+│   │   ├── __init__.py
+│   │   └── app.py               # Дашборд, фильтры, карточки, Copy to clipboard, JSON API
 │   └── bot/                     # Telegram-бот (aiogram 3)
 │       ├── __init__.py
 │       ├── bot.py               # Фабрика Bot и Dispatcher с DI репозитория
@@ -133,11 +136,13 @@ jobs/
 │   ├── __init__.py
 │   ├── test_collectors.py       # Тесты парсинга Kwork и живого RSS FL.ru
 │   ├── test_storage_and_filter.py# Тесты SQLite WAL и HardFilter
+│   ├── test_config.py           # Тесты разделения config.yml и .env
 │   ├── test_analyzer.py         # Тесты промптов, парсинга JSON и санитизации дефисов
-│   └── test_pipeline_e2e.py     # End-to-end тест роутинга заказов (Tier 1/2/3)
+│   ├── test_pipeline_e2e.py     # End-to-end тест роутинга заказов (Tier 1/2/3) и семафора
+│   └── test_web.py              # Тесты эндпоинтов и HTML дашборда FastAPI
 ├── .env.example                 # Шаблон учетных данных
 ├── .gitignore                   # Исключения Git (.venv, data/*.db, .env)
-├── config.yml                   # Основная конфигурация системы (фильтры, сборщики, модели)
+├── config.yml                   # Основная конфигурация системы (фильтры, сборщики, модели, web)
 ├── pyproject.toml               # Конфигурация сборки и зависимости проекта
 └── README.md                    # Краткое руководство пользователя
 ```
@@ -223,13 +228,13 @@ jobs/
   ```
 
 ### 5.7. Пайплайн обработки ([`src/notifiers/pipeline.py`](file:///home/horizontal42/jobs/src/notifiers/pipeline.py))
-Оркестрирует жизненный цикл каждого заказа:
+Оркестрирует жизненный цикл каждого заказа с контролем параллелизма:
 1. `is_duplicate()` $\to$ пропуск, если заказ уже есть в базе.
 2. `hard_filter.evaluate()` $\to$ если не прошел, сохраняется в базу со статусом `REJECTED` и приоритетом `TRASH` с указанием причины (повторно не анализируется).
-3. `llm_client.analyze_order()` $\to$ получение структурированного ответа.
+3. **Конкурентный анализ через LLM:** заказы, прошедшие первичный фильтр, анализируются параллельно через `asyncio.gather()` под контролем `asyncio.Semaphore(2)`. Это предотвращает последовательные задержки пачки и не перегружает воркер.
 4. Запись в SQLite.
-5. Если `score >= 7` $\to$ отправка в Telegram через `TelegramNotifier`, выставление статуса `SENT_TO_TG`.
-6. Если `score < 7` $\to$ статус `ANALYZED`, приоритет `NORMAL`. Заказ тихо ждет на сервере/сайте без спама в телефон.
+5. Если `score >= 7` $\to$ при наличии настроенного `tg_notifier` заказ отправляется в Telegram через `TelegramNotifier` со статусом `SENT_TO_TG`. Если `tg_notifier=None` (например, в автотестах), отправка пропускается без сетевых таймаутов.
+6. Если `score < 7` $\to$ статус `ANALYZED`, приоритет `NORMAL`. Заказ тихо сохраняется в базе и отображается на веб-дашборде.
 
 ### 5.8. Telegram-бот на aiogram 3 ([`src/bot/`](file:///home/horizontal42/jobs/src/bot))
 - **Карточка заказа:** формируется в безопасном HTML-формате (`html.escape`):
@@ -248,6 +253,20 @@ jobs/
   * `/scan`: запуск внеочередного сбора прямо сейчас с выводом отчета по найденным заказам.
   * `/stats`: статистика базы (всего, горячие, обычные, отсеянные, отправленные).
   * `/recent`: список последних 5 заказов со статусами и ссылками.
+
+### 5.9. Веб-дашборд на FastAPI ([`src/web/app.py`](file:///home/horizontal42/jobs/src/web/app.py))
+Предназначен для развертывания на прод-сервере под доменом **`jobs.3dvex.ru`**:
+- **Порт по умолчанию:** `8086` (настраивается в `config.yml` секцией `web.port`).
+- **Интерфейс:**
+  * Адаптивный темный UI на Tailwind CSS.
+  * Карточки сводной статистики: Всего заказов, Hot (Tier 1), Normal (Tier 2), Trash (Tier 3).
+  * Фильтрация на лету по приоритетам (`Все`, `🔥 Hot`, `⚡ Normal`, `🗑 Trash`) и биржам (`Все`, `Kwork`, `FL.ru`).
+  * Полные карточки заказов со скором, сложностью, PERT-сроками, ценой и кейсом из досье.
+  * Интерактивная кнопка **`📋 Скопировать`** с анимацией подтверждения (`navigator.clipboard.writeText`).
+- **REST API:**
+  * `GET /api/orders?priority=hot&source=kwork` - JSON-список заказов.
+  * `GET /api/stats` - агрегированная статистика.
+  * `GET /health` - проверка работоспособности сервиса.
 
 ---
 
@@ -379,6 +398,29 @@ sudo systemctl daemon-reload
 sudo systemctl enable freelance-monitor
 sudo systemctl start freelance-monitor
 sudo journalctl -u freelance-monitor -f
+```
+
+### 7.6. Настройка Nginx для домена jobs.3dvex.ru
+Для вывода дашборда на домен создайте конфиг `/etc/nginx/sites-available/jobs.3dvex.ru`:
+```nginx
+server {
+    listen 80;
+    server_name jobs.3dvex.ru;
+
+    location / {
+        proxy_pass http://127.0.0.1:8086;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+Активация и получение SSL (Let's Encrypt):
+```bash
+sudo ln -s /etc/nginx/sites-available/jobs.3dvex.ru /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d jobs.3dvex.ru
 ```
 
 ---
