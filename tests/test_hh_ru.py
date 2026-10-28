@@ -334,3 +334,53 @@ async def test_vacancy_settings_api_and_pipeline_salary_filter(tmp_path):
     assert saved_low is not None
     assert saved_low["priority"] == "trash"
     assert "ниже минимальной" in (saved_low.get("filter_reason") or "")
+
+
+@pytest.mark.asyncio
+async def test_hh_enricher_full_details(monkeypatch):
+    from src.collectors.enricher import OrderEnricher
+
+    class MockHhDetailResponse:
+        status_code = 200
+
+        def json(self):
+            return {
+                "id": "9999",
+                "description": "<p>Полное подробное описание задач на Python и FastAPI</p>",
+                "key_skills": [{"name": "Python"}, {"name": "Docker"}, {"name": "FastAPI"}],
+                "schedule": {"name": "Удаленная работа"},
+                "employment": {"name": "Полная занятость"},
+            }
+
+    class MockAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def get(self, url, **kwargs):
+            return MockHhDetailResponse()
+
+    monkeypatch.setattr(httpx, "AsyncClient", MockAsyncClient)
+
+    order = RawOrder(
+        source=SourcePlatform.HH_RU,
+        external_id="9999",
+        title="Python AI Dev",
+        description="Краткий сниппет",
+        url="https://hh.ru/vacancy/9999",
+    )
+
+    enricher = OrderEnricher()
+    enriched = await enricher.enrich(order)
+
+    assert "Полное подробное описание задач" in enriched.description
+    assert "Python" in enriched.tags
+    assert "FastAPI" in enriched.tags
+    assert "Docker" in enriched.tags
+    assert "🔑 Навыки: Python, Docker, FastAPI" in enriched.attachments_text
+    assert "💼 Занятость: Полная занятость" in enriched.attachments_text

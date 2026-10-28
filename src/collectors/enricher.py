@@ -254,9 +254,21 @@ class OrderEnricher:
                     order.description = clean_desc
 
             skills = [s.get("name") for s in data.get("key_skills", []) if s.get("name")]
+            sched_name = (data.get("schedule") or {}).get("name", "")
+            emp_name = (data.get("employment") or {}).get("name", "")
+
+            enrich_parts = []
             if skills:
                 order.tags = list(dict.fromkeys(order.tags + skills))
+                enrich_parts.append(f"🔑 Навыки: {', '.join(skills)}")
+            if sched_name and sched_name not in (order.attachments_text or ""):
+                enrich_parts.append(f"🏠 График: {sched_name}")
+            if emp_name and emp_name not in (order.attachments_text or ""):
+                enrich_parts.append(f"💼 Занятость: {emp_name}")
+
+            if enrich_parts:
+                add_block = "\n".join(enrich_parts)
                 if order.attachments_text:
-                    order.attachments_text += f"\n🔑 Навыки: {', '.join(skills)}"
+                    order.attachments_text += f"\n{add_block}"
                 else:
-                    order.attachments_text = f"🔑 Навыки: {', '.join(skills)}"
+                    order.attachments_text = add_block
