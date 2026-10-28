@@ -1,10 +1,17 @@
-"""Mistral API client for LLM analysis."""
+"""Mistral API client for LLM analysis with rate limiting, exponential backoff, and fallback."""
 
+import asyncio
 import json
 import logging
-import re
 from typing import Any, Dict, Optional
 import httpx
+from tenacity import (
+    before_sleep_log,
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
 from src.analyzer.base import BaseLLMClient
 from src.analyzer.prompts import build_analysis_prompt, build_proposal_prompt
 from src.config import settings
@@ -14,14 +21,49 @@ from src.models.order import OrderPriority, RawOrder
 logger = logging.getLogger(__name__)
 
 
+class MistralRateLimitError(RuntimeError):
+    """Исключение при 429 Rate Limit / Backend out of capacity от Mistral API."""
+    pass
+
+
+class AsyncRateLimiter:
+    """Интервальный rate limiter для соблюдения ограничений RPM (запросов в минуту)."""
+
+    def __init__(self, rpm: int = 30) -> None:
+        self.interval = 60.0 / max(rpm, 1)
+        self._lock = asyncio.Lock()
+        self._last_call = 0.0
+
+    async def acquire(self) -> None:
+        async with self._lock:
+            loop = asyncio.get_running_loop()
+            now = loop.time()
+            elapsed = now - self._last_call
+            if elapsed < self.interval:
+                await asyncio.sleep(self.interval - elapsed)
+            self._last_call = loop.time()
+
+
+def is_retryable_mistral_error(exc: BaseException) -> bool:
+    """Проверка, является ли ошибка временной для повторной попытки (429, 5xx, timeout)."""
+    if isinstance(exc, (MistralRateLimitError, httpx.TimeoutException, httpx.NetworkError)):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in [429, 500, 502, 503, 504]
+    return False
+
+
 class MistralClient(BaseLLMClient):
-    """Клиент анализа заказов через официальный Mistral API (ministral/codestral)."""
+    """Клиент анализа заказов через Mistral API с Rate Limiter, tenacity retry и fallback."""
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         model: Optional[str] = None,
         timeout_seconds: Optional[float] = None,
+        max_concurrency: Optional[int] = None,
+        rpm_limit: Optional[int] = None,
+        fallback_client: Optional[BaseLLMClient] = None,
     ) -> None:
         self.api_key = api_key or settings.MISTRAL_API_KEY
         self.model = model or settings.MISTRAL_MODEL
@@ -29,21 +71,73 @@ class MistralClient(BaseLLMClient):
             timeout_seconds if timeout_seconds is not None else settings.MISTRAL_TIMEOUT
         )
         self.api_url = "https://api.mistral.ai/v1/chat/completions"
+        self.fallback_client = fallback_client
+
+        # Семафор конкурентности и интервальный rate limiter
+        concurrency = max_concurrency or getattr(settings, "MISTRAL_MAX_CONCURRENCY", 2)
+        rpm = rpm_limit or getattr(settings, "MISTRAL_RPM_LIMIT", 30)
+        self.semaphore = asyncio.Semaphore(concurrency)
+        self.rate_limiter = AsyncRateLimiter(rpm=rpm)
 
     def _sanitize_proposal(self, text: str) -> str:
         """Гарантированная замена длинных тире на дефисы."""
         return text.replace("—", "-").replace("–", "-")
 
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=2, min=2, max=10),
+        retry=retry_if_exception(is_retryable_mistral_error),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
+    )
+    async def _post_chat_completion(
+        self,
+        client: httpx.AsyncClient,
+        headers: Dict[str, str],
+        payload: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Отправка HTTP запроса к Mistral API с автоматическим retry на 429 и 5xx."""
+        resp = await client.post(self.api_url, headers=headers, json=payload)
+        if resp.status_code == 429:
+            err_body = resp.text
+            logger.warning("Mistral API 429 rate limit / capacity: %s. Запуск retry...", err_body[:200])
+            raise MistralRateLimitError(f"Mistral API 429: {err_body}")
+
+        if resp.status_code >= 500:
+            raise httpx.HTTPStatusError(
+                message=f"Mistral server error {resp.status_code}: {resp.text}",
+                request=resp.request,
+                response=resp,
+            )
+
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Mistral API вернул ошибку {resp.status_code}: {resp.text}"
+            )
+
+        return resp.json()
+
+    async def _execute_with_rate_limit(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Выполнить запрос с учетом ограничений семафора и RPM."""
+        async with self.semaphore:
+            await self.rate_limiter.acquire()
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            }
+            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+                return await self._post_chat_completion(client, headers, payload)
+
     async def analyze_order(self, order: RawOrder) -> AnalysisResult:
+        """Проанализировать заказ через Mistral API с мягким fallback на Antigravity при отказе."""
         if not self.api_key:
+            if self.fallback_client:
+                logger.warning("MISTRAL_API_KEY не задан. Мягкий fallback на AntigravityClient...")
+                return await self.fallback_client.analyze_order(order)
             raise ValueError("MISTRAL_API_KEY не задан в конфигурации (.env)")
 
         prompt = build_analysis_prompt(order)
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
         payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -51,14 +145,8 @@ class MistralClient(BaseLLMClient):
             "temperature": 0.2,
         }
 
-        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-            resp = await client.post(self.api_url, headers=headers, json=payload)
-            if resp.status_code != 200:
-                raise RuntimeError(
-                    f"Mistral API вернул ошибку {resp.status_code}: {resp.text}"
-                )
-
-            result_json = resp.json()
+        try:
+            result_json = await self._execute_with_rate_limit(payload)
             content = result_json["choices"][0]["message"]["content"]
             data = json.loads(content)
 
@@ -83,6 +171,22 @@ class MistralClient(BaseLLMClient):
 
             return AnalysisResult.model_validate(data)
 
+        except Exception as e:
+            logger.warning(
+                "Сбой анализа Mistral для заказа [%s #%s] после ретраев: %s",
+                order.source.value,
+                order.external_id,
+                e,
+            )
+            if self.fallback_client:
+                logger.info(
+                    "Выполняется мягкий fallback на AntigravityClient для заказа [%s #%s]...",
+                    order.source.value,
+                    order.external_id,
+                )
+                return await self.fallback_client.analyze_order(order)
+            raise
+
     async def quick_classify(self, order: RawOrder) -> dict:
         """Быстрый скоринг заказа (до 500мс) для первичного отсева."""
         if not self.api_key:
@@ -95,11 +199,6 @@ class MistralClient(BaseLLMClient):
             f"Бюджет: {order.price or 'Договорной'}\n\n"
             f"Верни строго JSON: {{\"is_relevant\": true/false, \"quick_score\": 1-10, \"reason\": \"кратко\"}}"
         )
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
         payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
@@ -107,11 +206,9 @@ class MistralClient(BaseLLMClient):
             "temperature": 0.1,
         }
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(self.api_url, headers=headers, json=payload)
-                if resp.status_code == 200:
-                    content = resp.json()["choices"][0]["message"]["content"]
-                    return json.loads(content)
+            result_json = await self._execute_with_rate_limit(payload)
+            content = result_json["choices"][0]["message"]["content"]
+            return json.loads(content)
         except Exception as e:
             logger.warning("Ошибка быстрого скоринга Mistral: %s", e)
         return {"is_relevant": True, "quick_score": 7, "reason": "Fallback to deep analysis"}
@@ -123,25 +220,23 @@ class MistralClient(BaseLLMClient):
     ) -> str:
         """Сгенерировать отклик через Mistral API."""
         if not self.api_key:
+            if self.fallback_client:
+                return await self.fallback_client.generate_proposal(order, analysis_data)
             raise ValueError("MISTRAL_API_KEY не задан в конфигурации (.env)")
 
         prompt = build_proposal_prompt(order, analysis_data)
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
         payload = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.3,
         }
 
-        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-            resp = await client.post(self.api_url, headers=headers, json=payload)
-            if resp.status_code != 200:
-                raise RuntimeError(
-                    f"Mistral API вернул ошибку {resp.status_code}: {resp.text}"
-                )
-            content = resp.json()["choices"][0]["message"]["content"].strip()
+        try:
+            result_json = await self._execute_with_rate_limit(payload)
+            content = result_json["choices"][0]["message"]["content"].strip()
             return self._sanitize_proposal(content)
+        except Exception as e:
+            logger.warning("Сбой генерации отклика Mistral: %s", e)
+            if self.fallback_client:
+                return await self.fallback_client.generate_proposal(order, analysis_data)
+            raise

@@ -14,8 +14,9 @@ def get_llm_client() -> BaseLLMClient:
     """Получить настроенный экземпляр LLM клиента."""
     provider = settings.LLM_PROVIDER.lower().strip()
     if provider == "mistral":
-        logger.info("Инициализирован LLM провайдер: Mistral (%s)", settings.MISTRAL_MODEL)
-        return MistralClient()
+        logger.info("Инициализирован LLM провайдер: Mistral (%s) с fallback на Antigravity", settings.MISTRAL_MODEL)
+        antigravity = AntigravityClient()
+        return MistralClient(fallback_client=antigravity)
 
     if provider == "hybrid":
         logger.info(
