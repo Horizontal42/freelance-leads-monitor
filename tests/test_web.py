@@ -122,3 +122,41 @@ async def test_web_dashboard_endpoints(tmp_path):
             updated_order = await repo.get_by_id(1)
             assert updated_order["proposal_text"] == "Готовый отклик на aiogram."
             assert updated_order["recommended_price"] == 42000
+
+        # 7. Order chat: get empty history, post question, verify persistence
+        resp_chat_empty = await client.get("/api/orders/1/chat")
+        assert resp_chat_empty.status_code == 200
+        assert resp_chat_empty.json()["messages"] == []
+
+        with patch("src.analyzer.factory.get_llm_client") as mock_get_llm:
+            mock_client = AsyncMock()
+            mock_client.chat_order.return_value = (
+                "Стек aiogram 3 идеально подходит, рисков с нагрузкой нет.",
+                "Mistral (mistral-small-latest)",
+            )
+            mock_get_llm.return_value = mock_client
+
+            resp_post_chat = await client.post(
+                "/api/orders/1/chat",
+                json={"message": "Подойдет ли aiogram 3 для этой задачи?", "model": "auto"},
+            )
+            assert resp_post_chat.status_code == 200
+            data_chat = resp_post_chat.json()
+            assert data_chat["ok"] is True
+            assert "aiogram 3 идеально подходит" in data_chat["reply"]
+            assert data_chat["model"] == "Mistral (mistral-small-latest)"
+
+        # Verify chat history is saved in DB and retrieved
+        resp_chat_history = await client.get("/api/orders/1/chat")
+        assert resp_chat_history.status_code == 200
+        history_msgs = resp_chat_history.json()["messages"]
+        assert len(history_msgs) == 2
+        assert history_msgs[0]["role"] == "user"
+        assert history_msgs[0]["message"] == "Подойдет ли aiogram 3 для этой задачи?"
+        assert history_msgs[1]["role"] == "assistant"
+        assert "aiogram 3 идеально подходит" in history_msgs[1]["message"]
+
+        # Verify HTML contains chat toggle button
+        resp_html = await client.get("/")
+        assert "Вопрос по заказу" in resp_html.text
+        assert "chat-container-1" in resp_html.text

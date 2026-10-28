@@ -33,10 +33,21 @@ CREATE TABLE IF NOT EXISTS orders (
     UNIQUE(source, external_id)
 );
 
+CREATE TABLE IF NOT EXISTS order_messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    model TEXT NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_orders_source_ext ON orders(source, external_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_priority ON orders(priority);
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_order_messages_order_id ON order_messages(order_id);
 """
 
 
@@ -69,5 +80,17 @@ async def init_db(db_path: Path | str | None = None) -> None:
             await db.execute("ALTER TABLE orders ADD COLUMN attachments_text TEXT;")
         except Exception:
             pass  # колонка уже существует
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS order_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                order_id INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                model TEXT NOT NULL,
+                message TEXT NOT NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
+            );
+        """)
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_order_messages_order_id ON order_messages(order_id);")
         await db.commit()
 

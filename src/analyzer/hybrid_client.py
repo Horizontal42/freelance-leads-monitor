@@ -75,3 +75,65 @@ class HybridLLMClient(BaseLLMClient):
             if self.mistral.api_key:
                 return await self.mistral.generate_proposal(order, analysis_data)
             raise
+
+    async def chat_order(
+        self,
+        order: RawOrder,
+        analysis_data: Optional[Dict[str, Any]] = None,
+        proposal_text: Optional[str] = None,
+        history: Optional[list] = None,
+        user_message: str = "",
+        model_preference: Optional[str] = None,
+    ) -> tuple[str, str]:
+        """Ответить на вопрос по заказу с автоматическим выбором или явным указанием модели."""
+        pref = (model_preference or "auto").lower().strip()
+        if pref == "mistral":
+            if self.mistral.api_key:
+                try:
+                    return await self.mistral.chat_order(
+                        order, analysis_data, proposal_text, history, user_message, "mistral"
+                    )
+                except Exception as e:
+                    logger.warning("Сбой chat_order в Mistral: %s. Переключение на Antigravity...", e)
+            return await self.antigravity.chat_order(
+                order, analysis_data, proposal_text, history, user_message
+            )
+
+        if pref in ["antigravity", "agy"]:
+            try:
+                return await self.antigravity.chat_order(
+                    order, analysis_data, proposal_text, history, user_message
+                )
+            except Exception as e:
+                logger.warning("Сбой chat_order в Antigravity: %s. Переключение на Mistral...", e)
+                if self.mistral.api_key:
+                    return await self.mistral.chat_order(
+                        order, analysis_data, proposal_text, history, user_message
+                    )
+                raise
+
+        # Автоматический режим (auto):
+        has_proposal = bool(proposal_text and proposal_text.strip())
+        if has_proposal:
+            try:
+                return await self.antigravity.chat_order(
+                    order, analysis_data, proposal_text, history, user_message
+                )
+            except Exception as e:
+                logger.warning("Сбой chat_order в Antigravity: %s. Fallback на Mistral...", e)
+                if self.mistral.api_key:
+                    return await self.mistral.chat_order(
+                        order, analysis_data, proposal_text, history, user_message
+                    )
+                raise
+        else:
+            if self.mistral.api_key:
+                try:
+                    return await self.mistral.chat_order(
+                        order, analysis_data, proposal_text, history, user_message
+                    )
+                except Exception as e:
+                    logger.warning("Сбой chat_order в Mistral: %s. Fallback на Antigravity...", e)
+            return await self.antigravity.chat_order(
+                order, analysis_data, proposal_text, history, user_message
+            )

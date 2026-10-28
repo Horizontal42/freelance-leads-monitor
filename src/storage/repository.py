@@ -177,7 +177,12 @@ class OrderRepository:
         """Получить заказ по id."""
         async with self._get_conn() as db:
             async with db.execute(
-                "SELECT * FROM orders WHERE id = ? LIMIT 1", (order_id,)
+                """
+                SELECT orders.*,
+                       (SELECT COUNT(*) FROM order_messages WHERE order_messages.order_id = orders.id) as messages_count
+                FROM orders WHERE id = ? LIMIT 1
+                """,
+                (order_id,),
             ) as cursor:
                 row = await cursor.fetchone()
                 return dict(row) if row else None
@@ -192,7 +197,11 @@ class OrderRepository:
         section: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Получить список свежих заказов с возможностью фильтрации по секциям и биржам."""
-        query = "SELECT * FROM orders WHERE 1=1"
+        query = """
+            SELECT orders.*,
+                   (SELECT COUNT(*) FROM order_messages WHERE order_messages.order_id = orders.id) as messages_count
+            FROM orders WHERE 1=1
+        """
         params: List[Any] = []
 
         if section in ["hh_ru", "hh"]:
@@ -326,3 +335,37 @@ class OrderRepository:
                 stats["avg_hot_price"] = round(r[0], 0) if r and r[0] else 0
 
             return stats
+
+    async def add_chat_message(
+        self,
+        order_id: int,
+        role: str,
+        model: str,
+        message: str,
+    ) -> int:
+        """Сохранить сообщение чата по заказу."""
+        async with self._get_conn() as db:
+            cursor = await db.execute(
+                """
+                INSERT INTO order_messages (order_id, role, model, message, created_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                (order_id, role, model, message),
+            )
+            await db.commit()
+            return cursor.lastrowid  # type: ignore
+
+    async def get_chat_messages(self, order_id: int) -> List[Dict[str, Any]]:
+        """Получить историю переписки по заказу."""
+        async with self._get_conn() as db:
+            async with db.execute(
+                """
+                SELECT id, order_id, role, model, message, created_at
+                FROM order_messages
+                WHERE order_id = ?
+                ORDER BY id ASC
+                """,
+                (order_id,),
+            ) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
