@@ -181,7 +181,11 @@ class MistralClient(BaseLLMClient):
             content = result_json["choices"][0]["message"]["content"]
             data = json.loads(content)
 
-            for key in ["proposal_text", "executive_summary", "company_overview", "candidate_requirements", "job_responsibilities", "match_reason"]:
+            for key in [
+                "proposal_text", "executive_summary", "company_overview",
+                "candidate_requirements", "job_responsibilities", "match_reason",
+                "skills_gap", "skills_gap_counter", "price_justification"
+            ]:
                 if key in data and isinstance(data[key], str):
                     data[key] = self._sanitize_proposal(data[key])
 

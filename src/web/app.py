@@ -361,11 +361,12 @@ DASHBOARD_HTML = """
 
                                 <!-- Market / AI Recommended Price -->
                                 {% set rec_price = order.recommended_price or (order.analysis.recommended_price if order.analysis else None) %}
-                                <div id="market-price-pill-{{ order.id }}" class="flex items-center gap-1.5 {% if rec_price and rec_price > 0 %}bg-amber-950/40 border border-amber-800/60{% else %}bg-slate-950/60 border border-slate-800{% endif %} px-3 py-1 rounded-lg" title="Оценка рыночной стоимости задачи через Antigravity с веб-поиском">
+                                {% set has_prop = (order.proposal_text or (order.analysis and order.analysis.proposal_text)) %}
+                                <div id="market-price-pill-{{ order.id }}" class="flex items-center gap-1.5 {% if rec_price and rec_price > 0 %}bg-amber-950/40 border border-amber-800/60{% else %}bg-slate-950/60 border border-slate-800{% endif %} px-3 py-1 rounded-lg" title="{% if has_prop %}Рыночная ставка на основе веб-поиска (agy){% else %}Предварительная расчетная оценка Mistral по часам и сложности{% endif %}">
                                     <span class="text-xs text-amber-400 font-medium">🎯 Рыночная:</span>
                                     <span class="text-sm font-bold text-amber-300 font-mono">
                                         {% if rec_price and rec_price > 0 %}
-                                            {{ "{:,.0f}".format(rec_price).replace(",", " ") }} ₽
+                                            {{ "{:,.0f}".format(rec_price).replace(",", " ") }} ₽{% if not has_prop %}<span class="text-[10px] text-amber-400/80 font-normal ml-0.5">(предв.)</span>{% endif %}
                                         {% else %}
                                             <span class="text-xs text-slate-400 font-normal">по кнопке (agy)</span>
                                         {% endif %}
@@ -439,6 +440,27 @@ DASHBOARD_HTML = """
                                                 <span>💡</span> Соответствие резюме Андрея:
                                             </div>
                                             <p class="text-emerald-200 leading-relaxed">{{ order.analysis.match_reason }}</p>
+                                        </div>
+                                    {% endif %}
+
+                                    <!-- Skills Gap & Counter Strategy -->
+                                    {% if order.analysis.skills_gap and order.analysis.skills_gap != "Критичных пробелов нет" %}
+                                        <div class="col-span-1 md:col-span-2 bg-slate-900/90 border border-amber-900/50 p-3 rounded-lg space-y-1.5">
+                                            <div class="font-bold text-amber-400 flex items-center gap-1.5">
+                                                <span>⚠️</span> Пробелы в требованиях (Skills Gap):
+                                            </div>
+                                            <p class="text-amber-200 text-xs leading-relaxed font-mono bg-amber-950/40 p-2 rounded border border-amber-900/40">{{ order.analysis.skills_gap }}</p>
+                                            {% if order.analysis.skills_gap_counter %}
+                                                <div class="text-[11px] text-slate-300 pt-1 flex items-start gap-1.5">
+                                                    <span class="font-semibold text-emerald-400 shrink-0">🛡 Парирование в Cover Letter:</span>
+                                                    <span class="text-slate-200">{{ order.analysis.skills_gap_counter }}</span>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    {% elif order.analysis.skills_gap == "Критичных пробелов нет" %}
+                                        <div class="col-span-1 md:col-span-2 bg-emerald-950/30 border border-emerald-900/40 p-2.5 rounded-lg text-emerald-300 text-xs flex items-center gap-2">
+                                            <span>✅</span>
+                                            <span><b>Полное соответствие:</b> Критичных пробелов в стеке не выявлено.</span>
                                         </div>
                                     {% endif %}
                                 </div>
@@ -521,14 +543,15 @@ DASHBOARD_HTML = """
 
                                 <!-- Financial Evaluation and Price Strategy Box -->
                                 {% if order.analysis.recommended_price or order.analysis.price_justification %}
+                                    {% set has_agy_prop = (order.proposal_text or (order.analysis and order.analysis.proposal_text)) %}
                                     <div class="text-xs bg-slate-900/80 border border-amber-900/40 p-2.5 rounded-lg text-slate-300 space-y-1">
                                         <div class="flex flex-wrap items-center justify-between gap-2">
                                             <span class="text-amber-400 font-semibold uppercase text-[10px] tracking-wider flex items-center gap-1">
-                                                <span>🎯</span> Финансовая оценка и стратегия торга (ИИ):
+                                                <span>🎯</span> Финансовая оценка и стратегия торга {% if has_agy_prop %}(agy с веб-поиском):{% else %}(предварительно Mistral):{% endif %}
                                             </span>
                                             {% if order.analysis.recommended_price %}
                                                 <span class="font-mono font-bold text-amber-300">
-                                                    Рыночная ставка: {{ "{:,.0f}".format(order.analysis.recommended_price).replace(",", " ") }} ₽
+                                                    {% if has_agy_prop %}Рыночная ставка: {% else %}Предварительная ставка: {% endif %}{{ "{:,.0f}".format(order.analysis.recommended_price).replace(",", " ") }} ₽
                                                 </span>
                                             {% endif %}
                                         </div>

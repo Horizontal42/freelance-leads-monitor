@@ -106,7 +106,11 @@ class AntigravityClient(BaseLLMClient):
             raise ValueError(f"Ошибка декодирования JSON: {e}")
 
         # Пост-обработка текста отклика (строго дефисы)
-        for key in ["proposal_text", "executive_summary", "company_overview", "candidate_requirements", "job_responsibilities", "match_reason"]:
+        for key in [
+            "proposal_text", "executive_summary", "company_overview",
+            "candidate_requirements", "job_responsibilities", "match_reason",
+            "skills_gap", "skills_gap_counter", "price_justification"
+        ]:
             if key in data and isinstance(data[key], str):
                 data[key] = self._sanitize_proposal(data[key])
 
