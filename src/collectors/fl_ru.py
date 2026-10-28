@@ -1,6 +1,6 @@
 """Collector for FL.ru freelance exchange RSS feed."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 import html
 import logging
 import re
@@ -110,11 +110,12 @@ class FlRuCollector(BaseCollector):
                 # Пытаемся вытащить цену из заголовка или описания
                 price, is_negotiable = self._extract_price(f"{title} {description}")
 
-                # Дата публикации
+                # Дата публикации (приводим UTC из RSS к локальному времени)
                 created_at = datetime.now()
                 if hasattr(entry, "published_parsed") and entry.published_parsed:
                     try:
-                        created_at = datetime(*entry.published_parsed[:6])
+                        utc_dt = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+                        created_at = utc_dt.astimezone().replace(tzinfo=None)
                     except Exception:
                         pass
 
