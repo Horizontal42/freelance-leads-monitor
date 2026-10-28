@@ -29,7 +29,7 @@ async def test_web_dashboard_endpoints(tmp_path):
         status=OrderStatus.ANALYZED,
         priority=OrderPriority.HOT,
     )
-    # Сохраняем анализ с рекомендуемой рыночной ценой
+    # Сохраняем анализ с рыночной и рекомендуемой ценой
     analysis = AnalysisResult(
         take_order=True,
         priority=OrderPriority.HOT,
@@ -43,8 +43,9 @@ async def test_web_dashboard_endpoints(tmp_path):
             sigma=0.5,
         ),
         realistic_days=2.0,
+        market_price=38000,
         recommended_price=35000,
-        price_justification="Бюджет клиента 30к, рыночная цена 35к",
+        price_justification="Бюджет клиента 30к, рыночная цена 38к, рекомендуем 35к",
         complexity=4,
         pure_dev_hours=6.0,
         matched_project="Avia_Pars",
@@ -85,11 +86,13 @@ async def test_web_dashboard_endpoints(tmp_path):
         assert "Бюджет клиента:" in html
         assert "30 000 ₽" in html
         assert "Рыночная:" in html
+        assert "38 000 ₽" in html
+        assert "Рекомендуемая:" in html
         assert "35 000 ₽" in html
-        assert "Финансовая оценка и стратегия торга" in html
-        assert "Бюджет клиента 30к, рыночная цена 35к" in html
+        assert "Финансовая оценка и стратегия ставок" in html
+        assert "Бюджет клиента 30к, рыночная цена 38к" in html
 
-        # 5. HTML Tabs (analytics, rules)
+        # 5. HTML Tabs (analytics, rules, health, settings)
         resp_analytics = await client.get("/?tab=analytics")
         assert resp_analytics.status_code == 200
         assert "Сводная статистика по биржам" in resp_analytics.text
@@ -98,15 +101,58 @@ async def test_web_dashboard_endpoints(tmp_path):
         assert resp_rules.status_code == 200
         assert "Белый список ключевых слов" in resp_rules.text
 
-        # 6. Generate proposal on-demand
         from unittest.mock import patch, AsyncMock
+        with patch("src.services.health_check.HealthCheckService.run_full_check") as mock_hc:
+            mock_hc.return_value = {
+                "all_ok": True,
+                "checked_at": "28.10.2026 16:00:00",
+                "exchanges": [
+                    {"name": "Kwork", "url": "https://kwork.ru", "ok": True, "status_code": 200, "latency_ms": 250, "error": None}
+                ],
+                "services": [
+                    {"name": "Mistral API", "ok": True, "status_code": 200, "latency_ms": 150, "details": None, "error": None}
+                ],
+            }
+            resp_health = await client.get("/?tab=health")
+            assert resp_health.status_code == 200
+            assert "Мониторинг доступности бирж" in resp_health.text
+            assert "Kwork" in resp_health.text
+
+            # Health Check API
+            resp_api_hc = await client.get("/api/health-check")
+            assert resp_api_hc.status_code == 200
+            assert resp_api_hc.json()["all_ok"] is True
+
+        # Settings API & Settings Tab
+        resp_settings_tab = await client.get("/?tab=settings")
+        assert resp_settings_tab.status_code == 200
+        assert "Интерактивные настройки мониторинга" in resp_settings_tab.text
+
+        # GET /api/settings
+        resp_get_settings = await client.get("/api/settings")
+        assert resp_get_settings.status_code == 200
+        assert resp_get_settings.json()["ok"] is True
+        assert resp_get_settings.json()["settings"]["min_budget"] == 10000
+
+        # POST /api/settings
+        resp_post_settings = await client.post(
+            "/api/settings",
+            json={"min_budget": 20000, "platform_fl_ru": False, "filter_pro_only": True},
+        )
+        assert resp_post_settings.status_code == 200
+        assert resp_post_settings.json()["ok"] is True
+        assert resp_post_settings.json()["settings"]["min_budget"] == 20000
+        assert resp_post_settings.json()["settings"]["platform_fl_ru"] is False
+
+        # 6. Generate proposal on-demand with dual price
         from src.models.analysis import ProposalResult
         with patch("src.analyzer.factory.get_llm_client") as mock_get_llm:
             mock_client = AsyncMock()
             mock_client.generate_proposal.return_value = ProposalResult(
                 "Готовый отклик на aiogram.",
                 recommended_price=42000,
-                price_justification="Ставка по рынку 42к",
+                market_price=48000,
+                price_justification="Рыночная ставка 48к, тактическая 42к",
             )
             mock_get_llm.return_value = mock_client
 
@@ -116,12 +162,14 @@ async def test_web_dashboard_endpoints(tmp_path):
             assert data_gen["ok"] is True
             assert data_gen["proposal_text"] == "Готовый отклик на aiogram."
             assert data_gen["recommended_price"] == 42000
-            assert data_gen["price_justification"] == "Ставка по рынку 42к"
+            assert data_gen["market_price"] == 48000
+            assert "Рыночная ставка 48к" in data_gen["price_justification"]
 
             # Verify it persisted to DB
             updated_order = await repo.get_by_id(1)
             assert updated_order["proposal_text"] == "Готовый отклик на aiogram."
             assert updated_order["recommended_price"] == 42000
+            assert updated_order["market_price"] == 48000
 
         # 7. Order chat: get empty history, post question, verify persistence
         resp_chat_empty = await client.get("/api/orders/1/chat")
