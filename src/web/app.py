@@ -328,7 +328,7 @@ DASHBOARD_HTML = """
             {% endif %}
 
             {% for order in orders %}
-                <div class="order-card bg-slate-900 border {% if order.priority == 'hot' %}border-amber-500/50 shadow-lg shadow-amber-950/20{% elif order.priority == 'trash' %}border-slate-800 opacity-60{% else %}border-slate-800{% endif %} p-5 rounded-xl transition hover:border-slate-700 space-y-3.5" data-title="{{ order.title|lower }}" data-desc="{{ order.description|lower }} {{ order.attachments_text|lower if order.attachments_text else '' }}" data-price="{{ order.price or 0 }}" data-score="{{ order.score or 0 }}" data-created="{{ order.created_at or '' }}">
+                <div class="order-card bg-slate-900 border {% if order.priority == 'hot' %}border-amber-500/50 shadow-lg shadow-amber-950/20{% elif order.priority == 'trash' %}border-slate-800 opacity-60{% else %}border-slate-800{% endif %} p-5 rounded-xl transition hover:border-slate-700 space-y-3.5" data-id="{{ order.id }}" data-title="{{ order.title|lower }}" data-desc="{{ order.description|lower }} {{ order.attachments_text|lower if order.attachments_text else '' }}" data-price="{{ order.price or 0 }}" data-score="{{ order.score or 0 }}" data-created="{{ order.created_at or '' }}">
 
                     <!-- Card Header Row -->
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
@@ -1805,20 +1805,28 @@ DASHBOARD_HTML = """
             });
 
             // Сортировка
-            if (sortMode !== 'default') {
-                cards.sort((a, b) => {
-                    const priceA = parseFloat(a.getAttribute('data-price') || '0');
-                    const priceB = parseFloat(b.getAttribute('data-price') || '0');
+            cards.sort((a, b) => {
+                if (sortMode === 'score_desc') {
                     const scoreA = parseFloat(a.getAttribute('data-score') || '0');
                     const scoreB = parseFloat(b.getAttribute('data-score') || '0');
-
-                    if (sortMode === 'score_desc') return scoreB - scoreA;
-                    if (sortMode === 'price_desc') return priceB - priceA;
-                    if (sortMode === 'price_asc') return priceA - priceB;
-                    return 0;
-                });
-                cards.forEach(card => container.appendChild(card));
-            }
+                    return scoreB - scoreA;
+                }
+                if (sortMode === 'price_desc') {
+                    const priceA = parseFloat(a.getAttribute('data-price') || '0');
+                    const priceB = parseFloat(b.getAttribute('data-price') || '0');
+                    return priceB - priceA;
+                }
+                if (sortMode === 'price_asc') {
+                    const priceA = parseFloat(a.getAttribute('data-price') || '0');
+                    const priceB = parseFloat(b.getAttribute('data-price') || '0');
+                    return priceA - priceB;
+                }
+                // default: по времени поступления в систему (новые заказы сверху)
+                const idA = parseInt(a.getAttribute('data-id') || '0', 10);
+                const idB = parseInt(b.getAttribute('data-id') || '0', 10);
+                return idB - idA;
+            });
+            cards.forEach(card => container.appendChild(card));
 
             const countBadge = document.getElementById('filterCountBadge');
             if (countBadge) {

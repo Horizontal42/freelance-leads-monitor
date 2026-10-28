@@ -230,7 +230,7 @@ class OrderRepository:
         if only_free:
             query += " AND is_pro_only = 0"
 
-        query += " ORDER BY created_at DESC LIMIT ?"
+        query += " ORDER BY id DESC LIMIT ?"
         params.append(limit)
 
         async with self._get_conn() as db:
