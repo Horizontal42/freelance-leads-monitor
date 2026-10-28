@@ -197,6 +197,18 @@ class MistralClient(BaseLLMClient):
                     f"{k}: {v}" for k, v in data["price_justification"].items() if v
                 )
 
+            # Гарантируем наличие market_price при наличии recommended_price
+            if not data.get("market_price") and data.get("recommended_price"):
+                try:
+                    rec_val = float(data["recommended_price"])
+                    hours = float(data.get("pure_dev_hours") or 0)
+                    if hours > 0:
+                        data["market_price"] = max(rec_val, round(hours * 1200 / 500) * 500)
+                    else:
+                        data["market_price"] = round(rec_val * 1.2 / 500) * 500
+                except (ValueError, TypeError):
+                    pass
+
             score = int(data.get("score", 5))
             if "priority" not in data or data["priority"] not in ["hot", "normal"]:
                 data["priority"] = (
@@ -287,6 +299,8 @@ class MistralClient(BaseLLMClient):
                             market_price = float(parsed["market_price"])
                         except (ValueError, TypeError):
                             pass
+                    if market_price is None and rec_price is not None:
+                        market_price = round(rec_price * 1.2 / 500) * 500
                     price_just = parsed.get("price_justification")
                     return ProposalResult(
                         self._sanitize_proposal(str(parsed["proposal_text"]).strip()),
