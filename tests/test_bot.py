@@ -114,3 +114,79 @@ async def test_handle_recent_uses_link_preview_options():
     assert isinstance(kwargs["link_preview_options"], LinkPreviewOptions)
     assert kwargs["link_preview_options"].is_disabled is True
     assert "disable_web_page_preview" not in kwargs
+
+
+def test_main_reply_keyboard():
+    """Проверка постоянной клавиатуры быстрого доступа рядом с полем ввода."""
+    from aiogram.types import ReplyKeyboardMarkup
+    from src.bot.keyboards import get_main_reply_keyboard
+
+    kb = get_main_reply_keyboard()
+    assert isinstance(kb, ReplyKeyboardMarkup)
+    assert kb.is_persistent is True
+    assert kb.resize_keyboard is True
+
+    # Проверяем все ключевые кнопки управления
+    all_texts = [btn.text for row in kb.keyboard for btn in row]
+    assert "⚙️ Настройки" in all_texts
+    assert "🩺 Проверка здоровья" in all_texts
+    assert "⏱️ Аптайм и Статус" in all_texts
+    assert "🔍 Сканировать" in all_texts
+
+
+@pytest.mark.asyncio
+async def test_handle_start_includes_reply_keyboard():
+    """Проверка прикрепления главной клавиатуры при команде /start."""
+    from src.bot.handlers import handle_start
+    from src.bot.keyboards import get_main_reply_keyboard
+
+    mock_message = AsyncMock()
+    mock_message.from_user.id = 12345
+    await handle_start(mock_message)
+
+    assert mock_message.answer.call_count == 1
+    kwargs = mock_message.answer.call_args.kwargs
+    assert "reply_markup" in kwargs
+    kb = kwargs["reply_markup"]
+    assert kb.is_persistent is True
+
+
+@pytest.mark.asyncio
+async def test_handle_uptime_and_stats():
+    """Проверка вывода аптайма и статистики базы."""
+    from src.bot.handlers import handle_uptime_and_stats
+
+    mock_message = AsyncMock()
+    mock_repo = AsyncMock()
+    mock_repo.get_stats.return_value = {
+        "total": 42,
+        "hot": 10,
+        "normal": 20,
+        "trash": 12,
+        "sent_to_tg": 10,
+    }
+
+    await handle_uptime_and_stats(mock_message, mock_repo)
+    assert mock_message.answer.call_count == 1
+    text = mock_message.answer.call_args.args[0]
+    assert "Аптайм" in text
+    assert "Всего заказов/вакансий: <b>42</b>" in text
+    assert "Горячих лидов (Tier 1): <b>10</b>" in text
+
+    kwargs = mock_message.answer.call_args.kwargs
+    assert "reply_markup" in kwargs
+    assert kwargs["reply_markup"].is_persistent is True
+
+
+def test_uptime_service():
+    """Проверка сервиса отслеживания времени непрерывной работы."""
+    from src.services.uptime import get_system_status_info, get_uptime_formatted
+
+    info = get_system_status_info()
+    assert "uptime" in info
+    assert "start_time" in info
+    assert "pid" in info
+
+    formatted = get_uptime_formatted()
+    assert isinstance(formatted, str)
+    assert len(formatted) > 0
