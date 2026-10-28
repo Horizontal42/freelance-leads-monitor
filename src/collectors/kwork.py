@@ -134,7 +134,7 @@ class KworkCollector(BaseCollector):
             logger.error("Ошибка парсинга элемента Kwork: %s", e)
             return None
 
-    async def fetch_new_orders(self) -> List[RawOrder]:
+    async def fetch_new_orders(self, is_cold_start: Optional[bool] = None) -> List[RawOrder]:
         """Запросить страницы категорий Kwork с пагинацией и вернуть список заказов."""
         orders: List[RawOrder] = []
         seen_ids = set()

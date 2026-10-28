@@ -196,6 +196,92 @@ async def test_order_enricher():
 
 
 @pytest.mark.asyncio
+async def test_freelance_ru_category_pagination_and_cold_start(monkeypatch):
+    """Проверка пагинации по категориям IT и логики холодного старта FreelanceRuCollector."""
+    import httpx
+    collector = FreelanceRuCollector(categories=[4, 724], normal_pages=1, backfill_pages=3)
+
+    requested_urls = []
+
+    mock_article = """
+    <article class="task-card">
+        <a class="task-card__title-link" href="/task/view/{id}" title="Бот">Бот {id}</a>
+        <p class="task-card__desc">Сделать Telegram-бота на Python</p>
+        <div class="task-card__budget">15 000 руб</div>
+    </article>
+    """
+
+    async def mock_get(self, url, *args, **kwargs):
+        requested_urls.append(str(url))
+        req = httpx.Request("GET", str(url))
+        # Генерируем карточки в ответе с числовыми ID
+        html_resp = "".join(mock_article.format(id=f"{len(requested_urls)}{i}01") for i in range(2))
+        return httpx.Response(status_code=200, text=html_resp, request=req)
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
+
+    # 1. Первый запуск (cold start backfill) - глубина 3 страницы для категорий
+    orders_cold = await collector.fetch_new_orders()
+    assert len(orders_cold) > 0
+    # Проверяем, что запрашивались страницы категорий c[]=4 и c[]=724 с глубиной
+    assert any("c[]=4" in u and "page=2" in u for u in requested_urls)
+    assert any("c[]=724" in u for u in requested_urls)
+
+    # 2. Второй запуск (обычный легкий режим) - глубина 1 страница
+    requested_urls.clear()
+    orders_normal = await collector.fetch_new_orders()
+    assert len(orders_normal) > 0
+    # На обычном проходе page=2 для c[]=4 не должен запрашиваться (так как normal_pages=1)
+    assert not any("page=2" in u for u in requested_urls)
+
+
+@pytest.mark.asyncio
+async def test_pchel_net_and_remote_job_cold_start_backfill(monkeypatch):
+    """Проверка начального бэкфилла для PchelNetCollector и RemoteJobCollector."""
+    import httpx
+    pchel = PchelNetCollector(normal_pages=1, backfill_pages=3)
+    remote = RemoteJobCollector(normal_pages=1, backfill_pages=3)
+
+    pchel_urls = []
+    remote_urls = []
+
+    async def mock_get(self, url, *args, **kwargs):
+        u = str(url)
+        req = httpx.Request("GET", u)
+        if "pchel.net" in u:
+            pchel_urls.append(u)
+            card = '<div class="project-block-cont"><div class="project-title"><a href="/jobs/programming/test-101/">Тест</a></div><div class="project-text">Текст</div><div class="price">15000 руб</div></div></div></div>'
+            return httpx.Response(status_code=200, text=card, request=req)
+        elif "remote-job.ru" in u:
+            remote_urls.append(u)
+            card = '<div class="vacancy_item"><a href="/project_work/project_show/202/test">Тест</a><div class="col-xs-12 text-left">Текст</div><h3>15000 руб</h3></div><hr>'
+            return httpx.Response(status_code=200, text=card, request=req)
+        return httpx.Response(status_code=404, request=req)
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
+
+    # Холодный запуск: должны пройти 3 страницы
+    await pchel.fetch_new_orders(is_cold_start=True)
+    assert len(pchel_urls) == 3
+    assert any("page-2" in u for u in pchel_urls)
+    assert any("page-3" in u for u in pchel_urls)
+
+    await remote.fetch_new_orders(is_cold_start=True)
+    assert len(remote_urls) == 3
+    assert any("page=2" in u for u in remote_urls)
+    assert any("page=3" in u for u in remote_urls)
+
+    # Обычный запуск: только 1 страница
+    pchel_urls.clear()
+    remote_urls.clear()
+    await pchel.fetch_new_orders(is_cold_start=False)
+    assert len(pchel_urls) == 1
+
+    await remote.fetch_new_orders(is_cold_start=False)
+    assert len(remote_urls) == 1
+
+
+@pytest.mark.asyncio
 async def test_live_fl_ru_rss():
     """Live smoke test to verify FL.ru RSS is reachable and parses."""
     collector = FlRuCollector()

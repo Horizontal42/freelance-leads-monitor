@@ -61,7 +61,7 @@ class FlRuCollector(BaseCollector):
         # Если бюджет не указан явным числом
         return None, True
 
-    async def fetch_new_orders(self) -> List[RawOrder]:
+    async def fetch_new_orders(self, is_cold_start: Optional[bool] = None) -> List[RawOrder]:
         """Получить и распарсить RSS-фид FL.ru."""
         orders: List[RawOrder] = []
 
@@ -127,7 +127,7 @@ class FlRuCollector(BaseCollector):
                 )
 
         except Exception as e:
-            logger.error("Ошибка при сборе заказов с FL.ru RSS: %s", e)
+            logger.error("Ошибка при сборе заказов с FL.ru RSS: %r", e)
 
         logger.info("FlRuCollector собрал %d заказов", len(orders))
         return orders

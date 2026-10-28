@@ -22,11 +22,11 @@ Built specifically for Andrey Pimenov ([`@horizontal42`](https://github.com/Hori
 
 | Exchange | Method | Rate Limits & Protection | PRO / Free Filter |
 |---|---|---|---|
-| **Kwork** | Server-side `window.stateData` JSON (IT & Bots categories) | 180s poll, browser headers | Free responses |
+| **Kwork** | Server-side `window.stateData` JSON (IT & Bots categories) | 180s poll, browser headers, pagination up to 5 pages | Free responses |
 | **FL.ru** | Official RSS feed (`/rss/all.xml`) | Standard XML polling | Gated by `(для всех)` in title |
-| **Freelance.ru** | HTML card scraping (`/task` & `?q=python`) | 180s poll, desktop User-Agent | Gated by `task-card__pro` badge |
-| **Pchel.net** | HTML parsing (`/jobs/programming/`) | Auto USD-to-RUB conversion (rate 95.0) | Open IT tasks |
-| **Remote-job** | HTML project feed (`/search?searchType=project`) | Clean title & budget normalization | Open remote projects |
+| **Freelance.ru** | IT (`c[]=4`), AI (`c[]=724`), feed & `?q=python` | 180s poll, desktop User-Agent, Cold Start backfill (4 pages) | Gated by `task-card__pro` badge |
+| **Pchel.net** | Programming feed (`/jobs/programming/`) | Pagination (1-3 pages), auto USD-to-RUB conversion (95.0) | Open IT tasks |
+| **Remote-job** | Project feed (`/search?searchType=project`) | Pagination (1-3 pages), Cold Start backfill | Open remote projects |
 
 ---
 
@@ -60,7 +60,9 @@ Built specifically for Andrey Pimenov ([`@horizontal42`](https://github.com/Hori
                                      │ Full text & files (No URLs passed)
                                      ▼
                               [ 2. LLM Analysis (Ministral 14B) ]
-                              - Prompt without URLs (saves tokens & time)
+                              - Concurrency Semaphore (2) & Rate Limiter (30 RPM)
+                              - Tenacity exponential retry on 429/capacity (2s -> 4s -> 8s)
+                              - Soft fallback to Antigravity on unrecoverable API error
                               - 3-4 sentence concise executive summary
                               - Preliminary PERT estimate: E = (O + 4M + P)/6, σ
                               - Market price evaluation & justification
@@ -82,6 +84,8 @@ Built specifically for Andrey Pimenov ([`@horizontal42`](https://github.com/Hori
                                                   │
                                                   ▼
                                     [ 3. Antigravity CLI (agy -p) ]
+                                    - gemini-3.8-flash-high with --effort high
+                                    - Deep architectural reasoning for >= 30,000 ₽ projects
                                     - Bespoke human response from dossier
                                     - Strict ban on em-dashes "-"
                                     - First 140 chars preview rule

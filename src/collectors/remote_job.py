@@ -15,10 +15,27 @@ logger = logging.getLogger(__name__)
 class RemoteJobCollector(BaseCollector):
     """Сборщик проектов с площадки Remote-job.ru (раздел заданий)."""
 
-    def __init__(self, base_url: str = "https://remote-job.ru") -> None:
+    def __init__(
+        self,
+        base_url: str = "https://remote-job.ru",
+        normal_pages: Optional[int] = None,
+        backfill_pages: Optional[int] = None,
+    ) -> None:
         super().__init__(name="remote_job")
         self.base_url = base_url.rstrip("/")
         self.feed_url = f"{self.base_url}/search?search%5BsearchType%5D=project"
+        from src.config import settings
+        self.normal_pages = (
+            normal_pages
+            if normal_pages is not None
+            else getattr(settings, "REMOTE_JOB_NORMAL_PAGES", 1)
+        )
+        self.backfill_pages = (
+            backfill_pages
+            if backfill_pages is not None
+            else getattr(settings, "REMOTE_JOB_BACKFILL_PAGES", 3)
+        )
+        self._is_first_run: bool = True
         self.headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -102,37 +119,55 @@ class RemoteJobCollector(BaseCollector):
             )
             return None
 
-    async def fetch_new_orders(self) -> List[RawOrder]:
-        """Получить свежие заказы с remote-job.ru."""
+    async def fetch_new_orders(self, is_cold_start: Optional[bool] = None) -> List[RawOrder]:
+        """Получить свежие заказы с remote-job.ru с поддержкой бэкфилла."""
+        cold = self._is_first_run if is_cold_start is None else is_cold_start
+        self._is_first_run = False
+        depth = self.backfill_pages if cold else self.normal_pages
+
         orders: List[RawOrder] = []
+        seen_ids = set()
+
         try:
             async with httpx.AsyncClient(
                 headers=self.headers, timeout=12.0, follow_redirects=True
             ) as client:
-                resp = await client.get(self.feed_url)
-                if resp.status_code != 200:
-                    logger.warning(
-                        "Remote-job вернул HTTP %s для %s",
-                        resp.status_code,
-                        self.feed_url,
+                for page in range(1, depth + 1):
+                    page_url = (
+                        self.feed_url
+                        if page == 1
+                        else f"{self.feed_url}&page={page}"
                     )
-                    return []
+                    resp = await client.get(page_url)
+                    if resp.status_code != 200:
+                        logger.warning(
+                            "Remote-job вернул HTTP %s для %s",
+                            resp.status_code,
+                            page_url,
+                        )
+                        break
 
-                html_content = resp.text
+                    cards = re.findall(
+                        r'<div class="vacancy_item">(.*?)</div>\s*<hr>',
+                        resp.text,
+                        re.DOTALL,
+                    )
 
-            # Извлекаем все карточки между <div class="vacancy_item"> и <hr>
-            cards = re.findall(
-                r'<div class="vacancy_item">(.*?)</div>\s*<hr>',
-                html_content,
-                re.DOTALL,
+                    if not cards:
+                        break
+
+                    for card in cards:
+                        order = self._parse_card(card)
+                        if order and order.external_id not in seen_ids:
+                            seen_ids.add(order.external_id)
+                            orders.append(order)
+
+            logger.info(
+                "Remote-job: собрано %d заказов (%s, глубина: %d стр)",
+                len(orders),
+                "бэкфилл" if cold else "обычный",
+                depth,
             )
-
-            for card in cards:
-                order = self._parse_card(card)
-                if order:
-                    orders.append(order)
-
-            logger.info("Remote-job: собрано %d заказов", len(orders))
         except httpx.RequestError as e:
             logger.warning("Сетевая ошибка при запросе к Remote-job: %s", e)
         except Exception as e:

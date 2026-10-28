@@ -27,8 +27,10 @@ class WebConfig(BaseModel):
 
 
 class PollingConfig(BaseModel):
+    interval_seconds: int = 180
     kwork_interval: int = 180
     fl_interval: int = 180
+    initial_backfill: bool = True
 
 
 class KworkCollectorConfig(BaseModel):
@@ -44,15 +46,22 @@ class FlRuCollectorConfig(BaseModel):
 
 class FreelanceRuCollectorConfig(BaseModel):
     base_url: str = "https://freelance.ru"
+    categories: List[int] = Field(default_factory=lambda: [4, 724])
+    normal_pages: int = 2
+    backfill_pages: int = 4
 
 
 class PchelNetCollectorConfig(BaseModel):
     base_url: str = "https://pchel.net"
     usd_rate: float = 95.0
+    normal_pages: int = 1
+    backfill_pages: int = 3
 
 
 class RemoteJobCollectorConfig(BaseModel):
     base_url: str = "https://remote-job.ru"
+    normal_pages: int = 1
+    backfill_pages: int = 3
 
 
 class CollectorsConfig(BaseModel):
@@ -74,12 +83,22 @@ class FilterConfig(BaseModel):
 class AntigravityConfig(BaseModel):
     binary: str = "agy"
     model: str = "gemini-3.8-flash-medium"
-    timeout_seconds: float = 150.0
+    proposal_model: str = "gemini-3.8-flash-high"
+    effort: str = "medium"
+    proposal_effort: str = "high"
+    high_budget_threshold: int = 30000
+    high_budget_effort: str = "high"
+    timeout_seconds: float = 180.0
 
 
 class MistralConfig(BaseModel):
     model: str = "ministral-14b-latest"
     timeout_seconds: float = 60.0
+    max_concurrency: int = 2
+    rpm_limit: int = 30
+    retry_attempts: int = 3
+    retry_min_wait: float = 2.0
+    retry_max_wait: float = 10.0
 
 
 class LLMConfig(BaseModel):
@@ -245,6 +264,18 @@ class Settings:
         return self.app_config.collectors.freelance_ru.base_url
 
     @property
+    def FREELANCE_RU_CATEGORIES(self) -> List[int]:
+        return self.app_config.collectors.freelance_ru.categories
+
+    @property
+    def FREELANCE_RU_NORMAL_PAGES(self) -> int:
+        return self.app_config.collectors.freelance_ru.normal_pages
+
+    @property
+    def FREELANCE_RU_BACKFILL_PAGES(self) -> int:
+        return self.app_config.collectors.freelance_ru.backfill_pages
+
+    @property
     def PCHEL_NET_BASE_URL(self) -> str:
         return self.app_config.collectors.pchel_net.base_url
 
@@ -253,8 +284,32 @@ class Settings:
         return self.app_config.collectors.pchel_net.usd_rate
 
     @property
+    def PCHEL_NET_NORMAL_PAGES(self) -> int:
+        return self.app_config.collectors.pchel_net.normal_pages
+
+    @property
+    def PCHEL_NET_BACKFILL_PAGES(self) -> int:
+        return self.app_config.collectors.pchel_net.backfill_pages
+
+    @property
     def REMOTE_JOB_BASE_URL(self) -> str:
         return self.app_config.collectors.remote_job.base_url
+
+    @property
+    def REMOTE_JOB_NORMAL_PAGES(self) -> int:
+        return self.app_config.collectors.remote_job.normal_pages
+
+    @property
+    def REMOTE_JOB_BACKFILL_PAGES(self) -> int:
+        return self.app_config.collectors.remote_job.backfill_pages
+
+    @property
+    def POLLING_INTERVAL_SECONDS(self) -> int:
+        return self.app_config.polling.interval_seconds
+
+    @property
+    def INITIAL_BACKFILL(self) -> bool:
+        return self.app_config.polling.initial_backfill
 
     # Фильтры
     @property
@@ -291,6 +346,26 @@ class Settings:
         return self.app_config.llm.antigravity.model
 
     @property
+    def ANTIGRAVITY_PROPOSAL_MODEL(self) -> str:
+        return self.app_config.llm.antigravity.proposal_model
+
+    @property
+    def ANTIGRAVITY_EFFORT(self) -> str:
+        return self.app_config.llm.antigravity.effort
+
+    @property
+    def ANTIGRAVITY_PROPOSAL_EFFORT(self) -> str:
+        return self.app_config.llm.antigravity.proposal_effort
+
+    @property
+    def ANTIGRAVITY_HIGH_BUDGET_THRESHOLD(self) -> int:
+        return self.app_config.llm.antigravity.high_budget_threshold
+
+    @property
+    def ANTIGRAVITY_HIGH_BUDGET_EFFORT(self) -> str:
+        return self.app_config.llm.antigravity.high_budget_effort
+
+    @property
     def ANTIGRAVITY_TIMEOUT(self) -> float:
         return self.app_config.llm.antigravity.timeout_seconds
 
@@ -301,6 +376,26 @@ class Settings:
     @property
     def MISTRAL_TIMEOUT(self) -> float:
         return self.app_config.llm.mistral.timeout_seconds
+
+    @property
+    def MISTRAL_MAX_CONCURRENCY(self) -> int:
+        return self.app_config.llm.mistral.max_concurrency
+
+    @property
+    def MISTRAL_RPM_LIMIT(self) -> int:
+        return self.app_config.llm.mistral.rpm_limit
+
+    @property
+    def MISTRAL_RETRY_ATTEMPTS(self) -> int:
+        return self.app_config.llm.mistral.retry_attempts
+
+    @property
+    def MISTRAL_RETRY_MIN_WAIT(self) -> float:
+        return self.app_config.llm.mistral.retry_min_wait
+
+    @property
+    def MISTRAL_RETRY_MAX_WAIT(self) -> float:
+        return self.app_config.llm.mistral.retry_max_wait
 
     # Промпты и досье проектов из config.yml
     @property

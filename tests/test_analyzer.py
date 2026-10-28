@@ -153,3 +153,103 @@ def test_analysis_result_resilient_parsing():
     assert result.matched_project == "Общий бэкграунд (Python Backend)"
     assert "Бюджет адекватен" in result.price_justification
     assert "Суть задачи 1." in result.executive_summary
+
+
+@pytest.mark.asyncio
+async def test_mistral_rate_limit_retry_and_soft_fallback(monkeypatch):
+    """Тест устойчивости MistralClient к 429: ретраи с экспоненциальным backoff и мягкий fallback на Antigravity."""
+    from unittest.mock import AsyncMock
+    from src.analyzer.mistral_client import MistralClient
+    import httpx
+
+    # Мок fallback-клиента
+    mock_fallback = AsyncMock()
+    fallback_res = AnalysisResult(
+        take_order=True,
+        score=8,
+        priority=OrderPriority.HOT,
+        executive_summary="Fallback анализ от Antigravity",
+        recommended_price=25000,
+        price_justification="Fallback",
+        realistic_days=3.0,
+        matched_project="Avia_Pars",
+        complexity=5,
+        pure_dev_hours=12.0,
+        proposal_text="",
+    )
+    mock_fallback.analyze_order.return_value = fallback_res
+
+    client = MistralClient(
+        api_key="fake_key",
+        fallback_client=mock_fallback,
+    )
+
+    order = RawOrder(
+        source=SourcePlatform.FL_RU,
+        external_id="123",
+        title="Парсер цен",
+        description="Стек: python",
+        url="https://fl.ru/123",
+        price=35000,
+    )
+
+    # Имитируем постоянный 429 backend_out_of_capacity
+    call_count = 0
+    async def mock_post(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        req = httpx.Request("POST", "https://api.mistral.ai/v1/chat/completions")
+        return httpx.Response(status_code=429, text='{"error": "backend_out_of_capacity"}', request=req)
+
+    monkeypatch.setattr(httpx.AsyncClient, "post", mock_post)
+
+    # Запускаем анализ: должен исчерпать 3 ретрая и мягко передать управление в fallback_client
+    res = await client.analyze_order(order)
+    assert call_count == 3  # ровно 3 попытки ретрая
+    assert res.executive_summary == "Fallback анализ от Antigravity"
+    mock_fallback.analyze_order.assert_called_once_with(order)
+
+
+@pytest.mark.asyncio
+async def test_antigravity_effort_and_high_budget(monkeypatch):
+    """Тест прокидывания флагов --effort high и proposal_model для дорогих проектов (>= 30 000 руб)."""
+    import asyncio
+    from unittest.mock import AsyncMock
+    from src.analyzer.antigravity_client import AntigravityClient
+
+    captured_cmds = []
+
+    async def mock_subprocess_exec(*cmd, **kwargs):
+        captured_cmds.append(list(cmd))
+        mock_proc = AsyncMock()
+        mock_proc.communicate.return_value = (
+            "Добрый день. Сделаем архитектуру на высшем уровне.".encode("utf-8"),
+            b"",
+        )
+        mock_proc.returncode = 0
+        return mock_proc
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", mock_subprocess_exec)
+
+    client = AntigravityClient()
+
+    # 1. Дорогой проект (50 000 руб)
+    expensive_order = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="999",
+        title="Крупная CRM и парсинг",
+        description="Архитектура",
+        url="https://kwork.ru/999",
+        price=50000,
+    )
+
+    proposal = await client.generate_proposal(expensive_order)
+    assert "архитектуру" in proposal
+    assert len(captured_cmds) == 1
+    cmd = captured_cmds[0]
+    assert "--effort" in cmd
+    effort_idx = cmd.index("--effort")
+    assert cmd[effort_idx + 1] == "high"
+    assert "--model" in cmd
+    model_idx = cmd.index("--model")
+    assert cmd[model_idx + 1] == "gemini-3.8-flash-high"
