@@ -15,9 +15,32 @@ logger = logging.getLogger(__name__)
 class FreelanceRuCollector(BaseCollector):
     """Сборщик заказов с биржи Freelance.ru (вторая крупнейшая биржа РФ)."""
 
-    def __init__(self, base_url: str = "https://freelance.ru") -> None:
+    def __init__(
+        self,
+        base_url: str = "https://freelance.ru",
+        categories: Optional[List[int]] = None,
+        normal_pages: Optional[int] = None,
+        backfill_pages: Optional[int] = None,
+    ) -> None:
         super().__init__(name="freelance_ru")
         self.base_url = base_url.rstrip("/")
+        from src.config import settings
+        self.categories = (
+            categories
+            if categories is not None
+            else getattr(settings, "FREELANCE_RU_CATEGORIES", [4, 724])
+        )
+        self.normal_pages = (
+            normal_pages
+            if normal_pages is not None
+            else getattr(settings, "FREELANCE_RU_NORMAL_PAGES", 2)
+        )
+        self.backfill_pages = (
+            backfill_pages
+            if backfill_pages is not None
+            else getattr(settings, "FREELANCE_RU_BACKFILL_PAGES", 4)
+        )
+        self._is_first_run: bool = True
         self.headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -134,22 +157,42 @@ class FreelanceRuCollector(BaseCollector):
             logger.error("Ошибка парсинга карточки Freelance.ru: %s", e)
             return None
 
-    async def fetch_new_orders(self) -> List[RawOrder]:
-        """Получить свежие заказы из общей ленты Freelance.ru."""
-        orders: List[RawOrder] = []
-        urls_to_fetch = [
-            f"{self.base_url}/task",
-            f"{self.base_url}/task?q=python",
-        ]
+    async def fetch_new_orders(self, is_cold_start: Optional[bool] = None) -> List[RawOrder]:
+        """Получить свежие заказы из категорий IT/Нейросетей и общей ленты Freelance.ru."""
+        cold = self._is_first_run if is_cold_start is None else is_cold_start
+        self._is_first_run = False
+        depth = self.backfill_pages if cold else self.normal_pages
 
+        orders: List[RawOrder] = []
         seen_ids = set()
+
+        # Формируем целевые выборки страниц
+        target_requests: List[str] = []
+
+        # 1. Категории IT (4 - Веб-разработка и IT, 724 - ИИ и Нейросети)
+        for cat_id in self.categories:
+            for p in range(1, depth + 1):
+                sep = "&" if p > 1 else ""
+                target_requests.append(
+                    f"{self.base_url}/task?c[]={cat_id}{f'&page={p}' if p > 1 else ''}"
+                )
+
+        # 2. Общая лента заданий
+        feed_depth = max(1, depth - 1)
+        for p in range(1, feed_depth + 1):
+            target_requests.append(
+                f"{self.base_url}/task{f'?page={p}' if p > 1 else ''}"
+            )
+
+        # 3. Поисковый запрос python
+        target_requests.append(f"{self.base_url}/task?q=python")
 
         async with httpx.AsyncClient(
             headers=self.headers,
             timeout=15.0,
             follow_redirects=True,
         ) as client:
-            for url in urls_to_fetch:
+            for url in target_requests:
                 try:
                     resp = await client.get(url)
                     if resp.status_code != 200:
@@ -166,6 +209,9 @@ class FreelanceRuCollector(BaseCollector):
                         re.DOTALL,
                     )
 
+                    if not articles:
+                        continue
+
                     for art in articles:
                         order = self._parse_article(art)
                         if order and order.external_id not in seen_ids:
@@ -175,5 +221,10 @@ class FreelanceRuCollector(BaseCollector):
                 except Exception as e:
                     logger.error("Ошибка при запросе к Freelance.ru (%s): %s", url, e)
 
-        logger.info("FreelanceRuCollector собрал %d заказов", len(orders))
+        logger.info(
+            "FreelanceRuCollector собрал %d заказов (%s, глубина: %d стр)",
+            len(orders),
+            "бэкфилл" if cold else "обычный",
+            depth,
+        )
         return orders

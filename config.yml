@@ -9,8 +9,10 @@ web:
   port: 8086
 
 polling:
-  kwork_interval: 180  # секунды
-  fl_interval: 180     # секунды
+  interval_seconds: 180  # базовый интервал цикла опроса (сек)
+  kwork_interval: 180    # секунды
+  fl_interval: 180       # секунды
+  initial_backfill: true # при холодном старте опрашивать 3-5 страниц
 
 collectors:
   kwork:
@@ -23,11 +25,20 @@ collectors:
     rss_url: "https://www.fl.ru/rss/all.xml"
   freelance_ru:
     base_url: "https://freelance.ru"
+    categories:
+      - 4    # Веб-разработка и IT
+      - 724  # ИИ и Нейросети
+    normal_pages: 2
+    backfill_pages: 4
   pchel_net:
     base_url: "https://pchel.net"
     usd_rate: 95.0
+    normal_pages: 1
+    backfill_pages: 3
   remote_job:
     base_url: "https://remote-job.ru"
+    normal_pages: 1
+    backfill_pages: 3
 
 filter:
   min_budget: 10000
@@ -106,10 +117,20 @@ llm:
   antigravity:
     binary: "agy"
     model: "gemini-3.8-flash-medium"
-    timeout_seconds: 150.0
+    proposal_model: "gemini-3.8-flash-high"
+    effort: "medium"
+    proposal_effort: "high"
+    high_budget_threshold: 30000
+    high_budget_effort: "high"
+    timeout_seconds: 180.0
   mistral:
     model: "ministral-14b-latest"
     timeout_seconds: 60.0
+    max_concurrency: 2
+    rpm_limit: 30
+    retry_attempts: 3
+    retry_min_wait: 2.0
+    retry_max_wait: 10.0
 
 prompts:
   developer_profile:

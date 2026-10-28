@@ -4,7 +4,7 @@ import argparse
 import asyncio
 import logging
 import sys
-from typing import List
+from typing import List, Optional
 import uvicorn
 from src.analyzer.factory import get_llm_client
 from src.bot.bot import create_bot_and_dispatcher
@@ -34,14 +34,18 @@ logger = logging.getLogger("main")
 async def run_single_scan(
     collectors: List[BaseCollector],
     pipeline: LeadsPipeline,
+    is_cold_start: Optional[bool] = None,
 ) -> dict:
     """Выполнить один проход сбора со всех площадок."""
-    logger.info("Запуск единовременного сканирования бирж...")
+    logger.info(
+        "Запуск %s сканирования бирж...",
+        "глубокого (бэкфилл)" if is_cold_start else "сканирования",
+    )
     all_raw_orders = []
 
     for col in collectors:
         try:
-            orders = await col.fetch_new_orders()
+            orders = await col.fetch_new_orders(is_cold_start=is_cold_start)
             all_raw_orders.extend(orders)
         except Exception as e:
             logger.error("Ошибка при сборе из источника %s: %s", col.name, e)
@@ -62,20 +66,27 @@ async def run_single_scan(
 async def polling_worker(
     collectors: List[BaseCollector],
     pipeline: LeadsPipeline,
-    interval_seconds: int = 180,
+    interval_seconds: Optional[int] = None,
 ) -> None:
-    """Фоновый воркер периодического сбора заказов."""
-    logger.info("Фоновый воркер сбора запущен (интервал: %d сек)", interval_seconds)
+    """Фоновый воркер периодического сбора заказов с поддержкой холодного старта."""
+    interval = (
+        interval_seconds
+        if interval_seconds is not None
+        else getattr(settings, "POLLING_INTERVAL_SECONDS", 180)
+    )
+    logger.info("Фоновый воркер сбора запущен (интервал: %d сек)", interval)
+    is_first = getattr(settings, "INITIAL_BACKFILL", True)
     while True:
         try:
-            await run_single_scan(collectors, pipeline)
+            await run_single_scan(collectors, pipeline, is_cold_start=is_first)
+            is_first = False
         except asyncio.CancelledError:
             logger.info("Фоновый воркер сбора остановлен.")
             break
         except Exception as e:
             logger.error("Непредвиденная ошибка в фоновом воркере: %s", e)
 
-        await asyncio.sleep(interval_seconds)
+        await asyncio.sleep(interval)
 
 
 async def main() -> None:
@@ -112,7 +123,9 @@ async def main() -> None:
             tg_notifier=tg_notifier,
         )
         try:
-            await run_single_scan(collectors, pipeline)
+            await run_single_scan(
+                collectors, pipeline, is_cold_start=getattr(settings, "INITIAL_BACKFILL", True)
+            )
         finally:
             if tg_notifier:
                 await tg_notifier.close()

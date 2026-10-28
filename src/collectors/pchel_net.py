@@ -22,10 +22,24 @@ class PchelNetCollector(BaseCollector):
         self,
         base_url: str = "https://pchel.net",
         usd_rate: float = DEFAULT_USD_RUB_RATE,
+        normal_pages: Optional[int] = None,
+        backfill_pages: Optional[int] = None,
     ) -> None:
         super().__init__(name="pchel_net")
         self.base_url = base_url.rstrip("/")
         self.usd_rate = usd_rate
+        from src.config import settings
+        self.normal_pages = (
+            normal_pages
+            if normal_pages is not None
+            else getattr(settings, "PCHEL_NET_NORMAL_PAGES", 1)
+        )
+        self.backfill_pages = (
+            backfill_pages
+            if backfill_pages is not None
+            else getattr(settings, "PCHEL_NET_BACKFILL_PAGES", 3)
+        )
+        self._is_first_run: bool = True
         self.headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -105,35 +119,59 @@ class PchelNetCollector(BaseCollector):
             logger.error("Ошибка парсинга блока Pchel.net: %s", e)
             return None
 
-    async def fetch_new_orders(self) -> List[RawOrder]:
-        """Собрать свежие проекты из категории Программирование."""
+    async def fetch_new_orders(self, is_cold_start: Optional[bool] = None) -> List[RawOrder]:
+        """Собрать свежие проекты из категории Программирование с поддержкой бэкфилла."""
+        cold = self._is_first_run if is_cold_start is None else is_cold_start
+        self._is_first_run = False
+        depth = self.backfill_pages if cold else self.normal_pages
+
         orders: List[RawOrder] = []
-        target_url = f"{self.base_url}/jobs/programming/"
+        seen_ids = set()
 
         async with httpx.AsyncClient(
             headers=self.headers,
             timeout=15.0,
             follow_redirects=True,
         ) as client:
-            try:
-                resp = await client.get(target_url)
-                if resp.status_code != 200:
-                    logger.warning("Pchel.net вернул статус %d", resp.status_code)
-                    return []
-
-                blocks = re.findall(
-                    r'<div class="project-block-cont">(.*?)</div>\s*</div>\s*</div>',
-                    resp.text,
-                    re.DOTALL,
+            for page in range(1, depth + 1):
+                target_url = (
+                    f"{self.base_url}/jobs/programming/"
+                    if page == 1
+                    else f"{self.base_url}/jobs/programming/page-{page}/"
                 )
+                try:
+                    resp = await client.get(target_url)
+                    if resp.status_code != 200:
+                        logger.warning(
+                            "Pchel.net вернул статус %d для %s",
+                            resp.status_code,
+                            target_url,
+                        )
+                        break
 
-                for b in blocks:
-                    order = self._parse_block(b)
-                    if order:
-                        orders.append(order)
+                    blocks = re.findall(
+                        r'<div class="project-block-cont">(.*?)</div>\s*</div>\s*</div>',
+                        resp.text,
+                        re.DOTALL,
+                    )
 
-            except Exception as e:
-                logger.error("Ошибка при запросе к Pchel.net (%s): %s", target_url, e)
+                    if not blocks:
+                        break
 
-        logger.info("PchelNetCollector собрал %d заказов", len(orders))
+                    for b in blocks:
+                        order = self._parse_block(b)
+                        if order and order.external_id not in seen_ids:
+                            seen_ids.add(order.external_id)
+                            orders.append(order)
+
+                except Exception as e:
+                    logger.error("Ошибка при запросе к Pchel.net (%s): %s", target_url, e)
+                    break
+
+        logger.info(
+            "PchelNetCollector собрал %d заказов (%s, глубина: %d стр)",
+            len(orders),
+            "бэкфилл" if cold else "обычный",
+            depth,
+        )
         return orders
