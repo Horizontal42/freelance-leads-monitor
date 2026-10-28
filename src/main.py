@@ -111,8 +111,8 @@ async def main() -> None:
         FlRuCollector(),
         FreelanceRuCollector(),
         PchelNetCollector(),
-        HhRuCollector(),
-        HabrCareerCollector(),
+        HhRuCollector(repo=repo),
+        HabrCareerCollector(repo=repo),
     ]
 
     # 3. Режим разового сканирования (--once)

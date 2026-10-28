@@ -70,21 +70,27 @@ class TelegramNotifier:
                 if analysis.score >= settings.HOT_SCORE_THRESHOLD
                 else f"⚡ <b>[ВАКАНСИЯ | СКОР {analysis.score}/10]</b>"
             )
+            company_line = ""
+            if order.attachments_text:
+                for l in order.attachments_text.splitlines():
+                    if "Компания:" in l:
+                        comp_name = l.replace("Компания:", "").strip()
+                        company_line = f"🏢 <b>Компания:</b> {html.escape(comp_name)}\n"
+                        break
+
+            match_focus = analysis.match_reason or analysis.matched_project or "Python / AI / Автоматизация"
+            if len(match_focus) > 120:
+                match_focus = match_focus[:117] + "..."
+
             card_html = (
                 f"{badge}\n\n"
-                f"📌 <b>Источник:</b> {order.source.value.upper()}\n"
-                f"🕒 <b>Опубликована:</b> {pub_time_str}\n"
-                f"💼 <b>Позиция:</b> <a href=\"{html.escape(order.url, quote=True)}\">{html.escape(order.title)}</a>\n\n"
+                f"💼 <b>Позиция:</b> <a href=\"{html.escape(order.url, quote=True)}\">{html.escape(order.title)}</a>\n"
+                f"{company_line}"
                 f"💰 <b>Зарплата:</b> {price_str}\n"
-                f"🎯 <b>Точки совпадения:</b> {html.escape(analysis.match_reason or analysis.matched_project or 'Python/AI')}\n"
+                f"📌 <b>Площадка:</b> {order.source.value.upper()} | 🕒 {pub_time_str}\n"
+                f"🎯 <b>Фокус совпадения:</b> {html.escape(match_focus)}\n\n"
+                f"🌐 <i>Полное описание, стек и Cover Letter доступны на сайте.</i>"
             )
-            if analysis.skills_gap and analysis.skills_gap != "Критичных пробелов нет":
-                card_html += f"⚠️ <b>Пробелы:</b> {html.escape(analysis.skills_gap)}\n"
-                if analysis.skills_gap_counter:
-                    card_html += f"🛡 <b>Парирование:</b> {html.escape(analysis.skills_gap_counter)}\n"
-            if analysis.candidate_requirements:
-                card_html += f"\n📋 <b>Требования:</b> {html.escape(analysis.candidate_requirements[:250])}\n"
-            card_html += f"\n💡 <b>Резюме (Mistral):</b> {html.escape(analysis.executive_summary)}"
             return card_html
 
         risks_list = (
