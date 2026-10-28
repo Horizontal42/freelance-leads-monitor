@@ -288,3 +288,148 @@ async def test_live_fl_ru_rss():
     if not orders:
         pytest.skip("FL.ru RSS временно вернул 0 заказов или сетевой таймаут")
     assert orders[0].source == SourcePlatform.FL_RU
+
+
+@pytest.mark.asyncio
+async def test_freelance_ru_pro_and_free_detection():
+    collector = FreelanceRuCollector()
+
+    # Premium / PRO article
+    premium_html = """
+    <article class="task-card task-card--premium">
+        <a class="task-card__title-link" href="/task/view/13998" title="Дизайн">Разработка сайта</a>
+        <span class="task-badge task-badge--premium">★ Только для Премиум</span>
+        <div class="task-card__budget">50 000 руб</div>
+    </article>
+    """
+    order_pro = collector._parse_article(premium_html)
+    assert order_pro is not None
+    assert order_pro.is_pro_only is True
+
+    # Free / Open to all article
+    free_html = """
+    <article class="task-card">
+        <a class="task-card__title-link" href="/task/view/13999" title="Скрипт">Скрипт парсера</a>
+        <span class="task-badge task-badge--all">Видно всем</span>
+        <div class="task-card__budget">10 000 руб</div>
+    </article>
+    """
+    order_free = collector._parse_article(free_html)
+    assert order_free is not None
+    assert order_free.is_pro_only is False
+
+
+@pytest.mark.asyncio
+async def test_fl_ru_pro_and_paid_detection(monkeypatch):
+    import httpx
+    collector = FlRuCollector()
+
+    catalog_html = """
+    <div class="b-post topprjpay" id="project-item5527049">
+        <img src="https://st.fl.ru/images/urgently-1.png">
+        <a href="/projects/5527049/test.html">Платный проект</a>
+    </div>
+    <div class="b-post" id="project-item5527122">
+        <a href="/projects/5527122/test.html">Обычный проект</a>
+    </div>
+    """
+
+    rss_xml = """<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>FL.ru RSS</title>
+        <item>
+          <title>Полный аудит проекта в нише 18+ (для всех)</title>
+          <link>https://www.fl.ru/projects/5527049/test.html</link>
+          <guid>5527049</guid>
+          <description>Описание платного проекта</description>
+        </item>
+        <item>
+          <title>Инженер-конструктор: раскладка (Бюджет: 30 000  &#8381;, для всех)</title>
+          <link>https://www.fl.ru/projects/5527122/test.html</link>
+          <guid>5527122</guid>
+          <description>Описание открытого проекта</description>
+        </item>
+        <item>
+          <title>Нужно сделать макет в кореле (Бюджет: 1 000  &#8381;)</title>
+          <link>https://www.fl.ru/projects/5527137/test.html</link>
+          <guid>5527137</guid>
+          <description>Описание проекта без бейджа для всех</description>
+        </item>
+      </channel>
+    </rss>
+    """
+
+    async def mock_get(self, url, *args, **kwargs):
+        u = str(url)
+        req = httpx.Request("GET", u)
+        if "rss" in u or "xml" in u:
+            return httpx.Response(status_code=200, text=rss_xml, request=req)
+        return httpx.Response(status_code=200, text=catalog_html, request=req)
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
+
+    orders = await collector.fetch_new_orders()
+    assert len(orders) == 3
+
+    # 1. Платное объявление (даже если в RSS написано 'для всех') -> is_pro_only = True
+    paid_order = next(o for o in orders if o.external_id == "5527049")
+    assert paid_order.is_pro_only is True
+    assert "(для всех)" not in paid_order.title
+
+    # 2. Обычный проект с '(Бюджет: ..., для всех)' -> is_pro_only = False
+    free_order = next(o for o in orders if o.external_id == "5527122")
+    assert free_order.is_pro_only is False
+    assert "для всех" not in free_order.title
+    assert free_order.price == 30000.0
+
+    # 3. Обычный проект без '(для всех)' -> is_pro_only = True
+    pro_order = next(o for o in orders if o.external_id == "5527137")
+    assert pro_order.is_pro_only is True
+
+
+@pytest.mark.asyncio
+async def test_enricher_pro_detection(monkeypatch):
+    from src.collectors.enricher import OrderEnricher
+    from src.models.order import RawOrder
+    import httpx
+
+    enricher = OrderEnricher()
+
+    order_fl = RawOrder(
+        source=SourcePlatform.FL_RU,
+        external_id="5527049",
+        title="Тест",
+        description="Кратко",
+        url="https://www.fl.ru/projects/5527049/test.html",
+        is_pro_only=False,
+    )
+
+    async def mock_fl_get(self, url, *args, **kwargs):
+        html = '<div class="b-layout"><a href="/payed-emp/">Платный</a><div id="projectp5527049">Полное ТЗ</div></div>'
+        req = httpx.Request("GET", str(url))
+        return httpx.Response(status_code=200, text=html, request=req)
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", mock_fl_get)
+    res_fl = await enricher.enrich(order_fl)
+    assert res_fl.is_pro_only is True
+    assert "Полное ТЗ" in res_fl.description
+
+    order_fr = RawOrder(
+        source=SourcePlatform.FREELANCE_RU,
+        external_id="13998",
+        title="Тест",
+        description="Кратко",
+        url="https://freelance.ru/task/view/13998",
+        is_pro_only=False,
+    )
+
+    async def mock_fr_get(self, url, *args, **kwargs):
+        html = '<div class="task-badge task-badge--premium">Только для Премиум</div><h1>Заголовок</h1>Полное описание ТЗ<div>footer</div>'
+        req = httpx.Request("GET", str(url))
+        return httpx.Response(status_code=200, text=html, request=req)
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", mock_fr_get)
+    res_fr = await enricher.enrich(order_fr)
+    assert res_fr.is_pro_only is True
+    assert "Полное описание ТЗ" in res_fr.description

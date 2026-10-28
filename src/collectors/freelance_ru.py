@@ -133,11 +133,18 @@ class FreelanceRuCollector(BaseCollector):
                 except ValueError:
                     pass
 
-            is_pro_only = (
-                "task-card__pro" in article_html
-                or "аккаунт pro" in article_html.lower()
+            has_all_badge = "task-badge--all" in article_html or "видно всем" in article_html.lower()
+            is_premium_badge = (
+                "task-card--premium" in article_html
+                or "task-badge--premium" in article_html
+                or "task-badge--business" in article_html
+                or "task-card__pro" in article_html
+                or "только для премиум" in article_html.lower()
+                or "владельцев премиум" in article_html.lower()
                 or "только для pro" in article_html.lower()
+                or "аккаунт pro" in article_html.lower()
             )
+            is_pro_only = is_premium_badge or (not has_all_badge and "task-badge" in article_html)
 
             return RawOrder(
                 source=SourcePlatform.FREELANCE_RU,

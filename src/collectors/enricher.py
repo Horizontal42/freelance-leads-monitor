@@ -132,6 +132,20 @@ class OrderEnricher:
                 if items:
                     order.attachments_text = "\n".join(items)
 
+            # 3. Уточнение статуса PRO / платного объявления
+            if (
+                "topprjpay" in html_text
+                or "payed-emp" in html_text
+                or "pro-big" in html_text
+                or "b-icon__pro_f" in html_text
+                or "urgently-1.png" in html_text
+                or "b-post_bg_ffffd4" in html_text
+                or "платное объявление" in html_text.lower()
+                or "платный проект" in html_text.lower()
+                or "только для pro" in html_text.lower()
+            ):
+                order.is_pro_only = True
+
     async def _enrich_freelance_ru(self, order: RawOrder) -> None:
         """Freelance.ru: выгружаем полное ТЗ со страницы /task/view/<id>."""
         if not order.url or not order.url.startswith("http"):
@@ -158,6 +172,20 @@ class OrderEnricher:
                 items = [f"[Прикрепленный файл: {html.unescape(txt).strip()}]" for _, txt in files if txt.strip()]
                 if items:
                     order.attachments_text = "\n".join(items)
+
+            # Проверка статуса PRO / Премиум
+            if (
+                "task-card--premium" in html_text
+                or "task-badge--premium" in html_text
+                or "task-badge--business" in html_text
+                or "только для премиум" in html_text.lower()
+                or "владельцев премиум" in html_text.lower()
+                or "только для pro" in html_text.lower()
+                or "аккаунт pro" in html_text.lower()
+            ):
+                order.is_pro_only = True
+            elif "task-badge--all" in html_text or "видно всем" in html_text.lower():
+                order.is_pro_only = False
 
     async def _enrich_pchel_net(self, order: RawOrder) -> None:
         """Pchel.net: выгружаем полное описание со страницы заказа."""
