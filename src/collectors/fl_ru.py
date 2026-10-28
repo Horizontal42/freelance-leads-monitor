@@ -17,16 +17,17 @@ logger = logging.getLogger(__name__)
 class FlRuCollector(BaseCollector):
     """Сборщик заказов с биржи FL.ru через официальный RSS-фид."""
 
-    def __init__(self, rss_url: Optional[str] = None) -> None:
+    def __init__(self, rss_url: Optional[str] = None, catalog_url: Optional[str] = None) -> None:
         super().__init__(name="fl_ru")
         self.rss_url = rss_url or settings.FL_RSS_URL
+        self.catalog_url = catalog_url or "https://www.fl.ru/projects/"
         self.headers = {
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/124.0.0.0 Safari/537.36"
             ),
-            "Accept": "application/rss+xml,application/xml,text/xml;q=0.9,*/*;q=0.8",
+            "Accept": "text/html,application/xhtml+xml,application/xml,application/rss+xml;q=0.9,*/*;q=0.8",
         }
 
     def _extract_external_id(self, link: str) -> str:
@@ -64,6 +65,7 @@ class FlRuCollector(BaseCollector):
     async def fetch_new_orders(self, is_cold_start: Optional[bool] = None) -> List[RawOrder]:
         """Получить и распарсить RSS-фид FL.ru."""
         orders: List[RawOrder] = []
+        paid_project_ids: set[str] = set()
 
         try:
             async with httpx.AsyncClient(
@@ -71,6 +73,20 @@ class FlRuCollector(BaseCollector):
                 timeout=20.0,
                 follow_redirects=True,
             ) as client:
+                # 1. Загрузка каталога проектов для выявления платных объявлений (topprjpay)
+                try:
+                    cat_resp = await client.get(self.catalog_url)
+                    if cat_resp.status_code == 200:
+                        cat_html = cat_resp.text
+                        paid_project_ids = set(
+                            re.findall(r'<div[^>]*class=\"[^\"]*topprjpay[^\"]*\"[^>]*id=\"project-item(\d+)\"', cat_html)
+                        ) | set(
+                            re.findall(r'<div[^>]*id=\"project-item(\d+)\"[^>]*class=\"[^\"]*topprjpay[^\"]*\"', cat_html)
+                        )
+                except Exception as cat_err:
+                    logger.debug("Не удалось загрузить каталог FL.ru для платных проектов: %r", cat_err)
+
+                # 2. Загрузка RSS-фида
                 resp = await client.get(self.rss_url)
                 if resp.status_code != 200:
                     logger.warning("FL.ru RSS вернул статус %d", resp.status_code)
@@ -107,8 +123,23 @@ class FlRuCollector(BaseCollector):
                 if hasattr(entry, "tags"):
                     tags = [t.get("term", "") for t in entry.tags if t.get("term")]
 
-                is_for_everyone = "(для всех)" in title.lower() or "(для всех)" in description.lower()
-                is_pro_only = not is_for_everyone
+                has_for_everyone = bool(
+                    re.search(r"[\(,]\s*для всех", title, re.IGNORECASE)
+                    or re.search(r"[\(,]\s*для всех", description, re.IGNORECASE)
+                )
+                is_paid_announcement = (
+                    external_id in paid_project_ids
+                    or bool(re.search(r"платн|topprjpay|urgently", title + " " + description, re.IGNORECASE))
+                )
+                is_pro_only = is_paid_announcement or (not has_for_everyone)
+
+                # Очищаем суффикс "(для всех)" из заголовка для чистого отображения
+                clean_title = re.sub(r"[\(,]\s*для всех\)?", "", title, flags=re.IGNORECASE).strip()
+                if clean_title.endswith("("):
+                    clean_title = clean_title[:-1].strip()
+                elif clean_title.count("(") > clean_title.count(")"):
+                    clean_title += ")"
+                title = clean_title
 
                 orders.append(
                     RawOrder(
