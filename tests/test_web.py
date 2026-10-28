@@ -128,6 +128,25 @@ async def test_web_dashboard_endpoints(tmp_path):
         assert resp_settings_tab.status_code == 200
         assert "Интерактивные настройки мониторинга" in resp_settings_tab.text
 
+        # System Config Tab & Config API
+        resp_config_tab = await client.get("/?tab=config")
+        assert resp_config_tab.status_code == 200
+        assert "Системная конфигурация" in resp_config_tab.text
+        assert "yamlConfigEditor" in resp_config_tab.text
+        assert "Опрос (Интервалы)" in resp_config_tab.text
+
+        # GET /api/config
+        resp_get_config = await client.get("/api/config")
+        assert resp_get_config.status_code == 200
+        assert resp_get_config.json()["ok"] is True
+        assert "storage" in resp_get_config.json()["yaml"]
+        assert "polling" in resp_get_config.json()["config"]
+
+        # POST /api/config validation error test
+        resp_post_config_err = await client.post("/api/config", json={"yaml": "storage: invalid_format_not_dict"})
+        assert resp_post_config_err.status_code == 400
+        assert resp_post_config_err.json()["ok"] is False
+
         # GET /api/settings
         resp_get_settings = await client.get("/api/settings")
         assert resp_get_settings.status_code == 200
