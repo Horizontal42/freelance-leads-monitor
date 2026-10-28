@@ -87,30 +87,43 @@ DASHBOARD_HTML = """
     <!-- Main Container -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
 
-        <!-- Top Section Switcher (Freelance Orders vs HeadHunter Vacancies) -->
+        <!-- Top Section Switcher -->
         <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-1.5 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-inner">
-            <div class="flex items-center space-x-2">
-                <a href="/?section=freelance&tab=hot" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition {% if active_section == 'freelance' %}bg-blue-600 text-white shadow-lg shadow-blue-500/25 font-bold{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/60{% endif %}">
+            <div class="flex items-center space-x-2 flex-wrap gap-y-1.5">
+                <a href="/?section=freelance&tab=hot" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition {% if active_section == 'freelance' and active_tab not in ['settings', 'config'] %}bg-blue-600 text-white shadow-lg shadow-blue-500/25 font-bold{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/60{% endif %}">
                     <span class="text-base">💼</span>
                     <span>Фриланс-биржи</span>
-                    <span class="text-xs px-2 py-0.5 rounded-full {% if active_section == 'freelance' %}bg-blue-700/80 text-blue-100{% else %}bg-slate-800 text-slate-400{% endif %} font-mono">{{ extended_stats.freelance.total if extended_stats.freelance else extended_stats.total }}</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full {% if active_section == 'freelance' and active_tab not in ['settings', 'config'] %}bg-blue-700/80 text-blue-100{% else %}bg-slate-800 text-slate-400{% endif %} font-mono">{{ extended_stats.freelance.total if extended_stats.freelance else extended_stats.total }}</span>
                 </a>
-                <a href="/?section=hh_ru&tab=hot" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition {% if active_section == 'hh_ru' %}bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-lg shadow-rose-500/25 font-bold{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/60{% endif %}">
+                <a href="/?section=hh_ru&tab=hot" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition {% if active_section == 'hh_ru' and active_tab not in ['settings', 'config'] %}bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-lg shadow-rose-500/25 font-bold{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/60{% endif %}">
                     <span class="text-base">🏢</span>
                     <span>Вакансии и найм</span>
-                    <span class="text-xs px-2 py-0.5 rounded-full {% if active_section == 'hh_ru' %}bg-rose-700/80 text-rose-100{% else %}bg-slate-800 text-slate-400{% endif %} font-mono">{{ extended_stats.hh_ru.total if extended_stats.hh_ru else 0 }}</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full {% if active_section == 'hh_ru' and active_tab not in ['settings', 'config'] %}bg-rose-700/80 text-rose-100{% else %}bg-slate-800 text-slate-400{% endif %} font-mono">{{ extended_stats.hh_ru.total if extended_stats.hh_ru else 0 }}</span>
+                </a>
+                <a href="/?tab=settings" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition {% if active_tab == 'settings' %}bg-indigo-600 text-white shadow-lg shadow-indigo-500/25 font-bold{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/60{% endif %}">
+                    <span class="text-base">⚙️</span>
+                    <span>Настройки</span>
+                </a>
+                <a href="/?tab=config" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition {% if active_tab == 'config' %}bg-amber-600 text-white shadow-lg shadow-amber-500/25 font-bold{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/60{% endif %}">
+                    <span class="text-base">🛠</span>
+                    <span>Конфиг системы</span>
                 </a>
             </div>
 
             <div class="text-xs text-slate-400 hidden lg:flex items-center gap-2 pr-3">
-                {% if active_section == 'freelance' %}
+                {% if active_tab == 'config' %}
+                    <span>🛠 Системный конфигуратор параметров (config.yml)</span>
+                {% elif active_tab == 'settings' %}
+                    <span>⚙️ Быстрые настройки фильтрации и бирж</span>
+                {% elif active_section == 'freelance' %}
                     <span>📊 Источники: Kwork, FL.ru, Freelance.ru, Pchel.net</span>
                 {% else %}
-                    <span>🎯 Источники: HeadHunter (hh.ru) и Хабр Карьера (career.habr.com)</span>
+                    <span>🎯 Источники: HeadHunter (hh.ru) и Хабр Карьера</span>
                 {% endif %}
             </div>
         </div>
 
+        {% if active_tab not in ['settings', 'config'] %}
         <!-- Top Overview Stats Cards -->
         <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
             <div class="bg-slate-900/80 border border-slate-800 p-3.5 rounded-xl">
@@ -182,12 +195,6 @@ DASHBOARD_HTML = """
                     <a href="/?section=freelance&tab=health" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'health' %}active border-b-2 border-teal-500 text-teal-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                         <span>🩺</span> Статус бирж (Health)
                     </a>
-                    <a href="/?section=freelance&tab=settings" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'settings' %}active border-b-2 border-indigo-500 text-indigo-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
-                        <span>⚙️</span> Настройки и фильтры
-                    </a>
-                    <a href="/?section=freelance&tab=config" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'config' %}active border-b-2 border-amber-500 text-amber-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
-                        <span>🛠</span> Конфиг системы
-                    </a>
                 {% else %}
                     <!-- HH.ru Tabs -->
                     <a href="/?section=hh_ru&tab=hot" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'hot' %}active border-b-2 border-amber-500 text-amber-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
@@ -212,24 +219,31 @@ DASHBOARD_HTML = """
                     <a href="/?section=hh_ru&tab=health" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'health' %}active border-b-2 border-teal-500 text-teal-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                         <span>🩺</span> Статус бирж (Health)
                     </a>
-                    <a href="/?section=hh_ru&tab=settings" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'settings' %}active border-b-2 border-indigo-500 text-indigo-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
-                        <span>⚙️</span> Настройки и фильтры
-                    </a>
-                    <a href="/?section=hh_ru&tab=config" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'config' %}active border-b-2 border-amber-500 text-amber-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
-                        <span>🛠</span> Конфиг системы
-                    </a>
                 {% endif %}
             </nav>
         </div>
+        {% endif %}
 
         {% if active_tab in ['hot', 'all', 'normal', 'trash'] %}
-        <!-- Search & Filter Bar -->
+        <!-- Advanced Filter & Control Bar -->
         <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
+            <!-- Row 1: Search box & Sort & Quick Toggle -->
             <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
                 <!-- Live Search Box -->
                 <div class="relative flex-1">
                     <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 text-sm">🔍</span>
-                    <input type="text" id="orderSearch" onkeyup="filterOrdersClient()" placeholder="{% if active_section == 'hh_ru' %}Живой поиск по компании, названию вакансии, стеку, городу...{% else %}Живой поиск по заголовку, технологиям, стеку, сути...{% endif %}" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-sm rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-blue-500 placeholder-slate-500 transition">
+                    <input type="text" id="orderSearch" oninput="applyClientFilters()" placeholder="{% if active_section == 'hh_ru' %}Живой поиск по компании, вакансии, стеку, навыкам, городу...{% else %}Живой поиск по заголовку, технологиям, стеку, сути...{% endif %}" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-sm rounded-lg pl-9 pr-4 py-2 focus:outline-none focus:border-blue-500 placeholder-slate-500 transition">
+                </div>
+
+                <!-- Sort Dropdown -->
+                <div class="flex items-center gap-2">
+                    <label for="orderSortSelect" class="text-xs text-slate-400 font-semibold whitespace-nowrap">Сортировка:</label>
+                    <select id="orderSortSelect" onchange="applyClientFilters()" class="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2 focus:border-blue-500 outline-none">
+                        <option value="default">По дате (сначала новые)</option>
+                        <option value="score_desc">По оценке (Score: 10 → 1)</option>
+                        <option value="price_desc">По цене/з-п (сначала дорогие)</option>
+                        <option value="price_asc">По цене/з-п (сначала доступные)</option>
+                    </select>
                 </div>
 
                 {% if active_section == 'freelance' %}
@@ -246,41 +260,54 @@ DASHBOARD_HTML = """
                 {% endif %}
             </div>
 
-            {% if active_section == 'freelance' %}
-            <!-- Source Badges Filter Row -->
-            <div class="flex items-center space-x-1.5 overflow-x-auto custom-scroll pt-1 border-t border-slate-800/80">
-                <span class="text-xs text-slate-400 font-semibold uppercase mr-1">Биржа:</span>
-                <a href="/?section=freelance&tab={{ active_tab }}&source=&free_only={{ free_only }}" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if not selected_source %}bg-blue-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
-                    Все
-                </a>
-                <a href="/?section=freelance&tab={{ active_tab }}&source=kwork&free_only={{ free_only }}" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'kwork' %}bg-emerald-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
-                    Kwork
-                </a>
-                <a href="/?section=freelance&tab={{ active_tab }}&source=fl_ru&free_only={{ free_only }}" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'fl_ru' %}bg-blue-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
-                    FL.ru
-                </a>
-                <a href="/?section=freelance&tab={{ active_tab }}&source=freelance_ru&free_only={{ free_only }}" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'freelance_ru' %}bg-purple-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
-                    Freelance.ru
-                </a>
-                <a href="/?section=freelance&tab={{ active_tab }}&source=pchel_net&free_only={{ free_only }}" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'pchel_net' %}bg-amber-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
-                    Pchel.net
-                </a>
+            <!-- Row 2: Price Range & Topic Chips -->
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
+                <!-- Topic Filter Chips -->
+                <div class="flex items-center space-x-1.5 overflow-x-auto custom-scroll py-1" id="topicChipsContainer">
+                    <span class="text-xs text-slate-400 font-semibold uppercase mr-1">Тематика:</span>
+                    {% if active_section == 'freelance' %}
+                        <button type="button" onclick="setTopicFilter('all', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-blue-600 text-white font-bold">Все</button>
+                        <button type="button" onclick="setTopicFilter('бот', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">🤖 Боты & TG</button>
+                        <button type="button" onclick="setTopicFilter('парсер', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">🕷 Парсинг</button>
+                        <button type="button" onclick="setTopicFilter('ai', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">🧠 ИИ & LLM</button>
+                        <button type="button" onclick="setTopicFilter('fastapi', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">⚙️ Бэкенд</button>
+                        <button type="button" onclick="setTopicFilter('битрикс', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">🔗 CRM</button>
+                    {% else %}
+                        <button type="button" onclick="setTopicFilter('all', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-rose-600 text-white font-bold">Все</button>
+                        <button type="button" onclick="setTopicFilter('ai', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">🧠 AI & LLM</button>
+                        <button type="button" onclick="setTopicFilter('python', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">🐍 Python</button>
+                        <button type="button" onclick="setTopicFilter('ml', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">📊 ML & Data</button>
+                        <button type="button" onclick="setTopicFilter('удален', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">🏠 Удаленка</button>
+                    {% endif %}
+                </div>
+
+                <!-- Price Range Filter Inputs -->
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="text-slate-400 font-semibold uppercase">{% if active_section == 'hh_ru' %}З/П от:{% else %}Бюджет от:{% endif %}</span>
+                    <input type="number" id="filterPriceMin" oninput="applyClientFilters()" placeholder="0 ₽" class="w-24 bg-slate-950 border border-slate-800 text-slate-200 rounded px-2.5 py-1 text-xs outline-none focus:border-blue-500 font-mono">
+                    <span class="text-slate-500">до</span>
+                    <input type="number" id="filterPriceMax" oninput="applyClientFilters()" placeholder="макс" class="w-24 bg-slate-950 border border-slate-800 text-slate-200 rounded px-2.5 py-1 text-xs outline-none focus:border-blue-500 font-mono">
+                    <button type="button" onclick="resetFilters()" class="text-[11px] text-slate-400 hover:text-white px-2 py-1 bg-slate-800 rounded border border-slate-700 transition">Сброс</button>
+                </div>
             </div>
-            {% else %}
-            <!-- Vacancies Source Badges Filter Row -->
-            <div class="flex items-center space-x-1.5 overflow-x-auto custom-scroll pt-1 border-t border-slate-800/80">
+
+            <!-- Row 3: Platform Filter Row & Match Count -->
+            <div class="flex items-center space-x-1.5 overflow-x-auto custom-scroll pt-2 border-t border-slate-800/80">
                 <span class="text-xs text-slate-400 font-semibold uppercase mr-1">Площадка:</span>
-                <a href="/?section=hh_ru&tab={{ active_tab }}&source=" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if not selected_source %}bg-rose-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
-                    Все вакансии
-                </a>
-                <a href="/?section=hh_ru&tab={{ active_tab }}&source=hh_ru" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'hh_ru' %}bg-rose-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
-                    HeadHunter (hh.ru)
-                </a>
-                <a href="/?section=hh_ru&tab={{ active_tab }}&source=habr_career" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'habr_career' %}bg-cyan-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
-                    Хабр Карьера
-                </a>
+                {% if active_section == 'freelance' %}
+                    <a href="/?section=freelance&tab={{ active_tab }}&source=&free_only={{ free_only }}" class="px-3 py-1 rounded-lg text-xs font-medium transition {% if not selected_source %}bg-blue-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">Все</a>
+                    <a href="/?section=freelance&tab={{ active_tab }}&source=kwork&free_only={{ free_only }}" class="px-3 py-1 rounded-lg text-xs font-medium transition {% if selected_source == 'kwork' %}bg-emerald-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">Kwork</a>
+                    <a href="/?section=freelance&tab={{ active_tab }}&source=fl_ru&free_only={{ free_only }}" class="px-3 py-1 rounded-lg text-xs font-medium transition {% if selected_source == 'fl_ru' %}bg-blue-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">FL.ru</a>
+                    <a href="/?section=freelance&tab={{ active_tab }}&source=freelance_ru&free_only={{ free_only }}" class="px-3 py-1 rounded-lg text-xs font-medium transition {% if selected_source == 'freelance_ru' %}bg-purple-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">Freelance.ru</a>
+                    <a href="/?section=freelance&tab={{ active_tab }}&source=pchel_net&free_only={{ free_only }}" class="px-3 py-1 rounded-lg text-xs font-medium transition {% if selected_source == 'pchel_net' %}bg-amber-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">Pchel.net</a>
+                {% else %}
+                    <a href="/?section=hh_ru&tab={{ active_tab }}&source=" class="px-3 py-1 rounded-lg text-xs font-medium transition {% if not selected_source %}bg-rose-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">Все вакансии</a>
+                    <a href="/?section=hh_ru&tab={{ active_tab }}&source=hh_ru" class="px-3 py-1 rounded-lg text-xs font-medium transition {% if selected_source == 'hh_ru' %}bg-rose-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">HeadHunter (hh.ru)</a>
+                    <a href="/?section=hh_ru&tab={{ active_tab }}&source=habr_career" class="px-3 py-1 rounded-lg text-xs font-medium transition {% if selected_source == 'habr_career' %}bg-cyan-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">Хабр Карьера</a>
+                {% endif %}
+                <span id="filterCountBadge" class="ml-auto text-xs text-slate-400 font-mono"></span>
             </div>
-            {% endif %}
+        </div>
         </div>
 
         <!-- Orders & Vacancies Feed List -->
@@ -301,7 +328,7 @@ DASHBOARD_HTML = """
             {% endif %}
 
             {% for order in orders %}
-                <div class="order-card bg-slate-900 border {% if order.priority == 'hot' %}border-amber-500/50 shadow-lg shadow-amber-950/20{% elif order.priority == 'trash' %}border-slate-800 opacity-60{% else %}border-slate-800{% endif %} p-5 rounded-xl transition hover:border-slate-700 space-y-3.5" data-title="{{ order.title|lower }}" data-desc="{{ order.description|lower }} {{ order.attachments_text|lower if order.attachments_text else '' }}">
+                <div class="order-card bg-slate-900 border {% if order.priority == 'hot' %}border-amber-500/50 shadow-lg shadow-amber-950/20{% elif order.priority == 'trash' %}border-slate-800 opacity-60{% else %}border-slate-800{% endif %} p-5 rounded-xl transition hover:border-slate-700 space-y-3.5" data-title="{{ order.title|lower }}" data-desc="{{ order.description|lower }} {{ order.attachments_text|lower if order.attachments_text else '' }}" data-price="{{ order.price or 0 }}" data-score="{{ order.score or 0 }}" data-created="{{ order.created_at or '' }}">
 
                     <!-- Card Header Row -->
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
@@ -1203,14 +1230,26 @@ DASHBOARD_HTML = """
                             <label for="setting_vacancy_min_salary" class="text-xs font-semibold text-slate-300 block">
                                 💵 Минимальная зарплата вакансии (₽):
                             </label>
-                            <p class="text-[11px] text-slate-400">Вакансии с указанной зарплатой ниже этой суммы отсеиваются.</p>
+                            <p class="text-[11px] text-slate-400">Вакансии с указанной зарплатой ниже этой суммы отсеиваются в Tier 3.</p>
                             <select id="setting_vacancy_min_salary" onchange="autoSaveSetting('vacancy_min_salary', parseInt(this.value, 10))" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2.5 focus:border-indigo-500 outline-none">
                                 <option value="0" {% if not settings_map.vacancy_min_salary %}selected{% endif %}>Любая (включая по договоренности)</option>
                                 <option value="80000" {% if settings_map.vacancy_min_salary == 80000 %}selected{% endif %}>от 80 000 ₽</option>
+                                <option value="100000" {% if settings_map.vacancy_min_salary == 100000 %}selected{% endif %}>от 100 000 ₽</option>
                                 <option value="120000" {% if settings_map.vacancy_min_salary == 120000 %}selected{% endif %}>от 120 000 ₽</option>
                                 <option value="150000" {% if settings_map.vacancy_min_salary == 150000 %}selected{% endif %}>от 150 000 ₽</option>
                                 <option value="200000" {% if settings_map.vacancy_min_salary == 200000 %}selected{% endif %}>от 200 000 ₽</option>
                             </select>
+                        </div>
+
+                        <!-- Allow Negotiable Vacancies Toggle -->
+                        <div class="space-y-2 pt-2">
+                            <label class="flex items-center justify-between p-3 bg-slate-950/80 border border-slate-800 rounded-lg cursor-pointer hover:border-slate-700 transition">
+                                <div>
+                                    <div class="text-xs font-semibold text-slate-200">Пропускать вакансии по договоренности</div>
+                                    <div class="text-[11px] text-slate-400">Если выключено, вакансии без указанной зарплаты отсеиваются в Tier 3</div>
+                                </div>
+                                <input type="checkbox" id="setting_vacancy_allow_negotiable" onchange="autoSaveSetting('vacancy_allow_negotiable', this.checked)" {% if settings_map.vacancy_allow_negotiable is not false %}checked{% endif %} class="w-4 h-4 text-indigo-600 rounded bg-slate-900 border-slate-700 focus:ring-indigo-500">
+                            </label>
                         </div>
                     </div>
                 </div>
@@ -1219,23 +1258,23 @@ DASHBOARD_HTML = """
         {% endif %}
 
         {% if active_tab == 'config' %}
-        <!-- Full System Config (config.yml) Editor -->
+        <!-- Full System Config (config.yml) GUI Editor -->
         <div class="space-y-6">
             <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
                     <h3 class="text-base font-bold text-white flex items-center gap-2">
-                        <span>🛠</span> Системная конфигурация (config.yml)
+                        <span>🛠</span> Системная конфигурация и графический редактор (config.yml)
                     </h3>
                     <p class="text-xs text-slate-400 mt-1">
-                        Полная настройка параметров сборщиков, интервалов опроса, фильтрации, LLM-моделей и промптов.
+                        Все параметры config.yml доступны для настройки в визуальном интерфейсе с валидацией схемы Pydantic.
                     </p>
                 </div>
                 <div class="flex items-center gap-2">
-                    <button onclick="window.location.reload()" class="text-xs text-slate-300 bg-slate-800 hover:bg-slate-700 px-3.5 py-2 rounded-lg border border-slate-700 transition">
+                    <button type="button" onclick="window.location.reload()" class="text-xs text-slate-300 bg-slate-800 hover:bg-slate-700 px-3.5 py-2 rounded-lg border border-slate-700 transition">
                         Сбросить
                     </button>
-                    <button id="saveYamlBtn" onclick="saveYamlConfig()" class="text-xs bg-amber-600 hover:bg-amber-500 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-md">
-                        <span>💾</span> Сохранить config.yml
+                    <button type="button" id="saveGuiConfigBtn" onclick="saveGuiConfig()" class="text-xs bg-amber-600 hover:bg-amber-500 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-md">
+                        <span>💾</span> Сохранить настройки config.yml
                     </button>
                 </div>
             </div>
@@ -1243,141 +1282,182 @@ DASHBOARD_HTML = """
             <!-- Security Badge -->
             <div class="bg-slate-900/60 border border-blue-900/40 p-3.5 rounded-xl flex items-center gap-2.5 text-xs text-blue-300">
                 <span class="text-base">🔒</span>
-                <span><strong>Безопасность:</strong> Все учетные данные (.env: BOT_TOKEN, MISTRAL_API_KEY, HH_APP_TOKEN) изолированы и не хранятся в открытом виде.</span>
+                <span><strong>Безопасность:</strong> Все секреты и учетные данные (.env: BOT_TOKEN, MISTRAL_API_KEY, HH_APP_TOKEN) изолированы и защищены.</span>
             </div>
 
-            <!-- Quick Overview Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <!-- Polling -->
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
-                    <div class="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <span>⏱</span> Опрос (Интервалы)
+            <form id="configGuiForm" class="space-y-6">
+                <!-- Group 1: Polling intervals & Server -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Polling Intervals Card -->
+                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4">
+                        <h4 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                            <span>⏱</span> Интервалы опроса (секунды)
+                        </h4>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">Фриланс базовый цикл (сек):</label>
+                                <input type="number" id="cfg_poll_interval" value="{{ yaml_app_config.polling.interval_seconds }}" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 font-mono">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-emerald-400 mb-1">Вакансии HH.ru & Хабр (сек, по умолч. 1800):</label>
+                                <input type="number" id="cfg_poll_vac_interval" value="{{ yaml_app_config.polling.vacancies_interval_seconds }}" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 font-mono">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">Kwork интервал:</label>
+                                    <input type="number" id="cfg_poll_kwork" value="{{ yaml_app_config.polling.kwork_interval }}" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-400 mb-1">FL.ru интервал:</label>
+                                    <input type="number" id="cfg_poll_fl" value="{{ yaml_app_config.polling.fl_interval }}" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 font-mono">
+                                </div>
+                            </div>
+                            <label class="flex items-center gap-2 text-xs text-slate-300 pt-1 cursor-pointer">
+                                <input type="checkbox" id="cfg_poll_backfill" {% if yaml_app_config.polling.initial_backfill %}checked{% endif %} class="rounded bg-slate-950 border-slate-700 text-amber-600 focus:ring-amber-500">
+                                <span>Глубокий опрос (бэкфилл 3-5 страниц) при холодном старте</span>
+                            </label>
+                        </div>
                     </div>
-                    <div class="text-xs space-y-1 text-slate-300">
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Фриланс базовый:</span>
-                            <span class="font-mono text-white font-semibold">{{ yaml_app_config.polling.interval_seconds }} сек</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Вакансии (HH/Habr):</span>
-                            <span class="font-mono text-emerald-400 font-semibold">{{ yaml_app_config.polling.vacancies_interval_seconds }} сек</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Kwork:</span>
-                            <span class="font-mono text-slate-300">{{ yaml_app_config.polling.kwork_interval }} сек</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">FL.ru:</span>
-                            <span class="font-mono text-slate-300">{{ yaml_app_config.polling.fl_interval }} сек</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Холодный старт:</span>
-                            <span class="font-mono text-slate-300">{{ "Да" if yaml_app_config.polling.initial_backfill else "Нет" }}</span>
+
+                    <!-- Server & Storage Card -->
+                    <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4">
+                        <h4 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                            <span>🌐</span> Сервер и Хранилище SQLite
+                        </h4>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-300 mb-1">Путь к базе данных (SQLite):</label>
+                                <input type="text" id="cfg_storage_db" value="{{ yaml_app_config.storage.db_path }}" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 font-mono">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs text-slate-300 mb-1">Web Host:</label>
+                                    <input type="text" id="cfg_web_host" value="{{ yaml_app_config.web.host }}" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 font-mono">
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-slate-300 mb-1">Web Port:</label>
+                                    <input type="number" id="cfg_web_port" value="{{ yaml_app_config.web.port }}" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 font-mono">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- LLM & AI -->
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
-                    <div class="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <span>🤖</span> LLM и Модели
-                    </div>
-                    <div class="text-xs space-y-1 text-slate-300">
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Провайдер:</span>
-                            <span class="font-mono text-blue-300 font-semibold">{{ yaml_app_config.llm.provider|upper }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Agy модель:</span>
-                            <span class="font-mono text-slate-300 text-[11px] truncate max-w-[120px]" title="{{ yaml_app_config.llm.antigravity.model }}">{{ yaml_app_config.llm.antigravity.model }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Agy effort:</span>
-                            <span class="font-mono text-slate-300">{{ yaml_app_config.llm.antigravity.effort }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Таймаут Agy:</span>
-                            <span class="font-mono text-slate-300">{{ yaml_app_config.llm.antigravity.timeout_seconds }} сек</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Mistral модель:</span>
-                            <span class="font-mono text-slate-300 text-[11px] truncate max-w-[120px]">{{ yaml_app_config.llm.mistral.model }}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Filter & Scoring -->
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
-                    <div class="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <span>🎯</span> Фильтры и Пороги
-                    </div>
-                    <div class="text-xs space-y-1 text-slate-300">
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Мин. бюджет:</span>
-                            <span class="font-mono text-white font-semibold">{{ yaml_app_config.filter.min_budget }} ₽</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Порог Hot (фриланс):</span>
-                            <span class="font-mono text-amber-300 font-semibold">{{ yaml_app_config.filter.hot_score_threshold }} / 10</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Порог Hot (вакансии):</span>
-                            <span class="font-mono text-emerald-300 font-semibold">{{ yaml_app_config.filter.vacancy_hot_score_threshold }} / 10</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Ключевых слов:</span>
-                            <span class="font-mono text-slate-300">{{ yaml_app_config.filter.keywords|length }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Стоп-слов:</span>
-                            <span class="font-mono text-slate-300">{{ yaml_app_config.filter.stop_words|length }}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Web & Storage -->
-                <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
-                    <div class="text-xs font-bold text-purple-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <span>🌐</span> Сервер и Сборщики
-                    </div>
-                    <div class="text-xs space-y-1 text-slate-300">
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Web Host/Port:</span>
-                            <span class="font-mono text-slate-300">{{ yaml_app_config.web.host }}:{{ yaml_app_config.web.port }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">База SQLite:</span>
-                            <span class="font-mono text-slate-300 text-[11px] truncate max-w-[120px]">{{ yaml_app_config.storage.db_path }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">HH.ru запросов:</span>
-                            <span class="font-mono text-slate-300">{{ yaml_app_config.collectors.hh_ru.queries|length }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Habr запросов:</span>
-                            <span class="font-mono text-slate-300">{{ yaml_app_config.collectors.habr_career.queries|length }}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-slate-400">Досье проектов:</span>
-                            <span class="font-mono text-slate-300">{{ yaml_app_config.prompts.projects_dossier|length }} кейсов</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Interactive YAML Editor -->
-            <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-3">
-                <div class="flex items-center justify-between">
-                    <h4 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                        <span>📝</span> Редактор config.yml (YAML с валидацией схемы)
+                <!-- Group 2: Filters, Thresholds & Scoring -->
+                <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4">
+                    <h4 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                        <span>🎯</span> Фильтрация и пороги отбора
                     </h4>
-                    <span class="text-xs text-slate-400 font-mono">config.yml</span>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Мин. бюджет фриланса (₽):</label>
+                            <input type="number" id="cfg_filter_min_budget" value="{{ yaml_app_config.filter.min_budget }}" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-amber-300 mb-1">Порог Hot фриланс (1-10):</label>
+                            <select id="cfg_filter_hot_threshold" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500">
+                                {% for s in range(5, 11) %}
+                                    <option value="{{ s }}" {% if yaml_app_config.filter.hot_score_threshold == s %}selected{% endif %}>{{ s }} / 10</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-emerald-400 mb-1">Порог Hot вакансий (1-10):</label>
+                            <select id="cfg_filter_vac_hot_threshold" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500">
+                                {% for s in range(5, 11) %}
+                                    <option value="{{ s }}" {% if yaml_app_config.filter.vacancy_hot_score_threshold == s %}selected{% endif %}>{{ s }} / 10</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-emerald-400 mb-1">Мин. зарплата вакансии (₽):</label>
+                            <input type="number" id="cfg_filter_vac_min_salary" value="{{ yaml_app_config.filter.vacancy_min_salary }}" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 font-mono">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                        <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                            <input type="checkbox" id="cfg_filter_vac_negotiable" {% if yaml_app_config.filter.vacancy_allow_negotiable %}checked{% endif %} class="rounded bg-slate-950 border-slate-700 text-amber-600 focus:ring-amber-500">
+                            <span>Разрешать вакансии с неуказанной зарплатой (по договоренности)</span>
+                        </label>
+                        <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                            <input type="checkbox" id="cfg_filter_pro_only" {% if yaml_app_config.filter.filter_pro_only %}checked{% endif %} class="rounded bg-slate-950 border-slate-700 text-amber-600 focus:ring-amber-500">
+                            <span>Отсекать заказы только для PRO</span>
+                        </label>
+                    </div>
+
+                    <!-- Keywords & Stopwords Textareas -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                        <div>
+                            <label class="block text-xs font-semibold text-emerald-400 mb-1">Белый список ключевых слов (по одному на строку):</label>
+                            <textarea id="cfg_filter_keywords" rows="5" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 font-mono text-xs text-slate-200 focus:outline-none focus:border-amber-500 custom-scroll">{{ yaml_app_config.filter.keywords|join('\n') }}</textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-rose-400 mb-1">Черный список стоп-слов (по одному на строку):</label>
+                            <textarea id="cfg_filter_stopwords" rows="5" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 font-mono text-xs text-slate-200 focus:outline-none focus:border-amber-500 custom-scroll">{{ yaml_app_config.filter.stop_words|join('\n') }}</textarea>
+                        </div>
+                    </div>
                 </div>
-                <p class="text-xs text-slate-400">
-                    Вы можете напрямую изменять любые параметры: поисковые запросы, стоп-слова, интервалы, промпты и досье. Перед сохранением файл валидируется через Pydantic.
-                </p>
-                <textarea id="yamlConfigEditor" rows="26" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-xs text-slate-200 focus:outline-none focus:border-amber-500 custom-scroll leading-relaxed tracking-wide selection:bg-amber-600 selection:text-white" spellcheck="false">{{ raw_config_yaml }}</textarea>
-            </div>
+
+                <!-- Group 3: LLM & Models -->
+                <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4">
+                    <h4 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                        <span>🤖</span> ИИ-провайдер и Модели (LLM)
+                    </h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Основной провайдер:</label>
+                            <select id="cfg_llm_provider" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500">
+                                <option value="antigravity" {% if yaml_app_config.llm.provider == 'antigravity' %}selected{% endif %}>Antigravity (Google AGY CLI)</option>
+                                <option value="mistral" {% if yaml_app_config.llm.provider == 'mistral' %}selected{% endif %}>Mistral API</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Agy модель:</label>
+                            <input type="text" id="cfg_agy_model" value="{{ yaml_app_config.llm.antigravity.model }}" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500 font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-300 mb-1">Agy effort (глубина):</label>
+                            <select id="cfg_agy_effort" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 outline-none focus:border-amber-500">
+                                {% for eff in ['low', 'medium', 'high', 'xhigh', 'max'] %}
+                                    <option value="{{ eff }}" {% if yaml_app_config.llm.antigravity.effort == eff %}selected{% endif %}>{{ eff }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Group 4: Collectors Queries -->
+                <div class="bg-slate-900 border border-slate-800 p-5 rounded-xl space-y-4">
+                    <h4 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                        <span>🏢</span> Поисковые запросы сборщиков (HH.ru & Хабр)
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold text-rose-300 mb-1">HeadHunter (hh.ru) запросы (по одному на строку):</label>
+                            <textarea id="cfg_hh_queries" rows="6" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 font-mono text-xs text-slate-200 focus:outline-none focus:border-amber-500 custom-scroll">{{ yaml_app_config.collectors.hh_ru.queries|join('\n') }}</textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-cyan-300 mb-1">Хабр Карьера запросы (по одному на строку):</label>
+                            <textarea id="cfg_habr_queries" rows="6" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 font-mono text-xs text-slate-200 focus:outline-none focus:border-amber-500 custom-scroll">{{ yaml_app_config.collectors.habr_career.queries|join('\n') }}</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Collapsible Raw YAML Editor -->
+                <details class="bg-slate-900 border border-slate-800 p-5 rounded-xl">
+                    <summary class="text-xs font-bold text-slate-400 uppercase tracking-wider cursor-pointer hover:text-slate-200">
+                        <span>📝</span> Исходный код config.yml (сырой YAML редактор)
+                    </summary>
+                    <div class="pt-4 space-y-3">
+                        <textarea id="yamlConfigEditor" rows="20" class="w-full bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-xs text-slate-200 focus:outline-none focus:border-amber-500 custom-scroll leading-relaxed" spellcheck="false">{{ raw_config_yaml }}</textarea>
+                        <div class="flex justify-end">
+                            <button type="button" onclick="saveYamlConfig()" class="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-600/50 font-semibold px-4 py-2 rounded-lg transition">
+                                Сохранить из YAML-текста
+                            </button>
+                        </div>
+                    </div>
+                </details>
+            </form>
         </div>
         {% endif %}
 
@@ -1645,18 +1725,109 @@ DASHBOARD_HTML = """
             }, 2500);
         }
 
-        function filterOrdersClient() {
-            const query = document.getElementById('orderSearch').value.toLowerCase().trim();
-            const cards = document.querySelectorAll('.order-card');
+        let activeTopic = 'all';
+
+        function setTopicFilter(topic, btn) {
+            activeTopic = topic;
+            document.querySelectorAll('.topic-chip').forEach(el => {
+                el.classList.remove('bg-blue-600', 'bg-rose-600', 'text-white', 'font-bold');
+                el.classList.add('bg-slate-800', 'text-slate-300');
+            });
+            const isHh = window.location.href.includes('section=hh_ru');
+            const activeClass = isHh ? 'bg-rose-600' : 'bg-blue-600';
+            btn.classList.remove('bg-slate-800', 'text-slate-300');
+            btn.classList.add(activeClass, 'text-white', 'font-bold');
+            applyClientFilters();
+        }
+
+        function resetFilters() {
+            const sInput = document.getElementById('orderSearch');
+            if (sInput) sInput.value = '';
+            const minInput = document.getElementById('filterPriceMin');
+            if (minInput) minInput.value = '';
+            const maxInput = document.getElementById('filterPriceMax');
+            if (maxInput) maxInput.value = '';
+            const sortSel = document.getElementById('orderSortSelect');
+            if (sortSel) sortSel.value = 'default';
+            activeTopic = 'all';
+            const isHh = window.location.href.includes('section=hh_ru');
+            const activeClass = isHh ? 'bg-rose-600' : 'bg-blue-600';
+            document.querySelectorAll('.topic-chip').forEach((el, idx) => {
+                if (idx === 0) {
+                    el.className = `topic-chip px-3 py-1 rounded-lg text-xs font-medium transition ${activeClass} text-white font-bold`;
+                } else {
+                    el.className = 'topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700';
+                }
+            });
+            applyClientFilters();
+        }
+
+        function applyClientFilters() {
+            const queryEl = document.getElementById('orderSearch');
+            const query = queryEl ? queryEl.value.toLowerCase().trim() : '';
+            const minEl = document.getElementById('filterPriceMin');
+            const minPrice = minEl && minEl.value ? parseFloat(minEl.value) : null;
+            const maxEl = document.getElementById('filterPriceMax');
+            const maxPrice = maxEl && maxEl.value ? parseFloat(maxEl.value) : null;
+            const sortEl = document.getElementById('orderSortSelect');
+            const sortMode = sortEl ? sortEl.value : 'default';
+
+            const container = document.getElementById('ordersContainer');
+            if (!container) return;
+            const cards = Array.from(container.querySelectorAll('.order-card'));
+
+            let visibleCount = 0;
             cards.forEach(card => {
                 const title = card.getAttribute('data-title') || '';
                 const desc = card.getAttribute('data-desc') || '';
-                if (!query || title.includes(query) || desc.includes(query)) {
+                const price = parseFloat(card.getAttribute('data-price') || '0');
+
+                // Поиск по тексту
+                const matchesText = !query || title.includes(query) || desc.includes(query);
+
+                // Фильтр по тематике/тегу
+                let matchesTopic = true;
+                if (activeTopic !== 'all') {
+                    matchesTopic = title.includes(activeTopic) || desc.includes(activeTopic);
+                }
+
+                // Фильтр по диапазону цен
+                let matchesPrice = true;
+                if (minPrice !== null && price > 0 && price < minPrice) matchesPrice = false;
+                if (maxPrice !== null && price > 0 && price > maxPrice) matchesPrice = false;
+
+                if (matchesText && matchesTopic && matchesPrice) {
                     card.style.display = 'block';
+                    visibleCount++;
                 } else {
                     card.style.display = 'none';
                 }
             });
+
+            // Сортировка
+            if (sortMode !== 'default') {
+                cards.sort((a, b) => {
+                    const priceA = parseFloat(a.getAttribute('data-price') || '0');
+                    const priceB = parseFloat(b.getAttribute('data-price') || '0');
+                    const scoreA = parseFloat(a.getAttribute('data-score') || '0');
+                    const scoreB = parseFloat(b.getAttribute('data-score') || '0');
+
+                    if (sortMode === 'score_desc') return scoreB - scoreA;
+                    if (sortMode === 'price_desc') return priceB - priceA;
+                    if (sortMode === 'price_asc') return priceA - priceB;
+                    return 0;
+                });
+                cards.forEach(card => container.appendChild(card));
+            }
+
+            const countBadge = document.getElementById('filterCountBadge');
+            if (countBadge) {
+                countBadge.innerText = `Найдено: ${visibleCount} из ${cards.length}`;
+            }
+        }
+
+        function filterOrdersClient() {
+            applyClientFilters();
         }
 
         function setQuickChatPrompt(orderId, text) {
@@ -1841,6 +2012,96 @@ DASHBOARD_HTML = """
                     window.location.reload();
                 } else {
                     alert('❌ Ошибка валидации конфигурации:\n' + (data.error || 'Неверный формат YAML'));
+                }
+            } catch (e) {
+                alert('❌ Ошибка отправки запроса: ' + e);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = origHtml;
+                }
+            }
+        }
+
+        async function saveGuiConfig() {
+            const btn = document.getElementById('saveGuiConfigBtn');
+            const origHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span>⏳ Сохранение...</span>';
+            }
+
+            try {
+                const getVal = id => {
+                    const el = document.getElementById(id);
+                    return el ? el.value : '';
+                };
+                const getInt = (id, defVal = 0) => {
+                    const val = parseInt(getVal(id), 10);
+                    return isNaN(val) ? defVal : val;
+                };
+                const getChecked = id => {
+                    const el = document.getElementById(id);
+                    return el ? el.checked : false;
+                };
+                const getLines = id => {
+                    const val = getVal(id);
+                    return val.split('\n').map(s => s.trim()).filter(Boolean);
+                };
+
+                const payload = {
+                    polling: {
+                        interval_seconds: getInt('cfg_poll_interval', 180),
+                        vacancies_interval_seconds: getInt('cfg_poll_vac_interval', 1800),
+                        kwork_interval: getInt('cfg_poll_kwork', 180),
+                        fl_interval: getInt('cfg_poll_fl', 180),
+                        initial_backfill: getChecked('cfg_poll_backfill')
+                    },
+                    storage: {
+                        db_path: getVal('cfg_storage_db').trim() || 'data/jobs.db'
+                    },
+                    web: {
+                        host: getVal('cfg_web_host').trim() || '0.0.0.0',
+                        port: getInt('cfg_web_port', 8086)
+                    },
+                    filter: {
+                        min_budget: getInt('cfg_filter_min_budget', 10000),
+                        hot_score_threshold: getInt('cfg_filter_hot_threshold', 7),
+                        vacancy_hot_score_threshold: getInt('cfg_filter_vac_hot_threshold', 8),
+                        vacancy_min_salary: getInt('cfg_filter_vac_min_salary', 80000),
+                        vacancy_allow_negotiable: getChecked('cfg_filter_vac_negotiable'),
+                        filter_pro_only: getChecked('cfg_filter_pro_only'),
+                        keywords: getLines('cfg_filter_keywords'),
+                        stop_words: getLines('cfg_filter_stopwords')
+                    },
+                    llm: {
+                        provider: getVal('cfg_llm_provider') || 'antigravity',
+                        antigravity: {
+                            model: getVal('cfg_agy_model').trim() || 'gemini-3.8-flash-medium',
+                            effort: getVal('cfg_agy_effort') || 'medium'
+                        }
+                    },
+                    collectors: {
+                        hh_ru: {
+                            queries: getLines('cfg_hh_queries')
+                        },
+                        habr_career: {
+                            queries: getLines('cfg_habr_queries')
+                        }
+                    }
+                };
+
+                const res = await fetch('/api/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ config: payload })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    alert('✅ Настройки успешно сохранены в config.yml и применены!');
+                    window.location.reload();
+                } else {
+                    alert('❌ Ошибка валидации настроек:\n' + (data.error || 'Ошибка сохранения'));
                 }
             } catch (e) {
                 alert('❌ Ошибка отправки запроса: ' + e);
@@ -2175,6 +2436,7 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
             "vacancy_city": "all",
             "vacancy_work_format": "all",
             "vacancy_min_salary": 0,
+            "vacancy_allow_negotiable": True,
         }
         return {"ok": True, "settings": {**defaults, **settings_map}}
 
@@ -2202,6 +2464,7 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
             "vacancy_city",
             "vacancy_work_format",
             "vacancy_min_salary",
+            "vacancy_allow_negotiable",
         }
 
         for key, val in body.items():
@@ -2238,17 +2501,47 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
         except Exception:
             return JSONResponse(status_code=400, content={"ok": False, "error": "Невалидный JSON"})
 
-        yaml_text = body.get("yaml")
-        if not yaml_text or not isinstance(yaml_text, str):
-            return JSONResponse(status_code=400, content={"ok": False, "error": "Поле yaml обязательно"})
+        if not isinstance(body, dict):
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Ожидается JSON-объект"})
 
-        try:
-            parsed = yaml.safe_load(yaml_text)
-            if not isinstance(parsed, dict):
-                return JSONResponse(status_code=400, content={"ok": False, "error": "YAML должен быть словарем"})
-            validated = YamlAppConfig.model_validate(parsed)
-        except Exception as e:
-            return JSONResponse(status_code=400, content={"ok": False, "error": f"Ошибка валидации YAML: {e}"})
+        yaml_text = body.get("yaml")
+        config_dict = body.get("config")
+
+        if yaml_text and isinstance(yaml_text, str):
+            try:
+                parsed = yaml.safe_load(yaml_text)
+                if not isinstance(parsed, dict):
+                    return JSONResponse(status_code=400, content={"ok": False, "error": "YAML должен быть словарем"})
+                validated = YamlAppConfig.model_validate(parsed)
+            except Exception as e:
+                return JSONResponse(status_code=400, content={"ok": False, "error": f"Ошибка валидации YAML: {e}"})
+        elif config_dict and isinstance(config_dict, dict):
+            try:
+                current_dict = settings.app_config.model_dump()
+                if CONFIG_YAML_PATH.exists():
+                    try:
+                        with open(CONFIG_YAML_PATH, "r", encoding="utf-8") as f:
+                            disk_data = yaml.safe_load(f)
+                            if isinstance(disk_data, dict):
+                                current_dict = disk_data
+                    except Exception:
+                        pass
+
+                def deep_update(target: dict, source: dict) -> dict:
+                    for k, v in source.items():
+                        if isinstance(v, dict) and isinstance(target.get(k), dict):
+                            deep_update(target[k], v)
+                        else:
+                            target[k] = v
+                    return target
+
+                merged = deep_update(current_dict, config_dict)
+                validated = YamlAppConfig.model_validate(merged)
+                yaml_text = yaml.dump(merged, allow_unicode=True, sort_keys=False)
+            except Exception as e:
+                return JSONResponse(status_code=400, content={"ok": False, "error": f"Ошибка валидации настроек: {e}"})
+        else:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Поле yaml или config обязательно"})
 
         # Сохраняем на диск и применяем в памяти
         try:
