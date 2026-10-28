@@ -333,6 +333,8 @@ async def test_antigravity_proposal_with_market_pricing_and_web_search(monkeypat
     assert isinstance(result, str)
     assert "CRM интеграцию" in result
     assert result.recommended_price == 45000.0
+    assert result.market_price is not None
+    assert result.market_price >= result.recommended_price
     assert "Kwork/FL" in result.price_justification
 
     # Проверяем, что в промпт agy включена инструкция поиска в интернете
