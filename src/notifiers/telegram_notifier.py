@@ -10,7 +10,7 @@ from aiogram.types import LinkPreviewOptions
 from src.bot.keyboards import get_order_inline_keyboard
 from src.config import settings
 from src.models.analysis import AnalysisResult
-from src.models.order import RawOrder
+from src.models.order import RawOrder, SourcePlatform
 
 logger = logging.getLogger(__name__)
 
@@ -22,18 +22,20 @@ class TelegramNotifier:
         self,
         bot: Optional[Bot] = None,
         chat_id: Optional[int] = None,
+        bot_token: Optional[str] = None,
     ) -> None:
         self.chat_id = chat_id or settings.ADMIN_CHAT_ID
+        self.bot_token = bot_token or settings.BOT_TOKEN
         self._bot = bot
         self._owns_bot = bot is None
 
     @property
     def bot(self) -> Bot:
         if self._bot is None:
-            if not settings.BOT_TOKEN:
+            if not self.bot_token:
                 raise ValueError("BOT_TOKEN не задан в конфигурации (.env)")
             self._bot = Bot(
-                token=settings.BOT_TOKEN,
+                token=self.bot_token,
                 default=DefaultBotProperties(parse_mode=ParseMode.HTML),
             )
         return self._bot
@@ -55,6 +57,36 @@ class TelegramNotifier:
             else "По кнопке (agy с веб-поиском)"
         )
 
+        pub_time_str = (
+            order.created_at.strftime("%d.%m.%Y %H:%M")
+            if order.created_at
+            else "Не указано"
+        )
+
+        is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
+        if is_vacancy:
+            badge = (
+                f"🔥 <b>[ВАКАНСИЯ | СКОР {analysis.score}/10]</b>"
+                if analysis.score >= settings.HOT_SCORE_THRESHOLD
+                else f"⚡ <b>[ВАКАНСИЯ | СКОР {analysis.score}/10]</b>"
+            )
+            card_html = (
+                f"{badge}\n\n"
+                f"📌 <b>Источник:</b> {order.source.value.upper()}\n"
+                f"🕒 <b>Опубликована:</b> {pub_time_str}\n"
+                f"💼 <b>Позиция:</b> <a href=\"{html.escape(order.url, quote=True)}\">{html.escape(order.title)}</a>\n\n"
+                f"💰 <b>Зарплата:</b> {price_str}\n"
+                f"🎯 <b>Точки совпадения:</b> {html.escape(analysis.match_reason or analysis.matched_project or 'Python/AI')}\n"
+            )
+            if analysis.skills_gap and analysis.skills_gap != "Критичных пробелов нет":
+                card_html += f"⚠️ <b>Пробелы:</b> {html.escape(analysis.skills_gap)}\n"
+                if analysis.skills_gap_counter:
+                    card_html += f"🛡 <b>Парирование:</b> {html.escape(analysis.skills_gap_counter)}\n"
+            if analysis.candidate_requirements:
+                card_html += f"\n📋 <b>Требования:</b> {html.escape(analysis.candidate_requirements[:250])}\n"
+            card_html += f"\n💡 <b>Резюме (Mistral):</b> {html.escape(analysis.executive_summary)}"
+            return card_html
+
         risks_list = (
             "\n".join([f"• {html.escape(r)}" for r in analysis.risks_and_pitfalls])
             if analysis.risks_and_pitfalls
@@ -65,12 +97,6 @@ class TelegramNotifier:
             f"🔥 <b>[ГОРЯЧИЙ ЛИД | СКОР {analysis.score}/10]</b>"
             if analysis.score >= settings.HOT_SCORE_THRESHOLD
             else f"⚡ <b>[ЗАКАЗ | СКОР {analysis.score}/10]</b>"
-        )
-
-        pub_time_str = (
-            order.created_at.strftime("%d.%m.%Y %H:%M")
-            if order.created_at
-            else "Не указано"
         )
         access_badge = "⭐ <b>Только PRO</b>" if order.is_pro_only else "🔓 <b>Для всех</b>"
 
@@ -97,7 +123,7 @@ class TelegramNotifier:
         order_db_id: int,
     ) -> bool:
         """Отправить карточку заказа в Telegram."""
-        if not self.chat_id or not settings.BOT_TOKEN:
+        if not self.chat_id or not self.bot_token:
             logger.warning(
                 "BOT_TOKEN или ADMIN_CHAT_ID не заданы. Пропуск отправки в Telegram."
             )
@@ -105,7 +131,13 @@ class TelegramNotifier:
 
         card_text = self.format_card(order, analysis)
         has_proposal = bool(analysis.proposal_text and analysis.proposal_text.strip())
-        keyboard = get_order_inline_keyboard(order_db_id, order.url, has_proposal=has_proposal)
+        is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
+        keyboard = get_order_inline_keyboard(
+            order_db_id,
+            order.url,
+            has_proposal=has_proposal,
+            is_vacancy=is_vacancy,
+        )
 
         try:
             await self.bot.send_message(

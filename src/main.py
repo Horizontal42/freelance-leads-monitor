@@ -11,10 +11,10 @@ from src.bot.bot import create_bot_and_dispatcher
 from src.collectors.base import BaseCollector
 from src.collectors.fl_ru import FlRuCollector
 from src.collectors.freelance_ru import FreelanceRuCollector
+from src.collectors.habr_career import HabrCareerCollector
 from src.collectors.hh_ru import HhRuCollector
 from src.collectors.kwork import KworkCollector
 from src.collectors.pchel_net import PchelNetCollector
-from src.collectors.remote_job import RemoteJobCollector
 from src.config import settings
 from src.filters.pre_filter import HardFilter
 from src.notifiers.pipeline import LeadsPipeline
@@ -111,8 +111,8 @@ async def main() -> None:
         FlRuCollector(),
         FreelanceRuCollector(),
         PchelNetCollector(),
-        RemoteJobCollector(),
         HhRuCollector(),
+        HabrCareerCollector(),
     ]
 
     # 3. Режим разового сканирования (--once)
@@ -153,10 +153,20 @@ async def main() -> None:
     bot = None
     dp = None
     tg_notifier = None
+    vacancies_notifier = None
 
     if settings.BOT_TOKEN and settings.ADMIN_CHAT_ID:
         bot, dp = create_bot_and_dispatcher(repo)
         tg_notifier = TelegramNotifier(bot=bot, chat_id=settings.ADMIN_CHAT_ID)
+
+    if settings.VACANCIES_BOT_TOKEN and settings.VACANCIES_ADMIN_CHAT_ID:
+        if settings.VACANCIES_BOT_TOKEN != settings.BOT_TOKEN:
+            vacancies_notifier = TelegramNotifier(
+                chat_id=settings.VACANCIES_ADMIN_CHAT_ID,
+                bot_token=settings.VACANCIES_BOT_TOKEN,
+            )
+        else:
+            vacancies_notifier = tg_notifier
 
         # Привязываем команду /scan к нашему пайплайну
         from aiogram.filters import Command
@@ -194,6 +204,7 @@ async def main() -> None:
         hard_filter=hard_filter,
         llm_client=llm_client,
         tg_notifier=tg_notifier,
+        vacancies_notifier=vacancies_notifier,
     )
 
     # Формируем параллельные задачи для asyncio.gather

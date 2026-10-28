@@ -4,33 +4,44 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 
 def get_order_inline_keyboard(
-    order_id: int, order_url: str, has_proposal: bool = False
+    order_id: int,
+    order_url: str,
+    has_proposal: bool = False,
+    is_vacancy: bool = False,
 ) -> InlineKeyboardMarkup:
-    """Создать клавиатуру карточки заказа.
-
-    Кнопки:
-    1. Если отклик уже есть: '📋 Скопировать отклик'
-       Если отклика еще нет: '✨ Сгенерировать отклик'
-    2. '🔗 Открыть заказ' (ссылка)
-    3. '📦 В архив'
-    """
-    action_btn = (
-        InlineKeyboardButton(
-            text="📋 Скопировать отклик",
-            callback_data=f"copy:{order_id}",
+    """Создать клавиатуру карточки заказа или вакансии."""
+    if is_vacancy:
+        action_btn = (
+            InlineKeyboardButton(
+                text="📋 Скопировать Cover Letter",
+                callback_data=f"copy:{order_id}",
+            )
+            if has_proposal
+            else InlineKeyboardButton(
+                text="✨ Составить Cover Letter",
+                callback_data=f"gen_prop:{order_id}",
+            )
         )
-        if has_proposal
-        else InlineKeyboardButton(
-            text="✨ Сгенерировать отклик",
-            callback_data=f"gen_prop:{order_id}",
+        url_btn_text = "🔗 Открыть вакансию"
+    else:
+        action_btn = (
+            InlineKeyboardButton(
+                text="📋 Скопировать отклик",
+                callback_data=f"copy:{order_id}",
+            )
+            if has_proposal
+            else InlineKeyboardButton(
+                text="✨ Сгенерировать отклик",
+                callback_data=f"gen_prop:{order_id}",
+            )
         )
-    )
+        url_btn_text = "🔗 Открыть заказ"
 
     buttons = [
         [
             action_btn,
             InlineKeyboardButton(
-                text="🔗 Открыть заказ",
+                text=url_btn_text,
                 url=order_url,
             ),
         ],

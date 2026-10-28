@@ -11,8 +11,9 @@ class SourcePlatform(str, Enum):
     FL_RU = "fl_ru"
     FREELANCE_RU = "freelance_ru"
     PCHEL_NET = "pchel_net"
-    REMOTE_JOB = "remote_job"
+    REMOTE_JOB = "remote_job"  # Deprecated
     HH_RU = "hh_ru"
+    HABR_CAREER = "habr_career"
     CUSTOM = "custom"
 
 

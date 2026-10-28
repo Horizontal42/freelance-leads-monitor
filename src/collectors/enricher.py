@@ -43,8 +43,8 @@ class OrderEnricher:
                 await self._enrich_freelance_ru(order)
             elif order.source == SourcePlatform.PCHEL_NET:
                 await self._enrich_pchel_net(order)
-            elif order.source == SourcePlatform.REMOTE_JOB:
-                await self._enrich_remote_job(order)
+            elif order.source == SourcePlatform.HABR_CAREER:
+                await self._enrich_habr_career(order)
             elif order.source == SourcePlatform.HH_RU:
                 await self._enrich_hh_ru(order)
         except Exception as e:
@@ -172,8 +172,8 @@ class OrderEnricher:
                 if len(full_text) > len(order.description):
                     order.description = full_text
 
-    async def _enrich_remote_job(self, order: RawOrder) -> None:
-        """Remote-job: выгружаем полное описание со страницы заказа."""
+    async def _enrich_habr_career(self, order: RawOrder) -> None:
+        """Хабр Карьера: выгружаем полный текст описания вакансии."""
         if not order.url or not order.url.startswith("http"):
             return
 
@@ -182,10 +182,15 @@ class OrderEnricher:
             if resp.status_code != 200:
                 return
 
-            m_desc = re.search(r"class=\"col-xs-12[^\"]*text-left\">(.*?)</div>", resp.text, re.DOTALL)
+            html_text = resp.text
+            m_desc = re.search(
+                r"<div[^>]*class=\"[^\"]*vacancy-description__text[^\"]*\"[^>]*>(.*?)</div>\s*</div>",
+                html_text,
+                re.DOTALL,
+            )
             if m_desc:
-                clean = re.sub(r"<[^>]+>", "\n", m_desc.group(1))
-                full_text = html.unescape("\n".join(l.strip() for l in clean.splitlines() if l.strip()))
+                clean = re.sub(r"<[^>]+>", " ", m_desc.group(1))
+                full_text = html.unescape(re.sub(r"\s+", " ", clean)).strip()
                 if len(full_text) > len(order.description):
                     order.description = full_text
 
