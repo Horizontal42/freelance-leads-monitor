@@ -167,6 +167,8 @@ async def test_web_split_sections_freelance_vs_hh(tmp_path):
         candidate_requirements="Опыт с FastAPI, Whisper, векторными БД (Qdrant).",
         job_responsibilities="Проектирование и поддержка микросервисов транскрибации и RAG-поиска.",
         match_reason="100% совпадение с реальным опытом Андрея в Cortex IT (WhisperX + Qdrant + FastAPI).",
+        skills_gap="Требуется опыт с Kubernetes и vLLM.",
+        skills_gap_counter="Опереться на Docker Compose, оптимизацию памяти WhisperX через ctypes и батчинг на GPU.",
         risks_and_pitfalls=["Высокие требования к отказоустойчивости пайплайнов"],
         recommended_price=130000,
         price_justification="Адекватная рыночная вилка для Junior+/Middle",
@@ -187,6 +189,8 @@ async def test_web_split_sections_freelance_vs_hh(tmp_path):
         assert "Разработка Telegram-бота на Python" in html_fl
         assert "Младший AI-инженер" not in html_fl
         assert "Фриланс-биржи" in html_fl
+        assert "28 000 ₽" in html_fl
+        assert "(предв.)" in html_fl
 
         # 2. Проверяем раздел Вакансии HH.ru
         resp_hh = await client.get("/?section=hh_ru")
@@ -201,6 +205,9 @@ async def test_web_split_sections_freelance_vs_hh(tmp_path):
         assert "Чем предстоит заниматься:" in html_hh
         assert "Соответствие резюме Андрея:" in html_hh
         assert "100% совпадение с реальным опытом Андрея" in html_hh
+        assert "Пробелы в требованиях (Skills Gap):" in html_hh
+        assert "Требуется опыт с Kubernetes и vLLM" in html_hh
+        assert "Парирование в Cover Letter:" in html_hh
         assert "Сгенерировать Cover Letter (agy)" in html_hh
 
         # 3. Проверяем вкладку Профиль поиска в HH

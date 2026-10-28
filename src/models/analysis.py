@@ -48,6 +48,14 @@ class AnalysisResult(BaseModel):
         default="",
         description="Почему вакансия подходит Андрею Пименову с учетом его резюме",
     )
+    skills_gap: Optional[str] = Field(
+        default="",
+        description="Чего не хватает в резюме Андрея из требований вакансии (пробелы в стеке)",
+    )
+    skills_gap_counter: Optional[str] = Field(
+        default="",
+        description="Как парировать пробел в требованиях вакансии в Cover Letter",
+    )
 
     recommended_price: float = Field(default=0.0, description="Рекомендуемая цена для отклика в рублях")
     price_justification: str = Field(default="", description="Обоснование цены: вилка входа, порог торга")
@@ -133,6 +141,28 @@ class AnalysisResult(BaseModel):
     @field_validator("match_reason", mode="before")
     @classmethod
     def sanitize_match_reason(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, (list, tuple)):
+            return " ".join(str(x) for x in v)
+        if isinstance(v, dict):
+            return " ".join(str(val) for val in v.values() if val)
+        return str(v)
+
+    @field_validator("skills_gap", mode="before")
+    @classmethod
+    def sanitize_skills_gap(cls, v: Any) -> str:
+        if v is None:
+            return ""
+        if isinstance(v, (list, tuple)):
+            return " ".join(str(x) for x in v)
+        if isinstance(v, dict):
+            return " ".join(str(val) for val in v.values() if val)
+        return str(v)
+
+    @field_validator("skills_gap_counter", mode="before")
+    @classmethod
+    def sanitize_skills_gap_counter(cls, v: Any) -> str:
         if v is None:
             return ""
         if isinstance(v, (list, tuple)):
