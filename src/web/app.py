@@ -177,7 +177,13 @@ DASHBOARD_HTML = """
                         <span>📊</span> Аналитика бирж
                     </a>
                     <a href="/?section=freelance&tab=rules" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'rules' %}active border-b-2 border-emerald-500 text-emerald-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
-                        <span>⚙️</span> Правила и фильтры
+                        <span>📋</span> Словарь фильтров
+                    </a>
+                    <a href="/?section=freelance&tab=health" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'health' %}active border-b-2 border-teal-500 text-teal-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        <span>🩺</span> Статус бирж (Health)
+                    </a>
+                    <a href="/?section=freelance&tab=settings" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'settings' %}active border-b-2 border-indigo-500 text-indigo-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        <span>⚙️</span> Настройки и фильтры
                     </a>
                 {% else %}
                     <!-- HH.ru Tabs -->
@@ -199,6 +205,12 @@ DASHBOARD_HTML = """
                     </a>
                     <a href="/?section=hh_ru&tab=profile" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'profile' %}active border-b-2 border-rose-500 text-rose-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                         <span>👤</span> Профиль поиска & Стек
+                    </a>
+                    <a href="/?section=hh_ru&tab=health" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'health' %}active border-b-2 border-teal-500 text-teal-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        <span>🩺</span> Статус бирж (Health)
+                    </a>
+                    <a href="/?section=hh_ru&tab=settings" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'settings' %}active border-b-2 border-indigo-500 text-indigo-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        <span>⚙️</span> Настройки и фильтры
                     </a>
                 {% endif %}
             </nav>
@@ -370,14 +382,27 @@ DASHBOARD_HTML = """
                                     {% endif %}
                                 </div>
 
-                                <!-- Market / AI Recommended Price -->
-                                {% set rec_price = order.recommended_price or (order.analysis.recommended_price if order.analysis else None) %}
-                                {% set has_prop = (order.proposal_text or (order.analysis and order.analysis.proposal_text)) %}
-                                <div id="market-price-pill-{{ order.id }}" class="flex items-center gap-1.5 {% if rec_price and rec_price > 0 %}bg-amber-950/40 border border-amber-800/60{% else %}bg-slate-950/60 border border-slate-800{% endif %} px-3 py-1 rounded-lg" title="{% if has_prop %}Рыночная ставка на основе веб-поиска (agy){% else %}Предварительная расчетная оценка Mistral по часам и сложности{% endif %}">
+                                <!-- Market Price (Unanchored, by hours/complexity) -->
+                                {% set mkt_price = order.market_price or (order.analysis.market_price if order.analysis else None) %}
+                                <div id="market-price-pill-{{ order.id }}" class="flex items-center gap-1.5 {% if mkt_price and mkt_price > 0 %}bg-amber-950/40 border border-amber-800/60{% else %}bg-slate-950/60 border border-slate-800{% endif %} px-3 py-1 rounded-lg" title="Объективная рыночная стоимость без привязки к бюджету заказчика (по часам и сложности)">
                                     <span class="text-xs text-amber-400 font-medium">🎯 Рыночная:</span>
                                     <span class="text-sm font-bold text-amber-300 font-mono">
+                                        {% if mkt_price and mkt_price > 0 %}
+                                            {{ "{:,.0f}".format(mkt_price).replace(",", " ") }} ₽
+                                        {% else %}
+                                            <span class="text-xs text-slate-400 font-normal">-</span>
+                                        {% endif %}
+                                    </span>
+                                </div>
+
+                                <!-- Recommended Price (Tactical) -->
+                                {% set rec_price = order.recommended_price or (order.analysis.recommended_price if order.analysis else None) %}
+                                {% set has_prop = (order.proposal_text or (order.analysis and order.analysis.proposal_text)) %}
+                                <div id="rec-price-pill-{{ order.id }}" class="flex items-center gap-1.5 {% if rec_price and rec_price > 0 %}bg-emerald-950/40 border border-emerald-800/60{% else %}bg-slate-950/60 border border-slate-800{% endif %} px-3 py-1 rounded-lg" title="{% if has_prop %}Рекомендуемая ставка отклика на основе поиска (agy){% else %}Тактическая рекомендуемая ставка Mistral с учетом бюджета клиента{% endif %}">
+                                    <span class="text-xs text-emerald-400 font-medium">💡 Рекомендуемая:</span>
+                                    <span class="text-sm font-bold text-emerald-300 font-mono">
                                         {% if rec_price and rec_price > 0 %}
-                                            {{ "{:,.0f}".format(rec_price).replace(",", " ") }} ₽{% if not has_prop %}<span class="text-[10px] text-amber-400/80 font-normal ml-0.5">(предв.)</span>{% endif %}
+                                            {{ "{:,.0f}".format(rec_price).replace(",", " ") }} ₽{% if not has_prop %}<span class="text-[10px] text-emerald-400/80 font-normal ml-0.5">(предв.)</span>{% endif %}
                                         {% else %}
                                             <span class="text-xs text-slate-400 font-normal">по кнопке (agy)</span>
                                         {% endif %}
@@ -553,18 +578,25 @@ DASHBOARD_HTML = """
                                 </div>
 
                                 <!-- Financial Evaluation and Price Strategy Box -->
-                                {% if order.analysis.recommended_price or order.analysis.price_justification %}
+                                {% if order.analysis.recommended_price or order.analysis.market_price or order.analysis.price_justification %}
                                     {% set has_agy_prop = (order.proposal_text or (order.analysis and order.analysis.proposal_text)) %}
-                                    <div class="text-xs bg-slate-900/80 border border-amber-900/40 p-2.5 rounded-lg text-slate-300 space-y-1">
-                                        <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <div class="text-xs bg-slate-900/80 border border-amber-900/40 p-2.5 rounded-lg text-slate-300 space-y-1.5">
+                                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-1.5">
                                             <span class="text-amber-400 font-semibold uppercase text-[10px] tracking-wider flex items-center gap-1">
-                                                <span>🎯</span> Финансовая оценка и стратегия торга {% if has_agy_prop %}(agy с веб-поиском):{% else %}(предварительно Mistral):{% endif %}
+                                                <span>🎯</span> Финансовая оценка и стратегия ставок {% if has_agy_prop %}(agy с веб-поиском):{% else %}(анализ Mistral):{% endif %}
                                             </span>
-                                            {% if order.analysis.recommended_price %}
-                                                <span class="font-mono font-bold text-amber-300">
-                                                    {% if has_agy_prop %}Рыночная ставка: {% else %}Предварительная ставка: {% endif %}{{ "{:,.0f}".format(order.analysis.recommended_price).replace(",", " ") }} ₽
-                                                </span>
-                                            {% endif %}
+                                            <div class="flex items-center gap-3 font-mono text-xs">
+                                                {% if order.analysis.market_price %}
+                                                    <span class="text-amber-300">
+                                                        🎯 Рыночная: <b>{{ "{:,.0f}".format(order.analysis.market_price).replace(",", " ") }} ₽</b>
+                                                    </span>
+                                                {% endif %}
+                                                {% if order.analysis.recommended_price %}
+                                                    <span class="text-emerald-300">
+                                                        💡 Рекомендуемая: <b>{{ "{:,.0f}".format(order.analysis.recommended_price).replace(",", " ") }} ₽</b>
+                                                    </span>
+                                                {% endif %}
+                                            </div>
                                         </div>
                                         {% if order.analysis.price_justification %}
                                             <p class="text-slate-300 text-[11px] leading-relaxed">
@@ -890,6 +922,245 @@ DASHBOARD_HTML = """
         </div>
         {% endif %}
 
+        {% if active_tab == 'health' %}
+        <!-- Live Health Check View -->
+        <div class="space-y-6">
+            <!-- Header bar with trigger -->
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <span>🩺</span> Мониторинг доступности бирж, ИИ-моделей и базы данных
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">
+                        Проверка сетевой доступности внешних площадок, времени отклика (latency), статусов Mistral, Antigravity и SQLite.
+                    </p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <span id="health-last-checked" class="text-xs text-slate-400 font-mono">
+                        {% if health_data and health_data.checked_at %}
+                            Проверено: {{ health_data.checked_at }}
+                        {% endif %}
+                    </span>
+                    <button id="health-refresh-btn" onclick="runLiveHealthCheck()" class="text-xs bg-teal-600 hover:bg-teal-500 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-md">
+                        <span>🔄</span> Проверить сейчас
+                    </button>
+                </div>
+            </div>
+
+            <!-- Overall status banner -->
+            <div id="health-overall-banner" class="p-3.5 rounded-xl border text-xs font-semibold flex items-center justify-between {% if health_data and health_data.all_ok %}bg-emerald-950/40 border-emerald-900/60 text-emerald-300{% else %}bg-amber-950/40 border-amber-900/60 text-amber-300{% endif %}">
+                <div class="flex items-center gap-2">
+                    <span id="health-overall-icon">{% if health_data and health_data.all_ok %}🟢{% else %}⚠️{% endif %}</span>
+                    <span id="health-overall-text">
+                        {% if health_data and health_data.all_ok %}
+                            Все системы и биржи работают штатно
+                        {% else %}
+                            Часть систем недоступна или имеет задержки отклика
+                        {% endif %}
+                    </span>
+                </div>
+                <span class="text-[11px] font-mono text-slate-400">Параллельный опрос через httpx / asyncio</span>
+            </div>
+
+            <!-- Freelance & Vacancies Exchanges Status Grid -->
+            <div class="space-y-3">
+                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>🌐</span> Биржи фриланса и платформы вакансий ({{ health_data.exchanges|length if health_data else 6 }})
+                </h4>
+                <div id="health-exchanges-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                    {% if health_data and health_data.exchanges %}
+                        {% for ex in health_data.exchanges %}
+                            <div class="bg-slate-900/90 border {% if ex.ok %}border-slate-800{% else %}border-red-900/60 bg-red-950/10{% endif %} p-4 rounded-xl space-y-2.5">
+                                <div class="flex items-center justify-between">
+                                    <div class="font-bold text-sm text-white flex items-center gap-1.5">
+                                        <span>{% if ex.ok %}🟢{% else %}🔴{% endif %}</span>
+                                        <span>{{ ex.name }}</span>
+                                    </div>
+                                    <span class="text-xs font-mono font-bold px-2 py-0.5 rounded border {% if ex.latency_ms < 1000 %}bg-emerald-950 text-emerald-400 border border-emerald-800/60{% elif ex.latency_ms < 2500 %}bg-amber-950 text-amber-400 border border-amber-800/60{% else %}bg-red-950 text-red-400 border border-red-800/60{% endif %}">
+                                        {{ ex.latency_ms }} ms
+                                    </span>
+                                </div>
+                                <div class="text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
+                                    <span class="font-mono truncate max-w-[200px]" title="{{ ex.url }}">{{ ex.url }}</span>
+                                    <span class="font-mono font-semibold {% if ex.ok %}text-emerald-400{% else %}text-red-400{% endif %}">
+                                        {{ 'HTTP ' ~ ex.status_code if ex.status_code else (ex.error or 'ERR') }}
+                                    </span>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="col-span-3 text-center py-6 text-slate-500 text-xs">
+                            Нажмите кнопку «Проверить сейчас» для получения актуальных данных.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- AI Models & DB Status Grid -->
+            <div class="space-y-3">
+                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>⚡</span> ИИ-модели и внутренняя инфраструктура
+                </h4>
+                <div id="health-services-grid" class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                    {% if health_data and health_data.services %}
+                        {% for svc in health_data.services %}
+                            <div class="bg-slate-900/90 border {% if svc.ok %}border-slate-800{% else %}border-red-900/60 bg-red-950/10{% endif %} p-4 rounded-xl space-y-2.5">
+                                <div class="flex items-center justify-between">
+                                    <div class="font-bold text-sm text-white flex items-center gap-1.5">
+                                        <span>{% if svc.ok %}🟢{% else %}🔴{% endif %}</span>
+                                        <span>{{ svc.name }}</span>
+                                    </div>
+                                    <span class="text-xs font-mono font-bold px-2 py-0.5 rounded border {% if svc.latency_ms < 500 %}bg-emerald-950 text-emerald-400 border border-emerald-800/60{% elif svc.latency_ms < 1500 %}bg-amber-950 text-amber-400 border border-amber-800/60{% else %}bg-red-950 text-red-400 border border-red-800/60{% endif %}">
+                                        {{ svc.latency_ms }} ms
+                                    </span>
+                                </div>
+                                <div class="text-xs text-slate-400 border-t border-slate-800/80 pt-2 font-mono">
+                                    {% if svc.details %}
+                                        <div class="text-slate-300 truncate" title="{{ svc.details }}">{{ svc.details }}</div>
+                                    {% elif svc.error %}
+                                        <div class="text-red-400 truncate" title="{{ svc.error }}">{{ svc.error }}</div>
+                                    {% else %}
+                                        <div class="text-emerald-400">OK</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if active_tab == 'settings' %}
+        <!-- Dynamic Settings View -->
+        <div class="space-y-6">
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <span>⚙️</span> Интерактивные настройки мониторинга и фильтрации
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-1">
+                        Все изменения сохраняются в базу данных SQLite и моментально применяются в конвейере сбора и в Telegram-боте (/settings).
+                    </p>
+                </div>
+                <button onclick="saveAllSettingsForm()" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow-md">
+                    <span>💾</span> Сохранить все
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Platform Toggles -->
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
+                    <h4 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                        <span>🌐</span> Активные биржи и платформы
+                    </h4>
+                    <p class="text-xs text-slate-400">
+                        Отключение биржи останавливает сохранение и отправку новых уведомлений с этой площадки.
+                    </p>
+                    <div class="space-y-3 pt-1">
+                        <!-- Kwork -->
+                        <label class="flex items-center justify-between p-3 bg-slate-950/80 border border-slate-800 rounded-lg cursor-pointer hover:border-slate-700 transition">
+                            <span class="text-xs font-semibold text-slate-200 flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Kwork (фриланс)
+                            </span>
+                            <input type="checkbox" id="setting_platform_kwork" onchange="autoSaveSetting('platform_kwork', this.checked)" {% if settings_map.platform_kwork %}checked{% endif %} class="w-4 h-4 text-emerald-600 rounded bg-slate-900 border-slate-700 focus:ring-emerald-500">
+                        </label>
+
+                        <!-- FL.ru -->
+                        <label class="flex items-center justify-between p-3 bg-slate-950/80 border border-slate-800 rounded-lg cursor-pointer hover:border-slate-700 transition">
+                            <span class="text-xs font-semibold text-slate-200 flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-blue-400"></span> FL.ru (фриланс)
+                            </span>
+                            <input type="checkbox" id="setting_platform_fl_ru" onchange="autoSaveSetting('platform_fl_ru', this.checked)" {% if settings_map.platform_fl_ru %}checked{% endif %} class="w-4 h-4 text-blue-600 rounded bg-slate-900 border-slate-700 focus:ring-blue-500">
+                        </label>
+
+                        <!-- Freelance.ru -->
+                        <label class="flex items-center justify-between p-3 bg-slate-950/80 border border-slate-800 rounded-lg cursor-pointer hover:border-slate-700 transition">
+                            <span class="text-xs font-semibold text-slate-200 flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-purple-400"></span> Freelance.ru (фриланс)
+                            </span>
+                            <input type="checkbox" id="setting_platform_freelance_ru" onchange="autoSaveSetting('platform_freelance_ru', this.checked)" {% if settings_map.platform_freelance_ru %}checked{% endif %} class="w-4 h-4 text-purple-600 rounded bg-slate-900 border-slate-700 focus:ring-purple-500">
+                        </label>
+
+                        <!-- Pchel.net -->
+                        <label class="flex items-center justify-between p-3 bg-slate-950/80 border border-slate-800 rounded-lg cursor-pointer hover:border-slate-700 transition">
+                            <span class="text-xs font-semibold text-slate-200 flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> Pchel.net (фриланс)
+                            </span>
+                            <input type="checkbox" id="setting_platform_pchel_net" onchange="autoSaveSetting('platform_pchel_net', this.checked)" {% if settings_map.platform_pchel_net %}checked{% endif %} class="w-4 h-4 text-amber-600 rounded bg-slate-900 border-slate-700 focus:ring-amber-500">
+                        </label>
+
+                        <!-- HeadHunter -->
+                        <label class="flex items-center justify-between p-3 bg-slate-950/80 border border-slate-800 rounded-lg cursor-pointer hover:border-slate-700 transition">
+                            <span class="text-xs font-semibold text-slate-200 flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-rose-400"></span> HeadHunter (hh.ru вакансии)
+                            </span>
+                            <input type="checkbox" id="setting_platform_hh_ru" onchange="autoSaveSetting('platform_hh_ru', this.checked)" {% if settings_map.platform_hh_ru %}checked{% endif %} class="w-4 h-4 text-rose-600 rounded bg-slate-900 border-slate-700 focus:ring-rose-500">
+                        </label>
+
+                        <!-- Habr Career -->
+                        <label class="flex items-center justify-between p-3 bg-slate-950/80 border border-slate-800 rounded-lg cursor-pointer hover:border-slate-700 transition">
+                            <span class="text-xs font-semibold text-slate-200 flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span> Хабр Карьера (вакансии)
+                            </span>
+                            <input type="checkbox" id="setting_platform_habr_career" onchange="autoSaveSetting('platform_habr_career', this.checked)" {% if settings_map.platform_habr_career %}checked{% endif %} class="w-4 h-4 text-cyan-600 rounded bg-slate-900 border-slate-700 focus:ring-cyan-500">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Filters & Thresholds -->
+                <div class="space-y-6">
+                    <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
+                        <h4 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2 border-b border-slate-800 pb-3">
+                            <span>🎯</span> Фильтрация и пороги отбора
+                        </h4>
+
+                        <!-- PRO filter toggle -->
+                        <div class="space-y-2">
+                            <label class="flex items-center justify-between p-3 bg-slate-950/80 border border-slate-800 rounded-lg cursor-pointer hover:border-slate-700 transition">
+                                <div>
+                                    <div class="text-xs font-semibold text-slate-200">Отсекать заказы только для PRO</div>
+                                    <div class="text-[11px] text-slate-400">При включении заказы, требующие платного аккаунта, не будут попадать в уведомления</div>
+                                </div>
+                                <input type="checkbox" id="setting_filter_pro_only" onchange="autoSaveSetting('filter_pro_only', this.checked)" {% if settings_map.filter_pro_only %}checked{% endif %} class="w-4 h-4 text-indigo-600 rounded bg-slate-900 border-slate-700 focus:ring-indigo-500">
+                            </label>
+                        </div>
+
+                        <!-- Min Budget -->
+                        <div class="space-y-1.5 pt-2">
+                            <label for="setting_min_budget" class="text-xs font-semibold text-slate-300 block">
+                                💰 Минимальный бюджет заказа (₽):
+                            </label>
+                            <p class="text-[11px] text-slate-400">Заказы с указанным бюджетом ниже этой суммы отсеиваются в Tier 3.</p>
+                            <select id="setting_min_budget" onchange="autoSaveSetting('min_budget', parseInt(this.value, 10))" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2.5 focus:border-indigo-500 outline-none">
+                                <option value="5000" {% if settings_map.min_budget == 5000 %}selected{% endif %}>5 000 ₽</option>
+                                <option value="10000" {% if settings_map.min_budget == 10000 %}selected{% endif %}>10 000 ₽ (по умолчанию)</option>
+                                <option value="15000" {% if settings_map.min_budget == 15000 %}selected{% endif %}>15 000 ₽</option>
+                                <option value="20000" {% if settings_map.min_budget == 20000 %}selected{% endif %}>20 000 ₽</option>
+                                <option value="30000" {% if settings_map.min_budget == 30000 %}selected{% endif %}>30 000 ₽</option>
+                                <option value="50000" {% if settings_map.min_budget == 50000 %}selected{% endif %}>50 000 ₽</option>
+                            </select>
+                        </div>
+
+                        <!-- Hot score threshold -->
+                        <div class="space-y-1.5 pt-2">
+                            <label for="setting_hot_score_threshold" class="text-xs font-semibold text-slate-300 block">
+                                🔥 Порог Hot (Tier 1 совпадения):
+                            </label>
+                            <p class="text-[11px] text-slate-400">Минимальный балл Mistral/Agy (1-10) для присвоения категории Hot и мгновенной отправки в Telegram.</p>
+                            <select id="setting_hot_score_threshold" onchange="autoSaveSetting('hot_score_threshold', parseInt(this.value, 10))" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2.5 focus:border-indigo-500 outline-none">
+                                <option value="6" {% if settings_map.hot_score_threshold == 6 %}selected{% endif %}>6 / 10 (мягкий отбор)</option>
+                                <option value="7" {% if settings_map.hot_score_threshold == 7 %}selected{% endif %}>7 / 10 (рекомендуемый)</option>
+                                <option value="8" {% if settings_map.hot_score_threshold == 8 %}selected{% endif %}>8 / 10 (строгий отбор)</option>
+                                <option value="9" {% if settings_map.hot_score_threshold == 9 %}selected{% endif %}>9 / 10 (только топовые)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
     </main>
 
     <!-- Toast Notification for Copy -->
@@ -927,26 +1198,38 @@ DASHBOARD_HTML = """
                 const data = await res.json();
                 if (data.ok && data.proposal_text) {
                     if (data.recommended_price) {
-                        const pill = document.getElementById(`market-price-pill-${orderId}`);
+                        const pill = document.getElementById(`rec-price-pill-${orderId}`);
                         if (pill) {
-                            pill.className = "flex items-center gap-1.5 bg-amber-950/40 border border-amber-800/60 px-3 py-1 rounded-lg";
+                            pill.className = "flex items-center gap-1.5 bg-emerald-950/40 border border-emerald-800/60 px-3 py-1 rounded-lg";
                             const formatted = new Intl.NumberFormat('ru-RU').format(data.recommended_price) + ' ₽';
-                            pill.innerHTML = `<span class="text-xs text-amber-400 font-medium">🎯 Рыночная:</span> <span class="text-sm font-bold text-amber-300 font-mono">${formatted}</span>`;
+                            pill.innerHTML = `<span class="text-xs text-emerald-400 font-medium">💡 Рекомендуемая:</span> <span class="text-sm font-bold text-emerald-300 font-mono">${formatted}</span>`;
+                        }
+                    }
+                    if (data.market_price) {
+                        const mktPill = document.getElementById(`market-price-pill-${orderId}`);
+                        if (mktPill) {
+                            mktPill.className = "flex items-center gap-1.5 bg-amber-950/40 border border-amber-800/60 px-3 py-1 rounded-lg";
+                            const formattedM = new Intl.NumberFormat('ru-RU').format(data.market_price) + ' ₽';
+                            mktPill.innerHTML = `<span class="text-xs text-amber-400 font-medium">🎯 Рыночная:</span> <span class="text-sm font-bold text-amber-300 font-mono">${formattedM}</span>`;
                         }
                     }
 
                     let finBlock = '';
-                    if (data.recommended_price || data.price_justification) {
+                    if (data.recommended_price || data.market_price || data.price_justification) {
                         const recFormatted = data.recommended_price ? new Intl.NumberFormat('ru-RU').format(data.recommended_price) + ' ₽' : '';
+                        const mktFormatted = data.market_price ? new Intl.NumberFormat('ru-RU').format(data.market_price) + ' ₽' : '';
                         finBlock = `
-                            <div class="text-xs bg-slate-900/90 border border-amber-900/50 p-2.5 rounded-lg text-slate-300 space-y-1 mb-2">
-                                <div class="flex flex-wrap items-center justify-between gap-1">
+                            <div class="text-xs bg-slate-900/90 border border-amber-900/50 p-2.5 rounded-lg text-slate-300 space-y-1.5 mb-2">
+                                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-1.5">
                                     <span class="text-amber-400 font-semibold uppercase text-[10px] tracking-wider flex items-center gap-1">
-                                        <span>🎯</span> Рыночная оценка и стратегия торга (agy с веб-поиском):
+                                        <span>🎯</span> Оценка ставок (agy с веб-поиском):
                                     </span>
-                                    ${recFormatted ? `<span class="font-mono font-bold text-amber-300">Рыночная ставка: ${recFormatted}</span>` : ''}
+                                    <div class="flex items-center gap-3 font-mono text-xs">
+                                        ${mktFormatted ? `<span class="text-amber-300">🎯 Рыночная: <b>${mktFormatted}</b></span>` : ''}
+                                        ${recFormatted ? `<span class="text-emerald-300">💡 Рекомендуемая: <b>${recFormatted}</b></span>` : ''}
+                                    </div>
                                 </div>
-                                ${data.price_justification ? `<p class="text-slate-300 text-[11px] leading-relaxed">${data.price_justification}</p>` : ''}
+                                ${data.price_justification ? `<p class="text-slate-300 text-[11px] leading-relaxed">${escapeHtml(data.price_justification)}</p>` : ''}
                             </div>
                         `;
                     }
@@ -986,6 +1269,160 @@ DASHBOARD_HTML = """
                 btn.disabled = false;
                 btn.innerHTML = origHtml;
             }
+        }
+
+        async function autoSaveSetting(key, value) {
+            try {
+                const res = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ [key]: value })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    showToast('Настройка сохранена!');
+                } else {
+                    alert('Ошибка сохранения: ' + (data.error || 'неизвестная ошибка'));
+                }
+            } catch (e) {
+                alert('Сетевая ошибка сохранения: ' + e);
+            }
+        }
+
+        async function saveAllSettingsForm() {
+            const payload = {
+                platform_kwork: document.getElementById('setting_platform_kwork')?.checked ?? true,
+                platform_fl_ru: document.getElementById('setting_platform_fl_ru')?.checked ?? true,
+                platform_freelance_ru: document.getElementById('setting_platform_freelance_ru')?.checked ?? true,
+                platform_pchel_net: document.getElementById('setting_platform_pchel_net')?.checked ?? true,
+                platform_hh_ru: document.getElementById('setting_platform_hh_ru')?.checked ?? true,
+                platform_habr_career: document.getElementById('setting_platform_habr_career')?.checked ?? true,
+                filter_pro_only: document.getElementById('setting_filter_pro_only')?.checked ?? false,
+                min_budget: parseInt(document.getElementById('setting_min_budget')?.value || '10000', 10),
+                hot_score_threshold: parseInt(document.getElementById('setting_hot_score_threshold')?.value || '7', 10)
+            };
+            try {
+                const res = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    showToast('Все настройки успешно сохранены!');
+                } else {
+                    alert('Ошибка сохранения настроек');
+                }
+            } catch (e) {
+                alert('Ошибка сети: ' + e);
+            }
+        }
+
+        async function runLiveHealthCheck() {
+            const btn = document.getElementById('health-refresh-btn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span>⏳</span> Проверяем...';
+            }
+            try {
+                const res = await fetch('/api/health-check');
+                const data = await res.json();
+                if (data.checked_at) {
+                    const timeEl = document.getElementById('health-last-checked');
+                    if (timeEl) timeEl.innerText = 'Проверено: ' + data.checked_at;
+                }
+                const banner = document.getElementById('health-overall-banner');
+                const bannerIcon = document.getElementById('health-overall-icon');
+                const bannerText = document.getElementById('health-overall-text');
+                if (banner && data.all_ok) {
+                    banner.className = "p-3.5 rounded-xl border text-xs font-semibold flex items-center justify-between bg-emerald-950/40 border-emerald-900/60 text-emerald-300";
+                    if (bannerIcon) bannerIcon.innerText = "🟢";
+                    if (bannerText) bannerText.innerText = "Все системы и биржи работают штатно";
+                } else if (banner) {
+                    banner.className = "p-3.5 rounded-xl border text-xs font-semibold flex items-center justify-between bg-amber-950/40 border-amber-900/60 text-amber-300";
+                    if (bannerIcon) bannerIcon.innerText = "⚠️";
+                    if (bannerText) bannerText.innerText = "Часть систем недоступна или имеет задержки отклика";
+                }
+
+                // Render exchanges
+                const exGrid = document.getElementById('health-exchanges-grid');
+                if (exGrid && Array.isArray(data.exchanges)) {
+                    exGrid.innerHTML = data.exchanges.map(ex => {
+                        const border = ex.ok ? 'border-slate-800' : 'border-red-900/60 bg-red-950/10';
+                        const badgeColor = ex.latency_ms < 1000 ? 'bg-emerald-950 text-emerald-400 border-emerald-800/60' : (ex.latency_ms < 2500 ? 'bg-amber-950 text-amber-400 border-amber-800/60' : 'bg-red-950 text-red-400 border-red-800/60');
+                        const statusText = ex.status_code ? `HTTP ${ex.status_code}` : (ex.error || 'ERR');
+                        const statusColor = ex.ok ? 'text-emerald-400' : 'text-red-400';
+                        return `
+                            <div class="bg-slate-900/90 border ${border} p-4 rounded-xl space-y-2.5">
+                                <div class="flex items-center justify-between">
+                                    <div class="font-bold text-sm text-white flex items-center gap-1.5">
+                                        <span>${ex.ok ? '🟢' : '🔴'}</span>
+                                        <span>${escapeHtml(ex.name)}</span>
+                                    </div>
+                                    <span class="text-xs font-mono font-bold px-2 py-0.5 rounded border ${badgeColor}">
+                                        ${ex.latency_ms} ms
+                                    </span>
+                                </div>
+                                <div class="text-xs text-slate-400 flex items-center justify-between border-t border-slate-800/80 pt-2">
+                                    <span class="font-mono truncate max-w-[200px]" title="${escapeHtml(ex.url)}">${escapeHtml(ex.url)}</span>
+                                    <span class="font-mono font-semibold ${statusColor}">${escapeHtml(statusText)}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                // Render services
+                const svcGrid = document.getElementById('health-services-grid');
+                if (svcGrid && Array.isArray(data.services)) {
+                    svcGrid.innerHTML = data.services.map(svc => {
+                        const border = svc.ok ? 'border-slate-800' : 'border-red-900/60 bg-red-950/10';
+                        const badgeColor = svc.latency_ms < 500 ? 'bg-emerald-950 text-emerald-400 border-emerald-800/60' : (svc.latency_ms < 1500 ? 'bg-amber-950 text-amber-400 border-amber-800/60' : 'bg-red-950 text-red-400 border-red-800/60');
+                        let detailHtml = '<div class="text-emerald-400">OK</div>';
+                        if (svc.details) {
+                            detailHtml = `<div class="text-slate-300 truncate" title="${escapeHtml(svc.details)}">${escapeHtml(svc.details)}</div>`;
+                        } else if (svc.error) {
+                            detailHtml = `<div class="text-red-400 truncate" title="${escapeHtml(svc.error)}">${escapeHtml(svc.error)}</div>`;
+                        }
+                        return `
+                            <div class="bg-slate-900/90 border ${border} p-4 rounded-xl space-y-2.5">
+                                <div class="flex items-center justify-between">
+                                    <div class="font-bold text-sm text-white flex items-center gap-1.5">
+                                        <span>${svc.ok ? '🟢' : '🔴'}</span>
+                                        <span>${escapeHtml(svc.name)}</span>
+                                    </div>
+                                    <span class="text-xs font-mono font-bold px-2 py-0.5 rounded border ${badgeColor}">
+                                        ${svc.latency_ms} ms
+                                    </span>
+                                </div>
+                                <div class="text-xs text-slate-400 border-t border-slate-800/80 pt-2 font-mono">
+                                    ${detailHtml}
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+                showToast('Данные мониторинга обновлены!');
+            } catch (e) {
+                alert('Ошибка при выполнении проверки: ' + e);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>🔄</span> Проверить сейчас';
+                }
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('copyToast');
+            if (!toast) return;
+            const orig = toast.innerHTML;
+            toast.innerHTML = `<span>✅</span> ${escapeHtml(msg)}`;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+                setTimeout(() => { toast.innerHTML = orig; }, 300);
+            }, 2500);
         }
 
         function filterOrdersClient() {
@@ -1233,6 +1670,35 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
         if not current_stats:
             current_stats = extended_stats
 
+        current_settings = await repository.get_all_settings()
+        default_settings_map = {
+            "platform_kwork": True,
+            "platform_fl_ru": True,
+            "platform_freelance_ru": True,
+            "platform_pchel_net": True,
+            "platform_hh_ru": True,
+            "platform_habr_career": True,
+            "filter_pro_only": False,
+            "min_budget": 10000,
+            "hot_score_threshold": 7,
+        }
+        effective_settings = {**default_settings_map, **current_settings}
+
+        health_data = None
+        if active_tab == "health":
+            from src.services.health_check import HealthCheckService
+            try:
+                health_data = await HealthCheckService().run_full_check()
+            except Exception as e:
+                logger.error("Ошибка при выполнении health check: %s", e)
+                health_data = {
+                    "all_ok": False,
+                    "checked_at": datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
+                    "exchanges": [],
+                    "services": [],
+                    "error": str(e),
+                }
+
         template = Template(DASHBOARD_HTML, autoescape=True)
         html_content = template.render(
             orders=formatted_orders,
@@ -1248,6 +1714,8 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
             llm_provider=settings.LLM_PROVIDER,
             hh_config=settings.COLLECTORS_HH_RU,
             dossier_items=settings.PROMPTS_CONFIG.projects_dossier,
+            settings_map=effective_settings,
+            health_data=health_data,
         )
         return HTMLResponse(content=html_content)
 
@@ -1283,12 +1751,14 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
             proposal_res = await llm_client.generate_proposal(raw_order, analysis_data)
             proposal_text = str(proposal_res)
             rec_price = getattr(proposal_res, "recommended_price", None)
+            mkt_price = getattr(proposal_res, "market_price", None)
             price_just = getattr(proposal_res, "price_justification", None)
 
             await repository.update_proposal(
                 order_id,
                 proposal_text=proposal_text,
                 recommended_price=rec_price,
+                market_price=mkt_price,
                 price_justification=price_just,
             )
             is_hh = raw_order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
@@ -1297,6 +1767,7 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
                 "is_hh": is_hh,
                 "proposal_text": proposal_text,
                 "recommended_price": rec_price,
+                "market_price": mkt_price,
                 "price_justification": price_just,
             }
         except Exception as e:
@@ -1405,6 +1876,61 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
     async def get_stats_api():
         stats = await repository.get_extended_stats()
         return stats
+
+    @app.get("/api/health-check", response_class=JSONResponse)
+    async def api_health_check_full():
+        """Запустить полную проверку доступности бирж, LLM и базы данных."""
+        from src.services.health_check import HealthCheckService
+        service = HealthCheckService()
+        result = await service.run_full_check()
+        return result
+
+    @app.get("/api/settings", response_class=JSONResponse)
+    async def api_get_settings():
+        """Получить все сохраненные настройки."""
+        settings_map = await repository.get_all_settings()
+        defaults = {
+            "platform_kwork": True,
+            "platform_fl_ru": True,
+            "platform_freelance_ru": True,
+            "platform_pchel_net": True,
+            "platform_hh_ru": True,
+            "platform_habr_career": True,
+            "filter_pro_only": False,
+            "min_budget": 10000,
+            "hot_score_threshold": 7,
+        }
+        return {"ok": True, "settings": {**defaults, **settings_map}}
+
+    @app.post("/api/settings", response_class=JSONResponse)
+    async def api_save_settings(request: Request):
+        """Обновить настройки мониторинга."""
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Невалидный JSON"})
+
+        if not isinstance(body, dict):
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Ожидается JSON-объект"})
+
+        allowed_keys = {
+            "platform_kwork",
+            "platform_fl_ru",
+            "platform_freelance_ru",
+            "platform_pchel_net",
+            "platform_hh_ru",
+            "platform_habr_career",
+            "filter_pro_only",
+            "min_budget",
+            "hot_score_threshold",
+        }
+
+        for key, val in body.items():
+            if key in allowed_keys:
+                await repository.set_setting(key, val)
+
+        all_settings = await repository.get_all_settings()
+        return {"ok": True, "settings": all_settings}
 
     @app.get("/health")
     async def health_check():

@@ -281,11 +281,18 @@ class MistralClient(BaseLLMClient):
                             rec_price = float(parsed["recommended_price"])
                         except (ValueError, TypeError):
                             pass
+                    market_price = None
+                    if parsed.get("market_price"):
+                        try:
+                            market_price = float(parsed["market_price"])
+                        except (ValueError, TypeError):
+                            pass
                     price_just = parsed.get("price_justification")
                     return ProposalResult(
                         self._sanitize_proposal(str(parsed["proposal_text"]).strip()),
                         recommended_price=rec_price,
                         price_justification=str(price_just) if price_just else None,
+                        market_price=market_price,
                     )
             except Exception:
                 pass

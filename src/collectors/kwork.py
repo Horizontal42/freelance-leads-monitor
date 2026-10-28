@@ -109,6 +109,24 @@ class KworkCollector(BaseCollector):
 
             url = f"{settings.KWORK_BASE_URL}/projects/{order_id}"
 
+            # Формируем детализированную подсказку по бюджету (желаемый vs допустимый)
+            price_limit = item.get("priceLimit")
+            possible_limit = item.get("possiblePriceLimit")
+            budget_note = ""
+            if price_limit and possible_limit and price_limit != possible_limit:
+                try:
+                    p_lim = int(float(price_limit))
+                    pos_lim = int(float(possible_limit))
+                    budget_note = f"💰 Бюджет Kwork: желаемый {p_lim:,} ₽ (допустимый: до {pos_lim:,} ₽)".replace(",", " ")
+                except Exception:
+                    pass
+            elif price_limit:
+                try:
+                    p_lim = int(float(price_limit))
+                    budget_note = f"💰 Бюджет Kwork (желаемый): {p_lim:,} ₽".replace(",", " ")
+                except Exception:
+                    pass
+
             # Теги / Категория
             tags: List[str] = []
             category_id = item.get("category_id")
@@ -129,6 +147,7 @@ class KworkCollector(BaseCollector):
                 tags=tags,
                 created_at=created_at,
                 raw_payload=item,
+                attachments_text=budget_note if budget_note else None,
             )
         except Exception as e:
             logger.error("Ошибка парсинга элемента Kwork: %s", e)

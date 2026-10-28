@@ -92,7 +92,11 @@ class OrderEnricher:
                 attachments.append(f"[Прикрепленный файл: {fname} ({size_str})]")
 
         if attachments:
-            order.attachments_text = "\n\n".join(attachments)
+            files_block = "\n\n".join(attachments)
+            if order.attachments_text:
+                order.attachments_text = f"{order.attachments_text}\n\n{files_block}"
+            else:
+                order.attachments_text = files_block
 
     async def _enrich_fl_ru(self, order: RawOrder) -> None:
         """FL.ru: выгружаем полное ТЗ со страницы проекта и ссылки на файлы."""

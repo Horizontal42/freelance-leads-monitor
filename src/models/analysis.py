@@ -57,8 +57,12 @@ class AnalysisResult(BaseModel):
         description="Как парировать пробел в требованиях вакансии в Cover Letter",
     )
 
-    recommended_price: float = Field(default=0.0, description="Рекомендуемая цена для отклика в рублях")
-    price_justification: str = Field(default="", description="Обоснование цены: вилка входа, порог торга")
+    market_price: Optional[float] = Field(
+        default=None,
+        description="Объективная рыночная стоимость разработки (чистые часы * ставка 750-1000 ₽/ч + сложность) БЕЗ привязки к бюджету заказчика",
+    )
+    recommended_price: float = Field(default=0.0, description="Тактическая рекомендуемая цена для предложения клиенту в рублях")
+    price_justification: str = Field(default="", description="Обоснование цен: сравнение рыночной стоимости с бюджетом клиента и стратегия торга")
     realistic_days: float = Field(default=0.0, description="Реалистичный срок для клиента в днях")
 
     matched_project: str = Field(
@@ -184,9 +188,11 @@ class ProposalResult(str):
         text: str,
         recommended_price: Optional[float] = None,
         price_justification: Optional[str] = None,
+        market_price: Optional[float] = None,
     ) -> "ProposalResult":
         obj = super().__new__(cls, text)
         obj.proposal_text = text
         obj.recommended_price = recommended_price
         obj.price_justification = price_justification
+        obj.market_price = market_price
         return obj
