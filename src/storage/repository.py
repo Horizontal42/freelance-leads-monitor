@@ -204,10 +204,10 @@ class OrderRepository:
         """
         params: List[Any] = []
 
-        if section in ["hh_ru", "hh"]:
-            query += " AND source = 'hh_ru'"
+        if section in ["vacancies", "hh_ru", "hh"]:
+            query += " AND source IN ('hh_ru', 'habr_career')"
         elif section == "freelance":
-            query += " AND source != 'hh_ru'"
+            query += " AND source NOT IN ('hh_ru', 'habr_career')"
 
         if priority:
             p_val = priority.value if hasattr(priority, "value") else str(priority)
@@ -270,7 +270,7 @@ class OrderRepository:
                     SUM(CASE WHEN priority='trash' THEN 1 ELSE 0 END) as trash,
                     SUM(CASE WHEN status='sent_to_tg' THEN 1 ELSE 0 END) as sent_to_tg,
                     AVG(CASE WHEN price IS NOT NULL AND price > 0 AND priority='hot' THEN price ELSE NULL END) as avg_price
-                FROM orders WHERE source != 'hh_ru'
+                FROM orders WHERE source NOT IN ('hh_ru', 'habr_career')
                 """
             ) as cursor:
                 r_fr = await cursor.fetchone()
@@ -283,7 +283,7 @@ class OrderRepository:
                     "avg_hot_price": round(r_fr[5], 0) if r_fr and r_fr[5] else 0,
                 }
 
-            # HH.ru статистика вакансий
+            # Вакансии (HH.ru + Хабр Карьера)
             async with db.execute(
                 """
                 SELECT
@@ -293,11 +293,11 @@ class OrderRepository:
                     SUM(CASE WHEN priority='trash' THEN 1 ELSE 0 END) as trash,
                     SUM(CASE WHEN status='sent_to_tg' THEN 1 ELSE 0 END) as sent_to_tg,
                     AVG(CASE WHEN price IS NOT NULL AND price > 0 AND priority='hot' THEN price ELSE NULL END) as avg_price
-                FROM orders WHERE source = 'hh_ru'
+                FROM orders WHERE source IN ('hh_ru', 'habr_career')
                 """
             ) as cursor:
                 r_hh = await cursor.fetchone()
-                stats["hh_ru"] = {
+                vac_stats = {
                     "total": r_hh[0] or 0,
                     "hot": r_hh[1] or 0,
                     "normal": r_hh[2] or 0,
@@ -305,6 +305,8 @@ class OrderRepository:
                     "sent_to_tg": r_hh[4] or 0,
                     "avg_hot_price": round(r_hh[5], 0) if r_hh and r_hh[5] else 0,
                 }
+                stats["hh_ru"] = vac_stats
+                stats["vacancies"] = vac_stats
 
             async with db.execute(
                 """

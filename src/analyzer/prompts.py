@@ -283,7 +283,7 @@ def build_cover_letter_prompt(
 def build_analysis_prompt(order: RawOrder) -> str:
     """Сформировать промпт анализа заказа/вакансии для LLM."""
     from src.models.order import SourcePlatform
-    if order.source == SourcePlatform.HH_RU:
+    if order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER):
         return build_vacancy_analysis_prompt(order)
 
     price_info = (
@@ -322,7 +322,7 @@ def build_proposal_prompt(
 ) -> str:
     """Сформировать промпт для генерации отклика или сопроводительного письма."""
     from src.models.order import SourcePlatform
-    if order.source == SourcePlatform.HH_RU:
+    if order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER):
         return build_cover_letter_prompt(order, analysis_data)
     price_info = (
         f"{int(order.price)} ₽"
@@ -406,7 +406,7 @@ def build_chat_prompt(
 
     prop_context = ""
     if proposal_text and proposal_text.strip():
-        label = "Cover Letter" if order.source.value == "hh_ru" else "Отклик"
+        label = "Cover Letter" if order.source.value in ("hh_ru", "habr_career") else "Отклик"
         prop_context = f"СГЕНЕРИРОВАННЫЙ {label.upper()}:\n{proposal_text.strip()}\n"
 
     history_context = ""

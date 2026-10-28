@@ -7,7 +7,7 @@ from src.analyzer.base import BaseLLMClient
 from src.collectors.enricher import OrderEnricher
 from src.config import settings
 from src.filters.pre_filter import HardFilter
-from src.models.order import OrderPriority, OrderStatus, RawOrder
+from src.models.order import OrderPriority, OrderStatus, RawOrder, SourcePlatform
 from src.notifiers.telegram_notifier import TelegramNotifier
 from src.storage.repository import OrderRepository
 
@@ -23,6 +23,7 @@ class LeadsPipeline:
         hard_filter: HardFilter,
         llm_client: BaseLLMClient,
         tg_notifier: Optional[TelegramNotifier] = None,
+        vacancies_notifier: Optional[TelegramNotifier] = None,
         enricher: Optional[OrderEnricher] = None,
         max_concurrency: int = 2,
     ) -> None:
@@ -30,6 +31,7 @@ class LeadsPipeline:
         self.hard_filter = hard_filter
         self.llm_client = llm_client
         self.tg_notifier = tg_notifier
+        self.vacancies_notifier = vacancies_notifier or tg_notifier
         self.enricher = enricher or OrderEnricher()
         self.semaphore = asyncio.Semaphore(max_concurrency)
 
@@ -126,8 +128,10 @@ class LeadsPipeline:
                         order_id,
                         analysis.score,
                     )
-                    if self.tg_notifier is not None:
-                        sent = await self.tg_notifier.send_lead(
+                    is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
+                    active_notifier = self.vacancies_notifier if is_vacancy else self.tg_notifier
+                    if active_notifier is not None:
+                        sent = await active_notifier.send_lead(
                             order=order,
                             analysis=analysis,
                             order_db_id=order_id,
@@ -135,7 +139,7 @@ class LeadsPipeline:
                         if sent:
                             await self.repo.update_status(order_id, OrderStatus.SENT_TO_TG)
                     else:
-                        logger.debug("tg_notifier не задан, пропуск отправки в Telegram")
+                        logger.debug("Нотификатор не задан, пропуск отправки в Telegram")
                 else:
                     stats["analyzed_normal"] += 1
                     logger.info(

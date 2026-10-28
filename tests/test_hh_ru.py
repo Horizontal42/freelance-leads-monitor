@@ -198,7 +198,7 @@ async def test_web_split_sections_freelance_vs_hh(tmp_path):
         html_hh = resp_hh.text
         assert "Младший AI-инженер" in html_hh
         assert "Разработка Telegram-бота на Python" not in html_hh
-        assert "Вакансии HH.ru" in html_hh
+        assert "Вакансии и найм" in html_hh
         assert "Cortex AI Labs" in html_hh
         assert "О компании:" in html_hh
         assert "Требования к кандидату:" in html_hh

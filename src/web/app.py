@@ -97,16 +97,16 @@ DASHBOARD_HTML = """
                 </a>
                 <a href="/?section=hh_ru&tab=hot" class="flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition {% if active_section == 'hh_ru' %}bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-lg shadow-rose-500/25 font-bold{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/60{% endif %}">
                     <span class="text-base">🏢</span>
-                    <span>Вакансии HH.ru</span>
+                    <span>Вакансии и найм</span>
                     <span class="text-xs px-2 py-0.5 rounded-full {% if active_section == 'hh_ru' %}bg-rose-700/80 text-rose-100{% else %}bg-slate-800 text-slate-400{% endif %} font-mono">{{ extended_stats.hh_ru.total if extended_stats.hh_ru else 0 }}</span>
                 </a>
             </div>
 
             <div class="text-xs text-slate-400 hidden lg:flex items-center gap-2 pr-3">
                 {% if active_section == 'freelance' %}
-                    <span>📊 Источники: Kwork, FL.ru, Freelance.ru, Pchel.net, Remote-job</span>
+                    <span>📊 Источники: Kwork, FL.ru, Freelance.ru, Pchel.net</span>
                 {% else %}
-                    <span>🎯 Стек Андрея: AI-агенты, RAG Qdrant, WhisperX, CV YOLOv8, FastAPI, Celery</span>
+                    <span>🎯 Источники: HeadHunter (hh.ru) и Хабр Карьера (career.habr.com)</span>
                 {% endif %}
             </div>
         </div>
@@ -247,8 +247,19 @@ DASHBOARD_HTML = """
                 <a href="/?section=freelance&tab={{ active_tab }}&source=pchel_net&free_only={{ free_only }}" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'pchel_net' %}bg-amber-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
                     Pchel.net
                 </a>
-                <a href="/?section=freelance&tab={{ active_tab }}&source=remote_job&free_only={{ free_only }}" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'remote_job' %}bg-cyan-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
-                    Remote-job
+            </div>
+            {% else %}
+            <!-- Vacancies Source Badges Filter Row -->
+            <div class="flex items-center space-x-1.5 overflow-x-auto custom-scroll pt-1 border-t border-slate-800/80">
+                <span class="text-xs text-slate-400 font-semibold uppercase mr-1">Площадка:</span>
+                <a href="/?section=hh_ru&tab={{ active_tab }}&source=" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if not selected_source %}bg-rose-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
+                    Все вакансии
+                </a>
+                <a href="/?section=hh_ru&tab={{ active_tab }}&source=hh_ru" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'hh_ru' %}bg-rose-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
+                    HeadHunter (hh.ru)
+                </a>
+                <a href="/?section=hh_ru&tab={{ active_tab }}&source=habr_career" class="px-3 py-1.5 rounded-lg text-xs font-medium transition {% if selected_source == 'habr_career' %}bg-cyan-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">
+                    Хабр Карьера
                 </a>
             </div>
             {% endif %}
@@ -278,11 +289,11 @@ DASHBOARD_HTML = """
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
                         <div class="flex items-center space-x-2 flex-wrap gap-y-1">
                             <!-- Platform Badge -->
-                            <span class="text-xs font-bold uppercase px-2.5 py-1 rounded-md {% if order.source == 'hh_ru' %}bg-rose-950 text-rose-300 border border-rose-800/60{% elif order.source == 'kwork' %}bg-emerald-950 text-emerald-300 border border-emerald-800/60{% elif order.source == 'fl_ru' %}bg-blue-950 text-blue-300 border border-blue-800/60{% elif order.source == 'freelance_ru' %}bg-purple-950 text-purple-300 border border-purple-800/60{% elif order.source == 'pchel_net' %}bg-amber-950 text-amber-300 border border-amber-800/60{% else %}bg-cyan-950 text-cyan-300 border border-cyan-800/60{% endif %}">
-                                {{ order.source }}
+                            <span class="text-xs font-bold uppercase px-2.5 py-1 rounded-md {% if order.source == 'hh_ru' %}bg-rose-950 text-rose-300 border border-rose-800/60{% elif order.source == 'habr_career' %}bg-cyan-950 text-cyan-300 border border-cyan-800/60{% elif order.source == 'kwork' %}bg-emerald-950 text-emerald-300 border border-emerald-800/60{% elif order.source == 'fl_ru' %}bg-blue-950 text-blue-300 border border-blue-800/60{% elif order.source == 'freelance_ru' %}bg-purple-950 text-purple-300 border border-purple-800/60{% elif order.source == 'pchel_net' %}bg-amber-950 text-amber-300 border border-amber-800/60{% else %}bg-cyan-950 text-cyan-300 border border-cyan-800/60{% endif %}">
+                                {{ 'Хабр Карьера' if order.source == 'habr_career' else (order.source|upper) }}
                             </span>
 
-                            {% if order.source != 'hh_ru' %}
+                            {% if order.source not in ['hh_ru', 'habr_career'] %}
                                 <!-- Paid vs Free Response Badge (Freelance only) -->
                                 {% if order.is_pro_only %}
                                     <span class="text-xs font-semibold px-2 py-0.5 rounded-md bg-purple-950/80 text-purple-300 border border-purple-800/60 flex items-center gap-1" title="Требуется аккаунт PRO / платный отклик">
@@ -323,7 +334,7 @@ DASHBOARD_HTML = """
 
                         <!-- Price / Salary Pills -->
                         <div class="flex flex-wrap items-center gap-2">
-                            {% if order.source == 'hh_ru' %}
+                            {% if order.source in ['hh_ru', 'habr_career'] %}
                                 <div class="flex items-center gap-1.5 bg-slate-950/80 border border-slate-800 px-3 py-1 rounded-lg">
                                     <span class="text-xs text-slate-400 font-medium">💰 Зарплата:</span>
                                     {% if order.price %}
@@ -386,7 +397,7 @@ DASHBOARD_HTML = """
                         </h2>
                     </div>
 
-                    {% if order.source == 'hh_ru' and order.attachments_text %}
+                    {% if order.source in ['hh_ru', 'habr_career'] and order.attachments_text %}
                         <!-- Vacancy Meta Highlights -->
                         <div class="text-xs bg-slate-950/80 border border-slate-800 p-2.5 rounded-lg text-slate-300 font-mono space-y-0.5">
                             {{ order.attachments_text.replace('\\n', '<br>')|safe }}
@@ -395,7 +406,7 @@ DASHBOARD_HTML = """
 
                     <!-- Mistral AI Structured Breakdown for Vacancy or Project -->
                     {% if order.analysis %}
-                        {% if order.source == 'hh_ru' %}
+                        {% if order.source in ['hh_ru', 'habr_career'] %}
                             <!-- Dedicated HH Vacancy Breakdown Card -->
                             <div class="bg-slate-950/90 border border-rose-950/60 p-4 rounded-xl space-y-3">
                                 <div class="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5 border-b border-slate-800 pb-2">
@@ -1280,7 +1291,7 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
                 recommended_price=rec_price,
                 price_justification=price_just,
             )
-            is_hh = raw_order.source == SourcePlatform.HH_RU
+            is_hh = raw_order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
             return {
                 "ok": True,
                 "is_hh": is_hh,
