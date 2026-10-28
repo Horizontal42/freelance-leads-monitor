@@ -6,7 +6,7 @@ import logging
 import re
 from typing import Any, Dict, Optional
 from src.analyzer.base import BaseLLMClient
-from src.analyzer.prompts import build_analysis_prompt, build_proposal_prompt
+from src.analyzer.prompts import build_analysis_prompt, build_proposal_prompt, build_chat_prompt
 from src.config import settings
 from src.models.analysis import AnalysisResult, ProposalResult
 from src.models.order import OrderPriority, RawOrder
@@ -216,3 +216,68 @@ class AntigravityClient(BaseLLMClient):
         cleaned_text = re.sub(r"^```[a-zA-Z]*\n", "", output_text)
         cleaned_text = re.sub(r"\n```$", "", cleaned_text).strip()
         return ProposalResult(self._sanitize_proposal(cleaned_text))
+
+    async def chat_order(
+        self,
+        order: RawOrder,
+        analysis_data: Optional[Dict[str, Any]] = None,
+        proposal_text: Optional[str] = None,
+        history: Optional[list] = None,
+        user_message: str = "",
+        model_preference: Optional[str] = None,
+    ) -> tuple[str, str]:
+        """Ответить на вопрос по заказу через Antigravity CLI (agy -p)."""
+        prompt = build_chat_prompt(order, analysis_data, proposal_text, history, user_message)
+
+        selected_model = (
+            model_preference
+            if model_preference and model_preference not in ["auto", "antigravity"]
+            else self.model
+        )
+        selected_effort = self.effort
+
+        cmd = [
+            self.binary_path,
+            "-p",
+            prompt,
+            "--model",
+            selected_model,
+            "--output-format",
+            "text",
+        ]
+        if selected_effort:
+            cmd.extend(["--effort", selected_effort])
+
+        logger.info(
+            "Запуск вопроса по заказу в Antigravity для заказа %s [model: %s]",
+            order.external_id,
+            selected_model,
+        )
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(),
+                timeout=self.timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            raise TimeoutError(
+                f"Antigravity CLI превысил таймаут {self.timeout_seconds} сек при вопросе по заказу"
+            )
+
+        if proc.returncode != 0:
+            err_msg = stderr_bytes.decode("utf-8", errors="ignore").strip()
+            raise RuntimeError(
+                f"Antigravity CLI завершился с ошибкой (код {proc.returncode}): {err_msg}"
+            )
+
+        output_text = stdout_bytes.decode("utf-8", errors="ignore").strip()
+        cleaned_text = re.sub(r"^```[a-zA-Z]*\n", "", output_text)
+        cleaned_text = re.sub(r"\n```$", "", cleaned_text).strip()
+        return self._sanitize_proposal(cleaned_text), f"Antigravity ({selected_model})"

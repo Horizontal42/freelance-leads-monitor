@@ -13,7 +13,7 @@ from tenacity import (
     wait_exponential,
 )
 from src.analyzer.base import BaseLLMClient
-from src.analyzer.prompts import build_analysis_prompt, build_proposal_prompt
+from src.analyzer.prompts import build_analysis_prompt, build_proposal_prompt, build_chat_prompt
 from src.config import settings
 from src.models.analysis import AnalysisResult, ProposalResult
 from src.models.order import OrderPriority, RawOrder
@@ -295,4 +295,40 @@ class MistralClient(BaseLLMClient):
             logger.warning("Сбой генерации отклика Mistral: %s", e)
             if self.fallback_client:
                 return await self.fallback_client.generate_proposal(order, analysis_data)
+            raise
+
+    async def chat_order(
+        self,
+        order: RawOrder,
+        analysis_data: Optional[Dict[str, Any]] = None,
+        proposal_text: Optional[str] = None,
+        history: Optional[list] = None,
+        user_message: str = "",
+        model_preference: Optional[str] = None,
+    ) -> tuple[str, str]:
+        """Ответить на вопрос по заказу через Mistral API."""
+        if not self.api_key:
+            if self.fallback_client:
+                return await self.fallback_client.chat_order(
+                    order, analysis_data, proposal_text, history, user_message, model_preference
+                )
+            raise ValueError("MISTRAL_API_KEY не задан в конфигурации (.env)")
+
+        prompt = build_chat_prompt(order, analysis_data, proposal_text, history, user_message)
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+        }
+
+        try:
+            result_json = await self._execute_with_rate_limit(payload)
+            content = result_json["choices"][0]["message"]["content"].strip()
+            return self._sanitize_proposal(content), f"Mistral ({self.model})"
+        except Exception as e:
+            logger.warning("Сбой ответа Mistral в чате по заказу: %s", e)
+            if self.fallback_client:
+                return await self.fallback_client.chat_order(
+                    order, analysis_data, proposal_text, history, user_message, model_preference
+                )
             raise

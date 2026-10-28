@@ -22,3 +22,15 @@ class BaseLLMClient(ABC):
     ) -> str:
         """Сгенерировать персонализированный отклик по требованию."""
         pass
+
+    async def chat_order(
+        self,
+        order: RawOrder,
+        analysis_data: Optional[Dict[str, Any]] = None,
+        proposal_text: Optional[str] = None,
+        history: Optional[list] = None,
+        user_message: str = "",
+        model_preference: Optional[str] = None,
+    ) -> tuple[str, str]:
+        """Ответить на уточняющий вопрос по заказу. Возвращает (текст_ответа, имя_модели)."""
+        raise NotImplementedError("chat_order не реализован")

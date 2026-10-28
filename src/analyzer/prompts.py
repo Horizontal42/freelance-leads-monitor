@@ -355,3 +355,93 @@ def build_proposal_prompt(
         description=full_description,
         extra_context=extra_context,
     )
+
+
+def build_chat_prompt(
+    order: RawOrder,
+    analysis_data: Optional[Dict[str, Any]] = None,
+    proposal_text: Optional[str] = None,
+    history: Optional[list] = None,
+    user_message: str = "",
+) -> str:
+    """Сформировать контекстный промпт для ответа на вопрос разработчика по конкретному заказу/вакансии."""
+    dossier_text = settings.PROMPTS_CONFIG.projects_dossier
+    price_info = (
+        f"{int(order.price)} ₽"
+        if order.price
+        else ("По договоренности" if order.is_negotiable else "Не указан")
+    )
+
+    full_description = order.description
+    if order.attachments_text and order.attachments_text.strip():
+        full_description = (
+            f"{order.description}\n\n[Прикрепленные файлы и материалы]:\n{order.attachments_text.strip()}"
+        )
+
+    analysis_context = ""
+    if analysis_data:
+        items = []
+        if analysis_data.get("executive_summary"):
+            items.append(f"Суть задачи: {analysis_data['executive_summary']}")
+        if analysis_data.get("matched_project"):
+            items.append(f"Кейс из досье: {analysis_data['matched_project']}")
+        if analysis_data.get("complexity"):
+            items.append(f"Оценка сложности: {analysis_data['complexity']}/10")
+        if analysis_data.get("risks_and_pitfalls"):
+            items.append(f"Риски: {', '.join(analysis_data['risks_and_pitfalls'])}")
+        if analysis_data.get("recommended_price"):
+            items.append(f"Оценка рыночной стоимости: {analysis_data['recommended_price']} ₽")
+        if analysis_data.get("price_justification"):
+            items.append(f"Обоснование цены: {analysis_data['price_justification']}")
+        if analysis_data.get("company_overview"):
+            items.append(f"Компания: {analysis_data['company_overview']}")
+        if analysis_data.get("candidate_requirements"):
+            items.append(f"Требования: {analysis_data['candidate_requirements']}")
+        if analysis_data.get("skills_gap"):
+            items.append(f"Пробелы в стеке: {analysis_data['skills_gap']}")
+        if analysis_data.get("skills_gap_counter"):
+            items.append(f"Парирование пробелов: {analysis_data['skills_gap_counter']}")
+        if items:
+            analysis_context = "ДАННЫЕ ПРЕДЫДУЩЕГО АНАЛИЗА:\n" + "\n".join(f"- {i}" for i in items) + "\n"
+
+    prop_context = ""
+    if proposal_text and proposal_text.strip():
+        label = "Cover Letter" if order.source.value == "hh_ru" else "Отклик"
+        prop_context = f"СГЕНЕРИРОВАННЫЙ {label.upper()}:\n{proposal_text.strip()}\n"
+
+    history_context = ""
+    if history:
+        history_lines = []
+        for msg in history:
+            role_label = "Андрей (Разработчик)" if msg.get("role") == "user" else f"ИИ ({msg.get('model', 'assistant')})"
+            history_lines.append(f"{role_label}: {msg.get('message', '')}")
+        if history_lines:
+            history_context = "ИСТОРИЯ ПЕРЕПИСКИ ПО ЗАКАЗУ:\n" + "\n".join(history_lines) + "\n"
+
+    return f"""Ты - старший технический ментор и ассистент Андрея Пименова (@horizontal42, Junior+/Middle Python/AI разработчик).
+Андрей обратился к тебе с вопросом по конкретному заказу или вакансии.
+Ответь четко, практично, по делу и профессионально. Помогай оценивать стек, архитектуру, риски, тактику переговоров или ответы заказчику.
+
+ЖЕСТКИЕ ПРАВИЛА:
+1. Запрет длинных тире (em-dash)! Используй только обычные дефисы "-".
+2. Не используй шаблоны, канцелярит и лишние вводные слова. Отвечай сразу по существу.
+3. Опирайся на реальный профиль и стек Андрея из досье.
+
+БЭКГРАУНД РАЗРАБОТЧИКА:
+{dossier_text}
+
+ДАННЫЕ ЗАКАЗА / ВАКАНСИИ:
+Источник: {order.source.value.upper()} (ID: {order.external_id})
+Название: {order.title}
+Бюджет / Зарплата: {price_info}
+ТЗ / Описание:
+{full_description}
+
+{analysis_context}
+{prop_context}
+{history_context}
+ВОПРОС АНДРЕЯ:
+{user_message}
+
+ТВОЙ ОТВЕТ:
+"""

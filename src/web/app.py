@@ -619,6 +619,68 @@ DASHBOARD_HTML = """
                             <span><b>Причина отсева:</b> {{ order.filter_reason }}</span>
                         </div>
                     {% endif %}
+
+                    <!-- Order Action Bar: Chat toggle -->
+                    <div class="pt-2 flex items-center justify-between border-t border-slate-800/80">
+                        <button type="button" onclick="toggleOrderChat('{{ order.id }}')" id="chat-toggle-btn-{{ order.id }}" class="text-xs bg-slate-800/80 hover:bg-slate-700 text-slate-200 border border-slate-700/60 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                            <span>💬</span>
+                            <span>Вопрос по заказу</span>
+                            {% if order.messages_count and order.messages_count > 0 %}
+                                <span id="chat-badge-{{ order.id }}" class="bg-indigo-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5">{{ order.messages_count }}</span>
+                            {% else %}
+                                <span id="chat-badge-{{ order.id }}" class="hidden bg-indigo-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold ml-0.5">0</span>
+                            {% endif %}
+                        </button>
+                        <span class="text-[11px] text-slate-500 font-mono">ID: {{ order.external_id }}</span>
+                    </div>
+
+                    <!-- Collapsible Chat Drawer -->
+                    <div id="chat-container-{{ order.id }}" class="hidden bg-slate-950 border border-indigo-950/70 rounded-xl p-3.5 space-y-3 transition-all duration-200">
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-slate-200 flex items-center gap-1">
+                                    <span>💬</span> Вопрос по задаче
+                                </span>
+                                <span class="text-[10px] text-slate-400">(сохраняет историю и контекст)</span>
+                            </div>
+                            <div class="flex items-center gap-1.5 text-xs">
+                                <label for="chat-model-{{ order.id }}" class="text-[11px] text-slate-400">Модель:</label>
+                                <select id="chat-model-{{ order.id }}" class="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-indigo-500 outline-none">
+                                    <option value="auto" selected>✨ Авто ({% if order.proposal_text %}agy{% else %}Mistral{% endif %})</option>
+                                    <option value="mistral">Mistral (быстрый совет)</option>
+                                    <option value="antigravity">Antigravity agy (глубокий анализ)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Chat Message History -->
+                        <div id="chat-messages-{{ order.id }}" class="space-y-2.5 max-h-80 overflow-y-auto pr-1 text-xs">
+                            <div class="text-center py-3 text-slate-500 text-xs">
+                                <span>Загрузка диалога...</span>
+                            </div>
+                        </div>
+
+                        <!-- Quick suggestion chips -->
+                        <div class="flex flex-wrap gap-1.5 pt-1">
+                            <button type="button" onclick="setQuickChatPrompt('{{ order.id }}', 'Какие здесь скрытые риски и подводные камни?')" class="text-[10px] bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 px-2 py-1 rounded transition">
+                                ⚠️ Скрытые риски?
+                            </button>
+                            <button type="button" onclick="setQuickChatPrompt('{{ order.id }}', 'Как аргументировать заказчику вилку стоимости?')" class="text-[10px] bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 px-2 py-1 rounded transition">
+                                💰 Аргументация цены
+                            </button>
+                            <button type="button" onclick="setQuickChatPrompt('{{ order.id }}', 'Подойдет ли стек Андрея и сколько займет разработка?')" class="text-[10px] bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 px-2 py-1 rounded transition">
+                                ⏱ Стек и сроки
+                            </button>
+                        </div>
+
+                        <!-- Input Box -->
+                        <div class="flex items-center gap-2 pt-1">
+                            <input type="text" id="chat-input-{{ order.id }}" onkeydown="if(event.key==='Enter') sendOrderMessage('{{ order.id }}')" placeholder="Задай вопрос модели по этой задаче..." class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                            <button type="button" onclick="sendOrderMessage('{{ order.id }}')" id="chat-send-btn-{{ order.id }}" class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-4 py-2 rounded-lg text-xs transition flex items-center gap-1 shrink-0 shadow-sm">
+                                <span>Спросить</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             {% endfor %}
         </div>
@@ -928,6 +990,166 @@ DASHBOARD_HTML = """
                 }
             });
         }
+
+        function setQuickChatPrompt(orderId, text) {
+            const input = document.getElementById(`chat-input-${orderId}`);
+            if (input) {
+                input.value = text;
+                input.focus();
+            }
+        }
+
+        async function toggleOrderChat(orderId) {
+            const container = document.getElementById(`chat-container-${orderId}`);
+            if (!container) return;
+            const isHidden = container.classList.contains('hidden');
+            if (isHidden) {
+                container.classList.remove('hidden');
+                await loadOrderChatMessages(orderId);
+                const input = document.getElementById(`chat-input-${orderId}`);
+                if (input) input.focus();
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function loadOrderChatMessages(orderId) {
+            const box = document.getElementById(`chat-messages-${orderId}`);
+            if (!box) return;
+            try {
+                const res = await fetch(`/api/orders/${orderId}/chat`);
+                const data = await res.json();
+                if (data.ok && Array.isArray(data.messages)) {
+                    renderChatMessages(orderId, data.messages);
+                } else {
+                    box.innerHTML = `<div class="text-slate-500 text-center py-2">Не удалось загрузить историю диалога.</div>`;
+                }
+            } catch (e) {
+                box.innerHTML = `<div class="text-red-400 text-center py-2">Ошибка подключения: ${escapeHtml(e.message)}</div>`;
+            }
+        }
+
+        function renderChatMessages(orderId, messages) {
+            const box = document.getElementById(`chat-messages-${orderId}`);
+            if (!box) return;
+            if (!messages || messages.length === 0) {
+                box.innerHTML = `
+                    <div class="text-slate-500 text-center py-3 bg-slate-900/40 rounded-lg border border-slate-800/60">
+                        <p class="text-slate-400 font-medium text-xs">Нет сообщений в диалоге.</p>
+                        <p class="text-[11px] text-slate-500 mt-0.5">Задай вопрос по рискам, стеку, переписке или оценке бюджета.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+            messages.forEach(m => {
+                const isUser = m.role === 'user';
+                const timeStr = m.created_at ? m.created_at.substring(11, 16) : '';
+                if (isUser) {
+                    html += `
+                        <div class="flex justify-end">
+                            <div class="max-w-[85%] bg-indigo-950/80 border border-indigo-800/60 rounded-xl rounded-tr-sm p-2.5 text-slate-100 space-y-1">
+                                <div class="flex items-center justify-between gap-3 text-[10px] text-indigo-300 font-semibold">
+                                    <span>👤 Андрей</span>
+                                    ${timeStr ? `<span class="font-mono text-slate-400">${timeStr}</span>` : ''}
+                                </div>
+                                <div class="whitespace-pre-wrap leading-relaxed">${escapeHtml(m.message)}</div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    const modelName = m.model || 'assistant';
+                    const isAgy = modelName.toLowerCase().includes('antigravity') || modelName.toLowerCase().includes('agy');
+                    const badgeBg = isAgy ? 'bg-purple-950/80 border-purple-800/60 text-purple-300' : 'bg-amber-950/80 border-amber-800/60 text-amber-300';
+                    const icon = isAgy ? '✨' : '⚡';
+                    html += `
+                        <div class="flex justify-start">
+                            <div class="max-w-[90%] bg-slate-900 border border-slate-800 rounded-xl rounded-tl-sm p-3 text-slate-200 space-y-1.5 shadow-sm">
+                                <div class="flex items-center justify-between gap-3 text-[10px]">
+                                    <span class="px-1.5 py-0.5 rounded border ${badgeBg} font-mono flex items-center gap-1 font-semibold">
+                                        <span>${icon}</span> ${escapeHtml(modelName)}
+                                    </span>
+                                    ${timeStr ? `<span class="font-mono text-slate-500">${timeStr}</span>` : ''}
+                                </div>
+                                <div class="whitespace-pre-wrap leading-relaxed">${escapeHtml(m.message)}</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+            box.innerHTML = html;
+            box.scrollTop = box.scrollHeight;
+        }
+
+        async function sendOrderMessage(orderId) {
+            const input = document.getElementById(`chat-input-${orderId}`);
+            const btn = document.getElementById(`chat-send-btn-${orderId}`);
+            const modelSelect = document.getElementById(`chat-model-${orderId}`);
+            if (!input || !btn) return;
+
+            const text = input.value.trim();
+            if (!text) return;
+
+            const modelVal = modelSelect ? modelSelect.value : 'auto';
+            input.value = '';
+            input.disabled = true;
+            btn.disabled = true;
+            const origBtnHtml = btn.innerHTML;
+            btn.innerHTML = '<span>⏳ Думает...</span>';
+
+            const box = document.getElementById(`chat-messages-${orderId}`);
+            const tempUserBubble = `
+                <div class="flex justify-end">
+                    <div class="max-w-[85%] bg-indigo-950/80 border border-indigo-800/60 rounded-xl rounded-tr-sm p-2.5 text-slate-100 space-y-1">
+                        <div class="flex items-center justify-between gap-3 text-[10px] text-indigo-300 font-semibold">
+                            <span>👤 Андрей</span>
+                            <span class="font-mono text-slate-400">сейчас</span>
+                        </div>
+                        <div class="whitespace-pre-wrap leading-relaxed">${escapeHtml(text)}</div>
+                    </div>
+                </div>
+            `;
+            if (box && box.innerText.includes('Нет сообщений')) {
+                box.innerHTML = tempUserBubble;
+            } else if (box) {
+                box.insertAdjacentHTML('beforeend', tempUserBubble);
+                box.scrollTop = box.scrollHeight;
+            }
+
+            try {
+                const res = await fetch(`/api/orders/${orderId}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text, model: modelVal })
+                });
+                const data = await res.json();
+                if (data.ok && data.reply) {
+                    await loadOrderChatMessages(orderId);
+                    const badge = document.getElementById(`chat-badge-${orderId}`);
+                    if (badge) {
+                        const cur = parseInt(badge.innerText || '0', 10);
+                        badge.innerText = cur + 2;
+                        badge.classList.remove('hidden');
+                    }
+                } else {
+                    alert('Ошибка ответа модели: ' + (data.error || 'не удалось получить ответ'));
+                }
+            } catch (e) {
+                alert('Сетевая ошибка при отправке вопроса: ' + e);
+            } finally {
+                input.disabled = false;
+                btn.disabled = false;
+                btn.innerHTML = origBtnHtml;
+                input.focus();
+            }
+        }
     </script>
 </body>
 </html>
@@ -1068,6 +1290,89 @@ def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
             }
         except Exception as e:
             logger.error("Ошибка при генерации для заказа/вакансии #%d: %s", order_id, e)
+            return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+    @app.get("/api/orders/{order_id}/chat")
+    async def get_order_chat(order_id: int):
+        """Получить историю переписки по заказу."""
+        messages = await repository.get_chat_messages(order_id)
+        return {"ok": True, "messages": messages}
+
+    @app.post("/api/orders/{order_id}/chat")
+    async def post_order_chat(order_id: int, request: Request):
+        """Задать вопрос модели по заказу и получить ответ с сохранением истории."""
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Невалидный JSON"})
+
+        user_message = str(body.get("message", "")).strip()
+        model_choice = str(body.get("model", "auto")).strip()
+
+        if not user_message:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Сообщение не может быть пустым"})
+
+        order_data = await repository.get_by_id(order_id)
+        if not order_data:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "Заказ или вакансия не найдена"})
+
+        from src.analyzer.factory import get_llm_client
+        llm_client = get_llm_client()
+
+        raw_order = RawOrder(
+            source=SourcePlatform(order_data["source"]),
+            external_id=order_data["external_id"],
+            title=order_data["title"],
+            description=order_data["description"] or "",
+            url=order_data["url"],
+            price=order_data["price"],
+            is_negotiable=bool(order_data.get("is_negotiable", 0)),
+            is_pro_only=bool(order_data.get("is_pro_only", 0)),
+            attachments_text=order_data.get("attachments_text"),
+        )
+        analysis_data = (
+            json.loads(order_data["analysis_json"])
+            if order_data.get("analysis_json")
+            else None
+        )
+        proposal_text = order_data.get("proposal_text")
+
+        history = await repository.get_chat_messages(order_id)
+
+        try:
+            # 1. Сохраняем вопрос пользователя
+            await repository.add_chat_message(
+                order_id=order_id,
+                role="user",
+                model="user",
+                message=user_message,
+            )
+
+            # 2. Вызываем модель
+            reply_text, model_used = await llm_client.chat_order(
+                order=raw_order,
+                analysis_data=analysis_data,
+                proposal_text=proposal_text,
+                history=history,
+                user_message=user_message,
+                model_preference=model_choice,
+            )
+
+            # 3. Сохраняем ответ модели
+            await repository.add_chat_message(
+                order_id=order_id,
+                role="assistant",
+                model=model_used,
+                message=reply_text,
+            )
+
+            return {
+                "ok": True,
+                "reply": reply_text,
+                "model": model_used,
+            }
+        except Exception as e:
+            logger.error("Ошибка в чате по заказу #%d: %s", order_id, e)
             return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
     @app.get("/api/orders", response_class=JSONResponse)
