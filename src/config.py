@@ -107,6 +107,12 @@ class HhRuCollectorConfig(BaseModel):
     engineering_marker: str = r"инженер|engineer|разработчик|developer|программист|\bml\b|\bllm\b|\brag\b"
 
 
+class HabrCareerCollectorConfig(BaseModel):
+    rss_url: str = "https://career.habr.com/vacancies/rss"
+    enabled: bool = True
+    queries: List[str] = Field(default_factory=lambda: ["python", "ai"])
+
+
 class CollectorsConfig(BaseModel):
     kwork: KworkCollectorConfig = Field(default_factory=KworkCollectorConfig)
     fl_ru: FlRuCollectorConfig = Field(default_factory=FlRuCollectorConfig)
@@ -114,6 +120,7 @@ class CollectorsConfig(BaseModel):
     pchel_net: PchelNetCollectorConfig = Field(default_factory=PchelNetCollectorConfig)
     remote_job: RemoteJobCollectorConfig = Field(default_factory=RemoteJobCollectorConfig)
     hh_ru: HhRuCollectorConfig = Field(default_factory=HhRuCollectorConfig)
+    habr_career: HabrCareerCollectorConfig = Field(default_factory=HabrCareerCollectorConfig)
 
 
 class FilterConfig(BaseModel):
@@ -254,6 +261,8 @@ class Secrets(BaseSettings):
 
     BOT_TOKEN: str = ""
     ADMIN_CHAT_ID: int = 0
+    VACANCIES_BOT_TOKEN: str = ""
+    VACANCIES_ADMIN_CHAT_ID: Optional[int] = None
     MISTRAL_API_KEY: str = ""
     HH_APP_TOKEN: str = ""
     HH_USER_AGENT: str = "JobSearch/1.0 (frolka84@gmail.com)"
@@ -388,6 +397,18 @@ class Settings:
     @property
     def COLLECTORS_HH_RU(self) -> HhRuCollectorConfig:
         return self.app_config.collectors.hh_ru
+
+    @property
+    def COLLECTORS_HABR_CAREER(self) -> HabrCareerCollectorConfig:
+        return self.app_config.collectors.habr_career
+
+    @property
+    def VACANCIES_BOT_TOKEN(self) -> str:
+        return self.secrets.VACANCIES_BOT_TOKEN or self.secrets.BOT_TOKEN
+
+    @property
+    def VACANCIES_ADMIN_CHAT_ID(self) -> int:
+        return self.secrets.VACANCIES_ADMIN_CHAT_ID or self.secrets.ADMIN_CHAT_ID
 
     @property
     def POLLING_INTERVAL_SECONDS(self) -> int:

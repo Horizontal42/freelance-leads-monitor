@@ -35,10 +35,13 @@ collectors:
     usd_rate: 95.0
     normal_pages: 1
     backfill_pages: 3
-  remote_job:
-    base_url: "https://remote-job.ru"
-    normal_pages: 1
-    backfill_pages: 3
+  habr_career:
+    rss_url: "https://career.habr.com/vacancies/rss"
+    enabled: true
+    queries:
+      - "python"
+      - "ai"
+      - "backend"
   hh_ru:
     base_url: "https://api.hh.ru"
     enabled: true

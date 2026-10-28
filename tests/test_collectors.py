@@ -3,9 +3,9 @@
 import pytest
 from src.collectors.fl_ru import FlRuCollector
 from src.collectors.freelance_ru import FreelanceRuCollector
+from src.collectors.habr_career import HabrCareerCollector
 from src.collectors.kwork import KworkCollector
 from src.collectors.pchel_net import PchelNetCollector
-from src.collectors.remote_job import RemoteJobCollector
 from src.models.order import SourcePlatform
 
 
@@ -102,57 +102,71 @@ def test_pchel_net_block_parsing():
     assert order.source == SourcePlatform.PCHEL_NET
 
 
-def test_remote_job_card_parsing_fixed_budget():
-    collector = RemoteJobCollector()
-    mock_card = """
-    <div class="row">
-        <div class="col-xs-10 col-sm-10 col-md-10 col-lg-10 text-left">
-            <h2>
-                <a target="_blank" href="/project_work/project_show/806478/ai-agenty-integrirovat-nejroset-claude-v-revit-2023-distanczionnaya-rabota">
-                    AI-агенты. Интегрировать нейросеть Claude в revit 2023 (Дистанционная работа)
-                </a>
-            </h2>
-            <h3>Бюджет: 35 000 руб.</h3>
-        </div>
-        <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 text-left">
-            У меня установлен revit 23, нужно подключить Claude через MCP.
-        </div>
-    </div>
+@pytest.mark.asyncio
+async def test_habr_career_card_parsing_fixed_salary(monkeypatch):
+    collector = HabrCareerCollector()
+    mock_rss = """<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>Хабр Карьера</title>
+        <item>
+          <title>Требуется «Python разработчик / Python Developer» (Москва, от 240 000 до 260 000 ₽)</title>
+          <link>https://career.habr.com/vacancies/1000168482</link>
+          <guid>1000168482</guid>
+          <author>СОГАЗ</author>
+          <description>Компания СОГАЗ ищет разработчика. Требуемые навыки: #Python, #FastAPI, #PostgreSQL</description>
+        </item>
+      </channel>
+    </rss>
     """
-    order = collector._parse_card(mock_card)
-    assert order is not None
-    assert order.external_id == "806478"
-    assert order.title == "AI-агенты. Интегрировать нейросеть Claude в revit 2023"
-    assert order.price == 35000.0
-    assert order.is_negotiable is False
-    assert order.source == SourcePlatform.REMOTE_JOB
-    assert "revit 23" in order.description
+    import httpx
+    async def mock_get(self, url, *args, **kwargs):
+        req = httpx.Request("GET", str(url))
+        return httpx.Response(status_code=200, text=mock_rss, request=req)
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
+    vacancies = await collector.fetch_new_orders()
+    assert len(vacancies) == 1
+    v = vacancies[0]
+    assert v.external_id == "1000168482"
+    assert v.title == "Python разработчик / Python Developer"
+    assert v.price == 240000.0
+    assert v.is_negotiable is False
+    assert v.source == SourcePlatform.HABR_CAREER
+    assert "FastAPI" in v.tags
+    assert "СОГАЗ" in v.attachments_text
 
 
-def test_remote_job_card_parsing_negotiable_budget():
-    collector = RemoteJobCollector()
-    mock_card = """
-    <div class="row">
-        <div class="col-xs-10 col-sm-10 col-md-10 col-lg-10 text-left">
-            <h2>
-                <a target="_blank" href="/project_work/project_show/806483/sistemnyj-programmist-nuzhen-soft-distanczionnaya-rabota">
-                    Системный программист. Нужен софт (Дистанционная работа)
-                </a>
-            </h2>
-            <h3>Бюджет не указан</h3>
-        </div>
-        <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 text-left">
-            Разработка ПО на Python/C++.
-        </div>
-    </div>
+@pytest.mark.asyncio
+async def test_habr_career_card_parsing_negotiable_salary(monkeypatch):
+    collector = HabrCareerCollector()
+    mock_rss = """<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>Хабр Карьера</title>
+        <item>
+          <title>Требуется «ML Инженер» (Новосибирск)</title>
+          <link>https://career.habr.com/vacancies/1000168375</link>
+          <guid>1000168375</guid>
+          <author>True Engineering</author>
+          <description>Требуемые навыки: #PyTorch, #Python</description>
+        </item>
+      </channel>
+    </rss>
     """
-    order = collector._parse_card(mock_card)
-    assert order is not None
-    assert order.external_id == "806483"
-    assert order.title == "Системный программист. Нужен софт"
-    assert order.price is None
-    assert order.is_negotiable is True
-    assert order.source == SourcePlatform.REMOTE_JOB
+    import httpx
+    async def mock_get(self, url, *args, **kwargs):
+        req = httpx.Request("GET", str(url))
+        return httpx.Response(status_code=200, text=mock_rss, request=req)
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
+    vacancies = await collector.fetch_new_orders()
+    assert len(vacancies) == 1
+    v = vacancies[0]
+    assert v.title == "ML Инженер"
+    assert v.price is None
+    assert v.is_negotiable is True
+    assert v.source == SourcePlatform.HABR_CAREER
 
 
 @pytest.mark.asyncio
@@ -236,14 +250,11 @@ async def test_freelance_ru_category_pagination_and_cold_start(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_pchel_net_and_remote_job_cold_start_backfill(monkeypatch):
-    """Проверка начального бэкфилла для PchelNetCollector и RemoteJobCollector."""
+async def test_pchel_net_cold_start_backfill(monkeypatch):
+    """Проверка начального бэкфилла для PchelNetCollector."""
     import httpx
     pchel = PchelNetCollector(normal_pages=1, backfill_pages=3)
-    remote = RemoteJobCollector(normal_pages=1, backfill_pages=3)
-
     pchel_urls = []
-    remote_urls = []
 
     async def mock_get(self, url, *args, **kwargs):
         u = str(url)
@@ -251,10 +262,6 @@ async def test_pchel_net_and_remote_job_cold_start_backfill(monkeypatch):
         if "pchel.net" in u:
             pchel_urls.append(u)
             card = '<div class="project-block-cont"><div class="project-title"><a href="/jobs/programming/test-101/">Тест</a></div><div class="project-text">Текст</div><div class="price">15000 руб</div></div></div></div>'
-            return httpx.Response(status_code=200, text=card, request=req)
-        elif "remote-job.ru" in u:
-            remote_urls.append(u)
-            card = '<div class="vacancy_item"><a href="/project_work/project_show/202/test">Тест</a><div class="col-xs-12 text-left">Текст</div><h3>15000 руб</h3></div><hr>'
             return httpx.Response(status_code=200, text=card, request=req)
         return httpx.Response(status_code=404, request=req)
 
@@ -266,19 +273,10 @@ async def test_pchel_net_and_remote_job_cold_start_backfill(monkeypatch):
     assert any("page-2" in u for u in pchel_urls)
     assert any("page-3" in u for u in pchel_urls)
 
-    await remote.fetch_new_orders(is_cold_start=True)
-    assert len(remote_urls) == 3
-    assert any("page=2" in u for u in remote_urls)
-    assert any("page=3" in u for u in remote_urls)
-
     # Обычный запуск: только 1 страница
     pchel_urls.clear()
-    remote_urls.clear()
     await pchel.fetch_new_orders(is_cold_start=False)
     assert len(pchel_urls) == 1
-
-    await remote.fetch_new_orders(is_cold_start=False)
-    assert len(remote_urls) == 1
 
 
 @pytest.mark.asyncio
