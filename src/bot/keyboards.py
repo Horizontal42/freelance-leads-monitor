@@ -48,6 +48,26 @@ def get_order_inline_keyboard(
             )
         )
         url_btn_text = "🔗 Открыть вакансию"
+        buttons = [
+            [
+                action_btn,
+                InlineKeyboardButton(
+                    text=url_btn_text,
+                    url=order_url,
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🌐 Открыть на сайте",
+                    url="https://jobs.3dvex.ru/?section=hh_ru",
+                ),
+                InlineKeyboardButton(
+                    text="📦 В архив",
+                    callback_data=f"archive:{order_id}",
+                ),
+            ],
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=buttons)
     else:
         action_btn = (
             InlineKeyboardButton(
@@ -61,23 +81,22 @@ def get_order_inline_keyboard(
             )
         )
         url_btn_text = "🔗 Открыть заказ"
-
-    buttons = [
-        [
-            action_btn,
-            InlineKeyboardButton(
-                text=url_btn_text,
-                url=order_url,
-            ),
-        ],
-        [
-            InlineKeyboardButton(
-                text="📦 В архив",
-                callback_data=f"archive:{order_id}",
-            ),
-        ],
-    ]
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
+        buttons = [
+            [
+                action_btn,
+                InlineKeyboardButton(
+                    text=url_btn_text,
+                    url=order_url,
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📦 В архив",
+                    callback_data=f"archive:{order_id}",
+                ),
+            ],
+        ]
+        return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def get_settings_inline_keyboard(settings_map: dict) -> InlineKeyboardMarkup:
@@ -93,6 +112,15 @@ def get_settings_inline_keyboard(settings_map: dict) -> InlineKeyboardMarkup:
     pro_filtered = settings_map.get("filter_pro_only", False)
     min_budget = settings_map.get("min_budget", 10000)
     hot_score = settings_map.get("hot_score_threshold", 7)
+
+    # Настройки вакансий (город, формат, минимальная зарплата)
+    v_city = settings_map.get("vacancy_city", "all")
+    v_format = settings_map.get("vacancy_work_format", "all")
+    v_salary = settings_map.get("vacancy_min_salary", 0)
+
+    city_names = {"all": "Все города", "moscow": "Москва", "spb": "СПб", "russia": "Россия"}
+    format_names = {"all": "Любой", "remote": "Удаленка", "hybrid": "Гибрид", "office": "Офис"}
+    salary_label = f"{v_salary:,} ₽".replace(",", " ") if v_salary > 0 else "Любая"
 
     buttons = [
         [
@@ -139,6 +167,22 @@ def get_settings_inline_keyboard(settings_map: dict) -> InlineKeyboardMarkup:
             InlineKeyboardButton(
                 text=f"💰 Мин. бюджет: {min_budget:,} ₽ ▾".replace(",", " "),
                 callback_data="set_cycle:min_budget",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=f"📍 Город вакансий: {city_names.get(v_city, 'Все')} ▾",
+                callback_data="set_cycle:vacancy_city",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text=f"🏠 Формат: {format_names.get(v_format, 'Любой')} ▾",
+                callback_data="set_cycle:vacancy_work_format",
+            ),
+            InlineKeyboardButton(
+                text=f"💵 З/П от: {salary_label} ▾",
+                callback_data="set_cycle:vacancy_min_salary",
             ),
         ],
         [
