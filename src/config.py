@@ -21,6 +21,11 @@ class StorageConfig(BaseModel):
     db_path: str = "data/jobs.db"
 
 
+class WebConfig(BaseModel):
+    host: str = "0.0.0.0"
+    port: int = 8086
+
+
 class PollingConfig(BaseModel):
     kwork_interval: int = 180
     fl_interval: int = 180
@@ -66,6 +71,7 @@ class LLMConfig(BaseModel):
 
 class YamlAppConfig(BaseModel):
     storage: StorageConfig = Field(default_factory=StorageConfig)
+    web: WebConfig = Field(default_factory=WebConfig)
     polling: PollingConfig = Field(default_factory=PollingConfig)
     collectors: CollectorsConfig = Field(default_factory=CollectorsConfig)
     filter: FilterConfig = Field(default_factory=FilterConfig)
@@ -139,6 +145,15 @@ class Settings:
     def DB_PATH(self) -> Path:
         p = Path(self.app_config.storage.db_path)
         return p if p.is_absolute() else (BASE_DIR / p)
+
+    # Веб-дашборд
+    @property
+    def WEB_HOST(self) -> str:
+        return self.app_config.web.host
+
+    @property
+    def WEB_PORT(self) -> int:
+        return self.app_config.web.port
 
     # Интервалы опроса
     @property

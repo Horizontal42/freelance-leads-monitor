@@ -1,5 +1,6 @@
 """End-to-end test for LeadsPipeline."""
 
+import asyncio
 import pytest
 from src.analyzer.base import BaseLLMClient
 from src.filters.pre_filter import HardFilter
@@ -36,6 +37,43 @@ class MockLLMClient(BaseLLMClient):
                 most_likely_days=3.0,
                 pessimistic_days=5.0,
                 expected_days=3.17,
+                sigma=0.5,
+            ),
+        )
+
+
+class ConcurrencyTrackingLLMClient(BaseLLMClient):
+    """Мок для замера максимальной конкурентности при анализе."""
+
+    def __init__(self) -> None:
+        self.active_calls = 0
+        self.max_concurrent_seen = 0
+
+    async def analyze_order(self, order: RawOrder) -> AnalysisResult:
+        self.active_calls += 1
+        if self.active_calls > self.max_concurrent_seen:
+            self.max_concurrent_seen = self.active_calls
+
+        await asyncio.sleep(0.05)
+        self.active_calls -= 1
+
+        return AnalysisResult(
+            take_order=True,
+            score=8,
+            priority=OrderPriority.HOT,
+            executive_summary="Ok",
+            recommended_price=20000.0,
+            price_justification="Ok",
+            realistic_days=2.0,
+            matched_project="Avia_Pars",
+            complexity=4,
+            pure_dev_hours=8.0,
+            proposal_text="Добрый день. Сделаем бот на python.",
+            pert=PertEstimate(
+                optimistic_days=1.0,
+                most_likely_days=2.0,
+                pessimistic_days=4.0,
+                expected_days=2.17,
                 sigma=0.5,
             ),
         )
@@ -112,3 +150,42 @@ async def test_pipeline_routing_flow(tmp_path):
     # Проверяем повторный прогон на дубликаты
     stats2 = await pipeline.process_orders(orders)
     assert stats2["duplicates"] == 3
+
+
+@pytest.mark.asyncio
+async def test_pipeline_concurrency_semaphore(tmp_path):
+    db_path = tmp_path / "test_sem.db"
+    await init_db(db_path)
+    repo = OrderRepository(db_path=db_path)
+    hard_filter = HardFilter(min_budget=10000)
+    llm_client = ConcurrencyTrackingLLMClient()
+
+    pipeline = LeadsPipeline(
+        repo=repo,
+        hard_filter=hard_filter,
+        llm_client=llm_client,
+        tg_notifier=None,
+        max_concurrency=2,
+    )
+
+    # 4 заказа, проходящих фильтр
+    orders = [
+        RawOrder(
+            source=SourcePlatform.KWORK,
+            external_id=f"c_{i}",
+            title=f"Python бот {i}",
+            description="Стек: python, aiogram",
+            url=f"https://kwork.ru/projects/c_{i}",
+            price=20000,
+        )
+        for i in range(4)
+    ]
+
+    stats = await pipeline.process_orders(orders)
+    assert stats["received"] == 4
+    assert stats["filtered_trash"] == 0
+    assert stats["hot_leads_sent"] == 4
+
+    # Проверяем, что максимальная параллельность не превысила 2
+    assert llm_client.max_concurrent_seen <= 2
+    assert llm_client.max_concurrent_seen >= 1
