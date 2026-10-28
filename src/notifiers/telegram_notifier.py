@@ -133,6 +133,37 @@ class TelegramNotifier:
             f"⚠️ <b>Подводные камни:</b>\n{risks_list}\n\n"
             f"💡 <b>Резюме (Mistral):</b> {html.escape(analysis.executive_summary)}"
         )
+
+        if len(card_html) > 3900:
+            excess = len(card_html) - 3700
+            safe_summary = (
+                analysis.executive_summary[:-excess] + "..."
+                if len(analysis.executive_summary) > excess
+                else "См. подробнее на сайте"
+            )
+            card_html = (
+                f"{badge}\n\n"
+                f"📌 <b>Биржа:</b> {order.source.value.upper()} | {access_badge}\n"
+                f"🕒 <b>Опубликован:</b> {pub_time_str}\n"
+                f"📝 <b>Заказ:</b> <a href=\"{html.escape(order.url, quote=True)}\">{html.escape(order.title)}</a>\n\n"
+                f"💰 <b>Бюджет клиента:</b> {price_str}\n"
+            )
+            if analysis.market_price and analysis.market_price > 0:
+                card_html += f"🎯 <b>Рыночная стоимость:</b> {int(analysis.market_price):,} ₽\n".replace(",", " ")
+            if analysis.recommended_price and analysis.recommended_price > 0:
+                card_html += f"💡 <b>Рекомендуем предложить:</b> {int(analysis.recommended_price):,} ₽\n".replace(",", " ")
+            elif rec_price_str:
+                card_html += f"🎯 <b>Рекомендуемая цена:</b> {rec_price_str}\n"
+
+            card_html += (
+                f"⏱ <b>Срок (PERT):</b> {analysis.realistic_days} дн. "
+                f"(E={analysis.pert.expected_days:.1f} дн., σ={analysis.pert.sigma:.1f})\n"
+                f"💼 <b>Кейс из досье:</b> <code>{html.escape(analysis.matched_project)}</code> "
+                f"(Сложность: {analysis.complexity}/10, Время: {analysis.pure_dev_hours:.1f}ч)\n\n"
+                f"⚠️ <b>Подводные камни:</b>\n{risks_list}\n\n"
+                f"💡 <b>Резюме (Mistral):</b> {html.escape(safe_summary)}"
+            )
+
         return card_html
 
     async def send_lead(
@@ -178,6 +209,23 @@ class TelegramNotifier:
                 order_db_id,
                 e,
             )
+            # Если отправка полной карточки не удалась, пробуем отправить компактную версию
+            try:
+                short_card = (
+                    f"⚡ <b>Заказ #{order_db_id} [{order.source.value.upper()}]</b>\n"
+                    f"<a href=\"{html.escape(order.url, quote=True)}\">{html.escape(order.title[:120])}</a>\n"
+                    f"💰 Бюджет: {price_str} | Скор: {analysis.score}/10"
+                )
+                await self.bot.send_message(
+                    chat_id=self.chat_id,
+                    text=short_card,
+                    parse_mode=ParseMode.HTML,
+                    reply_markup=keyboard,
+                    link_preview_options=LinkPreviewOptions(is_disabled=True),
+                )
+                return True
+            except Exception:
+                pass
             return False
 
     async def close(self) -> None:
