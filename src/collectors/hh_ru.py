@@ -143,6 +143,7 @@ class HhRuCollector(BaseCollector):
         # Динамические фильтры города и формата работы из базы настроек
         area_param = self.config.area
         schedule_param = None
+        format_setting = "all"
         if self.repo:
             try:
                 city_setting = await self.repo.get_setting("vacancy_city", "all")
@@ -156,6 +157,7 @@ class HhRuCollector(BaseCollector):
                 format_setting = await self.repo.get_setting("vacancy_work_format", "all")
                 if format_setting == "remote":
                     schedule_param = "remote"
+                    area_param = None  # Удаленка не привязывается к конкретному городу
                 elif format_setting == "hybrid":
                     schedule_param = "flexible"
                 elif format_setting == "office":
@@ -177,23 +179,46 @@ class HhRuCollector(BaseCollector):
             salary_param = getattr(settings, "VACANCY_MIN_SALARY", None)
             only_with_salary_param = not getattr(settings, "VACANCY_ALLOW_NEGOTIABLE", True)
 
+        # Составляем варианты параметров (город vs удаленка):
+        # Удаленные вакансии никогда не должны отсекаться фильтром города.
+        param_variants: List[Dict[str, Any]] = []
+        if format_setting == "remote":
+            param_variants.append({"schedule": "remote"})
+        elif format_setting in ("hybrid", "office"):
+            var: Dict[str, Any] = {}
+            if schedule_param:
+                var["schedule"] = schedule_param
+            if area_param:
+                var["area"] = area_param
+            param_variants.append(var)
+        else:  # "all"
+            if area_param:
+                # Все удаленные по всей стране + любые вакансии в выбранном городе
+                param_variants.append({"schedule": "remote"})
+                param_variants.append({"area": area_param})
+            else:
+                param_variants.append({})
+
         found_orders: Dict[str, RawOrder] = {}
         seen_pairs: Set[tuple[str, str]] = set()
 
+        query_configs = [
+            (q, var)
+            for q in self.config.queries
+            for var in param_variants
+        ]
+
         async with httpx.AsyncClient(timeout=15.0) as client:
-            for query in self.config.queries:
+            for query, variant in query_configs:
                 for page in range(max_pages):
                     params: Dict[str, Any] = {
                         "text": query,
                         "per_page": self.config.per_page,
                         "page": page,
                         "period": max(1, min(self.config.days, 30)),
+                        **variant,
                     }
-                    if area_param:
-                        params["area"] = area_param
-                    if schedule_param:
-                        params["schedule"] = schedule_param
-                    elif self.config.work_format:
+                    if "schedule" not in params and "work_format" not in params and self.config.work_format:
                         params["work_format"] = self.config.work_format
                     if salary_param:
                         params["salary"] = salary_param
