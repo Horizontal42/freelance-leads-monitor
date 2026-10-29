@@ -51,8 +51,8 @@ class HhRuCollector(BaseCollector):
         super().__init__(name="hh_ru")
         self.config = settings.COLLECTORS_HH_RU
         self.base_url = (base_url or self.config.base_url).rstrip("/")
-        self.token = token or settings.HH_APP_TOKEN
-        self.user_agent = user_agent or settings.HH_USER_AGENT
+        self.token = settings.HH_APP_TOKEN if token is None else token
+        self.user_agent = settings.HH_USER_AGENT if user_agent is None else user_agent
         self.repo = repo
         self._logged_missing_token = False
 
