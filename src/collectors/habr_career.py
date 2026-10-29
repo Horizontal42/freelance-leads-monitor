@@ -68,90 +68,105 @@ class HabrCareerCollector(BaseCollector):
         seen_ids = set()
         all_vacancies: List[RawOrder] = []
 
-        # Динамические параметры фильтрации
-        extra_params = ""
+        # Динамические параметры фильтрации (удаленка не привязывается к городу)
+        extra_param_sets = [""]
         if self.repo:
             try:
                 v_fmt = await self.repo.get_setting("vacancy_work_format", "all")
-                if v_fmt == "remote":
-                    extra_params += "&s[]=remote"
                 v_city = await self.repo.get_setting("vacancy_city", "all")
+
+                city_param = ""
                 if v_city == "moscow":
-                    extra_params += "&city_id=678"
+                    city_param = "&city_id=678"
                 elif v_city == "spb":
-                    extra_params += "&city_id=679"
+                    city_param = "&city_id=679"
+
+                if v_fmt == "remote":
+                    # Удаленка не привязывается к городу
+                    extra_param_sets = ["&s[]=remote"]
+                elif v_fmt == "office":
+                    extra_param_sets = [f"&s[]=office{city_param}"]
+                elif v_fmt == "hybrid":
+                    extra_param_sets = [f"&s[]=mixed{city_param}"]
+                else:  # "all"
+                    if city_param:
+                        # Удаленка отовсюду + офис/гибрид в выбранном городе
+                        extra_param_sets = ["&s[]=remote", city_param]
+                    else:
+                        extra_param_sets = [""]
             except Exception as e:
                 logger.debug("Не удалось получить настройки вакансий для Хабр Карьеры: %s", e)
 
         async with httpx.AsyncClient(headers=self.headers, timeout=15.0, follow_redirects=True) as client:
             for query in queries:
-                url = f"{rss_base}?q={query}{extra_params}"
-                try:
-                    resp = await client.get(url)
-                    if resp.status_code != 200:
-                        logger.warning("Хабр Карьера RSS вернул статус %d для q=%s", resp.status_code, query)
-                        continue
-
-                    feed = feedparser.parse(resp.text)
-                    for entry in feed.entries:
-                        link = entry.get("link", "").strip()
-                        raw_title = entry.get("title", "").strip()
-                        guid = entry.get("id") or entry.get("guid") or ""
-                        ext_id = self._extract_id(link, guid)
-
-                        if not ext_id or ext_id in seen_ids:
+                for extra_params in extra_param_sets:
+                    url = f"{rss_base}?q={query}{extra_params}"
+                    try:
+                        resp = await client.get(url)
+                        if resp.status_code != 200:
+                            logger.warning("Хабр Карьера RSS вернул статус %d для q=%s", resp.status_code, query)
                             continue
-                        seen_ids.add(ext_id)
 
-                        # Извлекаем чистое название из кавычек «...»
-                        title_match = re.search(r"«(.*?)»", raw_title)
-                        clean_title = title_match.group(1).strip() if title_match else raw_title
+                        feed = feedparser.parse(resp.text)
+                        for entry in feed.entries:
+                            link = entry.get("link", "").strip()
+                            raw_title = entry.get("title", "").strip()
+                            guid = entry.get("id") or entry.get("guid") or ""
+                            ext_id = self._extract_id(link, guid)
 
-                        company = entry.get("author", "").strip()
-                        summary = entry.get("summary", "").strip()
+                            if not ext_id or ext_id in seen_ids:
+                                continue
+                            seen_ids.add(ext_id)
 
-                        # Навыки/теги из хэштегов summary: #Python, #FastAPI, etc.
-                        tags = re.findall(r"#([A-Za-z0-9_+-]+)", summary)
-                        # Очищаем summary от HTML-тегов
-                        clean_summary = re.sub(r"<[^>]+>", " ", summary)
-                        clean_summary = html.unescape(re.sub(r"\s+", " ", clean_summary)).strip()
+                            # Извлекаем чистое название из кавычек «...»
+                            title_match = re.search(r"«(.*?)»", raw_title)
+                            clean_title = title_match.group(1).strip() if title_match else raw_title
 
-                        # Зарплата
-                        price, is_negotiable = self._extract_price(raw_title)
+                            company = entry.get("author", "").strip()
+                            summary = entry.get("summary", "").strip()
 
-                        # Дата публикации
-                        created_at = datetime.now()
-                        if hasattr(entry, "published_parsed") and entry.published_parsed:
-                            try:
-                                created_at = datetime(*entry.published_parsed[:6])
-                            except Exception:
-                                pass
+                            # Навыки/теги из хэштегов summary: #Python, #FastAPI, etc.
+                            tags = re.findall(r"#([A-Za-z0-9_+-]+)", summary)
+                            # Очищаем summary от HTML-тегов
+                            clean_summary = re.sub(r"<[^>]+>", " ", summary)
+                            clean_summary = html.unescape(re.sub(r"\s+", " ", clean_summary)).strip()
 
-                        meta_lines = []
-                        if company:
-                            meta_lines.append(f"🏢 Компания: {company}")
-                        if tags:
-                            meta_lines.append(f"🔑 Навыки: {', '.join(tags)}")
+                            # Зарплата
+                            price, is_negotiable = self._extract_price(raw_title)
 
-                        attachments_text = "\n".join(meta_lines) if meta_lines else None
+                            # Дата публикации
+                            created_at = datetime.now()
+                            if hasattr(entry, "published_parsed") and entry.published_parsed:
+                                try:
+                                    created_at = datetime(*entry.published_parsed[:6])
+                                except Exception:
+                                    pass
 
-                        raw_order = RawOrder(
-                            source=SourcePlatform.HABR_CAREER,
-                            external_id=ext_id,
-                            title=clean_title,
-                            description=clean_summary,
-                            url=link,
-                            price=price,
-                            is_negotiable=is_negotiable,
-                            is_pro_only=False,
-                            tags=tags,
-                            created_at=created_at,
-                            attachments_text=attachments_text,
-                        )
-                        all_vacancies.append(raw_order)
+                            meta_lines = []
+                            if company:
+                                meta_lines.append(f"🏢 Компания: {company}")
+                            if tags:
+                                meta_lines.append(f"🔑 Навыки: {', '.join(tags)}")
 
-                except Exception as e:
-                    logger.warning("Ошибка запроса RSS Хабр Карьеры (%s): %s", url, e)
+                            attachments_text = "\n".join(meta_lines) if meta_lines else None
+
+                            raw_order = RawOrder(
+                                source=SourcePlatform.HABR_CAREER,
+                                external_id=ext_id,
+                                title=clean_title,
+                                description=clean_summary,
+                                url=link,
+                                price=price,
+                                is_negotiable=is_negotiable,
+                                is_pro_only=False,
+                                tags=tags,
+                                created_at=created_at,
+                                attachments_text=attachments_text,
+                            )
+                            all_vacancies.append(raw_order)
+
+                    except Exception as e:
+                        logger.warning("Ошибка запроса RSS Хабр Карьеры (%s): %s", url, e)
 
         logger.info("Хабр Карьера: успешно собрано %d вакансий", len(all_vacancies))
         return all_vacancies

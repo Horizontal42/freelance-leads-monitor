@@ -410,3 +410,70 @@ async def test_hh_enricher_full_details(monkeypatch):
     assert "Docker" in enriched.tags
     assert "🔑 Навыки: Python, Docker, FastAPI" in enriched.attachments_text
     assert "💼 Занятость: Полная занятость" in enriched.attachments_text
+
+
+@pytest.mark.asyncio
+async def test_hh_collector_remote_vacancies_not_filtered_by_city(monkeypatch):
+    """Проверка того, что удаленные вакансии не блокируются фильтром города."""
+    from unittest.mock import AsyncMock
+
+    captured_params = []
+
+    class MockHhClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def get(self, url, headers=None, params=None):
+            captured_params.append(params.copy() if params else {})
+
+            class MockResp:
+                status_code = 200
+
+                def json(self):
+                    return {"items": []}
+
+            return MockResp()
+
+    monkeypatch.setattr(httpx, "AsyncClient", MockHhClient)
+
+    mock_repo = AsyncMock()
+
+    # 1. Формат "remote": не должно быть параметра area даже если выбран город moscow
+    mock_repo.get_setting.side_effect = lambda k, def_val=None: {
+        "vacancy_city": "moscow",
+        "vacancy_work_format": "remote",
+        "vacancy_min_salary": 80000,
+        "vacancy_allow_negotiable": True,
+    }.get(k, def_val)
+
+    collector = HhRuCollector(token="test_tok", repo=mock_repo)
+    await collector.fetch_new_orders()
+
+    assert len(captured_params) > 0
+    for p in captured_params:
+        assert p.get("schedule") == "remote"
+        assert "area" not in p  # Удаленка отовсюду
+
+    # 2. Формат "all" + город "moscow": должны быть запросы и на schedule=remote (без area), и на area=[1]
+    captured_params.clear()
+    mock_repo.get_setting.side_effect = lambda k, def_val=None: {
+        "vacancy_city": "moscow",
+        "vacancy_work_format": "all",
+        "vacancy_min_salary": 80000,
+        "vacancy_allow_negotiable": True,
+    }.get(k, def_val)
+
+    collector = HhRuCollector(token="test_tok", repo=mock_repo)
+    await collector.fetch_new_orders()
+
+    schedules = [p.get("schedule") for p in captured_params]
+    areas = [p.get("area") for p in captured_params]
+    assert "remote" in schedules
+    assert [1] in areas
+
