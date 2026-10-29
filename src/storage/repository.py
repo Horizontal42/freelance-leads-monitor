@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import aiosqlite
-from src.models.analysis import AnalysisResult
+from src.models.analysis import AnalysisResult, extract_clean_proposal_payload
 from src.models.order import OrderPriority, OrderStatus, RawOrder
 from src.storage.db import get_db_connection
 
@@ -117,6 +117,23 @@ class OrderRepository:
             )
             await db.commit()
 
+    def _clean_order_row(self, row: Optional[Any]) -> Optional[Dict[str, Any]]:
+        """Очистить поля заказа от сырого JSON (например, если в proposal_text попал JSON)."""
+        if not row:
+            return None
+        d = dict(row)
+        prop = d.get("proposal_text")
+        if prop and ("proposal_text" in str(prop)) and ("{" in str(prop) or "```" in str(prop)):
+            payload = extract_clean_proposal_payload(str(prop))
+            clean_text = payload.get("proposal_text")
+            if clean_text:
+                d["proposal_text"] = clean_text
+            if d.get("recommended_price") is None and payload.get("recommended_price"):
+                d["recommended_price"] = payload.get("recommended_price")
+            if d.get("market_price") is None and payload.get("market_price"):
+                d["market_price"] = payload.get("market_price")
+        return d
+
     async def update_proposal(
         self,
         order_id: int,
@@ -124,10 +141,34 @@ class OrderRepository:
         recommended_price: Optional[float] = None,
         price_justification: Optional[str] = None,
         market_price: Optional[float] = None,
+        estimated_days: Optional[str] = None,
     ) -> None:
         """Сохранить сгенерированный по требованию отклик и обновленную рыночную оценку от agy."""
+        # Гарантируем, что в базу сохраняется чистый текст отклика, а не сырой JSON
+        payload = extract_clean_proposal_payload(proposal_text)
+        clean_proposal_text = payload.get("proposal_text") or proposal_text
+        if recommended_price is None and payload.get("recommended_price"):
+            recommended_price = payload.get("recommended_price")
+        if market_price is None and payload.get("market_price"):
+            market_price = payload.get("market_price")
+        if price_justification is None and payload.get("price_justification"):
+            price_justification = payload.get("price_justification")
+        if estimated_days is None and payload.get("estimated_days"):
+            estimated_days = payload.get("estimated_days")
+
+        # Парсим число дней для realistic_days если есть
+        parsed_days: Optional[float] = None
+        if estimated_days:
+            import re
+            m = re.search(r"([0-9]+(?:\.[0-9]+)?)", str(estimated_days))
+            if m:
+                try:
+                    parsed_days = float(m.group(1))
+                except ValueError:
+                    pass
+
         async with self._get_conn() as db:
-            # Считываем существующий analysis_json если он есть, чтобы обновить в нем цену и обоснование
+            # Считываем существующий analysis_json если он есть, чтобы обновить в нем цену, срок и обоснование
             async with db.execute(
                 "SELECT analysis_json FROM orders WHERE id = ?", (order_id,)
             ) as cursor:
@@ -143,40 +184,39 @@ class OrderRepository:
                         data["market_price"] = market_price
                     if price_justification is not None:
                         data["price_justification"] = price_justification
-                    data["proposal_text"] = proposal_text
+                    if estimated_days is not None:
+                        data["estimated_days"] = estimated_days
+                    data["proposal_text"] = clean_proposal_text
                     updated_analysis_json = json.dumps(data, ensure_ascii=False)
                 except Exception:
                     pass
 
-            if recommended_price is not None and updated_analysis_json:
+            if updated_analysis_json:
                 await db.execute(
                     """
                     UPDATE orders SET
                         proposal_text = ?,
-                        recommended_price = ?,
+                        recommended_price = COALESCE(?, recommended_price),
                         market_price = COALESCE(?, market_price),
+                        realistic_days = COALESCE(?, realistic_days),
                         analysis_json = ?,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                     """,
-                    (proposal_text, recommended_price, market_price, updated_analysis_json, order_id),
+                    (clean_proposal_text, recommended_price, market_price, parsed_days, updated_analysis_json, order_id),
                 )
-            elif recommended_price is not None:
+            else:
                 await db.execute(
                     """
                     UPDATE orders SET
                         proposal_text = ?,
-                        recommended_price = ?,
+                        recommended_price = COALESCE(?, recommended_price),
                         market_price = COALESCE(?, market_price),
+                        realistic_days = COALESCE(?, realistic_days),
                         updated_at = CURRENT_TIMESTAMP
                     WHERE id = ?
                     """,
-                    (proposal_text, recommended_price, market_price, order_id),
-                )
-            else:
-                await db.execute(
-                    "UPDATE orders SET proposal_text = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (proposal_text, order_id),
+                    (clean_proposal_text, recommended_price, market_price, parsed_days, order_id),
                 )
             await db.commit()
 
@@ -192,7 +232,7 @@ class OrderRepository:
                 (order_id,),
             ) as cursor:
                 row = await cursor.fetchone()
-                return dict(row) if row else None
+                return self._clean_order_row(dict(row)) if row else None
 
     async def get_recent_orders(
         self,
@@ -236,7 +276,7 @@ class OrderRepository:
         async with self._get_conn() as db:
             async with db.execute(query, tuple(params)) as cursor:
                 rows = await cursor.fetchall()
-                return [dict(r) for r in rows]
+                return [self._clean_order_row(dict(r)) for r in rows]
 
     async def get_stats(self) -> Dict[str, int]:
         """Получить сводную статистику по базе."""

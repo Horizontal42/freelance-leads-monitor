@@ -341,3 +341,38 @@ async def test_antigravity_proposal_with_market_pricing_and_web_search(monkeypat
     assert len(captured_cmds) == 1
     prompt_arg = captured_cmds[0][2]
     assert "search_web" in prompt_arg or "поиск в интернете" in prompt_arg.lower()
+
+
+def test_extract_clean_proposal_payload_robustness():
+    """Тест надежности извлечения отклика из невалидного/сырого JSON с неэкранированными переводами строк."""
+    from src.models.analysis import extract_clean_proposal_payload
+
+    # 1. Сырой JSON с реальными переводами строк внутри кавычек
+    raw = '''```json
+{
+  "market_price": 55000,
+  "recommended_price": 48000,
+  "estimated_days": "3-5 дней",
+  "price_justification": "
+  Рыночная стоимость: 50-60к.
+  Рекомендуем 48к.
+  ",
+  "proposal_text": "
+  Добрый день! Разрабатываю ботов на Python (aiogram 3).
+  Реализация займет 3-5 дней.
+  "
+}
+```'''
+    res = extract_clean_proposal_payload(raw)
+    assert res["market_price"] == 55000.0
+    assert res["recommended_price"] == 48000.0
+    assert res["estimated_days"] == "3-5 дней"
+    assert "Добрый день!" in res["proposal_text"]
+    assert "Рыночная стоимость" in res["price_justification"]
+
+    # 2. Обычный плоский текст без JSON
+    plain = "Привет! Готов выполнить ваш заказ за 3 дня."
+    res_plain = extract_clean_proposal_payload(plain)
+    assert res_plain["proposal_text"] == plain
+    assert res_plain["recommended_price"] is None
+
