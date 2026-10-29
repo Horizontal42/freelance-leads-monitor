@@ -70,6 +70,7 @@ async def polling_worker(
     pipeline: LeadsPipeline,
     interval_seconds: Optional[int] = None,
     name: str = "Сборщик",
+    stop_event: Optional[asyncio.Event] = None,
 ) -> None:
     """Фоновый воркер периодического сбора заказов с поддержкой холодного старта."""
     interval = (
@@ -79,7 +80,7 @@ async def polling_worker(
     )
     logger.info("Фоновый воркер [%s] запущен (интервал: %d сек)", name, interval)
     is_first = getattr(settings, "INITIAL_BACKFILL", True)
-    while True:
+    while stop_event is None or not stop_event.is_set():
         try:
             await run_single_scan(collectors, pipeline, is_cold_start=is_first)
             is_first = False
@@ -89,7 +90,15 @@ async def polling_worker(
         except Exception as e:
             logger.error("Непредвиденная ошибка в фоновом воркере [%s]: %s", name, e)
 
-        await asyncio.sleep(interval)
+        if stop_event is not None:
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=interval)
+                break
+            except asyncio.TimeoutError:
+                pass
+        else:
+            await asyncio.sleep(interval)
+    logger.info("Фоновый воркер [%s] завершил работу.", name)
 
 
 async def main() -> None:
@@ -235,33 +244,43 @@ async def main() -> None:
         vacancies_notifier=vacancies_notifier,
     )
 
+    loop = asyncio.get_running_loop()
+    stop_event = asyncio.Event()
+
     # Формируем параллельные задачи для asyncio.gather
-    tasks = [
-        server.serve(),
-        polling_worker(
-            collectors=freelance_collectors,
-            pipeline=pipeline,
-            interval_seconds=min(settings.KWORK_POLL_INTERVAL, settings.FL_POLL_INTERVAL),
-            name="Фриланс",
+    worker_tasks = [
+        asyncio.create_task(
+            polling_worker(
+                collectors=freelance_collectors,
+                pipeline=pipeline,
+                interval_seconds=min(settings.KWORK_POLL_INTERVAL, settings.FL_POLL_INTERVAL),
+                name="Фриланс",
+                stop_event=stop_event,
+            )
         ),
-        polling_worker(
-            collectors=vacancy_collectors,
-            pipeline=pipeline,
-            interval_seconds=getattr(settings, "VACANCIES_POLL_INTERVAL", 1800),
-            name="Вакансии",
+        asyncio.create_task(
+            polling_worker(
+                collectors=vacancy_collectors,
+                pipeline=pipeline,
+                interval_seconds=getattr(settings, "VACANCIES_POLL_INTERVAL", 1800),
+                name="Вакансии",
+                stop_event=stop_event,
+            )
         ),
     ]
 
+    tasks = [server.serve(), *worker_tasks]
+
     if bot and dp:
         tasks.append(dp.start_polling(bot, allowed_updates=["message", "callback_query"]))
-
-    loop = asyncio.get_running_loop()
-    stop_event = asyncio.Event()
 
     def _on_signal():
         logger.info("Получен сигнал завершения (SIGTERM/SIGINT), останавливаем воркеры...")
         stop_event.set()
         server.should_exit = True
+        for wt in worker_tasks:
+            if not wt.done():
+                wt.cancel()
 
     for sig in (signal.SIGTERM, signal.SIGINT):
         try:
@@ -271,7 +290,7 @@ async def main() -> None:
 
     logger.info("Запуск системы через asyncio.gather: веб-сервер, фоновый опрос и бот...")
     try:
-        await asyncio.gather(*tasks)
+        await asyncio.gather(*tasks, return_exceptions=True)
     except (asyncio.CancelledError, KeyboardInterrupt):
         logger.info("Получен сигнал на остановку...")
     finally:
