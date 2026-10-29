@@ -2613,7 +2613,7 @@ def create_web_app(
             logger.error("Ошибка записи config.yml: %s", e)
             return JSONResponse(status_code=500, content={"ok": False, "error": f"Ошибка записи файла: {e}"})
 
-    @app.get("/health")
+    @app.api_route("/health", methods=["GET", "HEAD"])
     async def health_check():
         return {"status": "ok", "timestamp": datetime.now().isoformat()}
 

@@ -282,10 +282,13 @@ async def test_web_basic_auth(tmp_path):
         resp_api = await client_anon.get("/api/stats")
         assert resp_api.status_code == 401
 
-        # Но healthcheck остается открытым для внешнего мониторинга
+        # Но healthcheck остается открытым для внешнего мониторинга (GET и HEAD)
         resp_hc = await client_anon.get("/health")
         assert resp_hc.status_code == 200
         assert resp_hc.json()["status"] == "ok"
+
+        resp_head = await client_anon.head("/health")
+        assert resp_head.status_code == 200
 
     # 2. Запрос с неверным паролем -> 401 Unauthorized
     async with httpx.AsyncClient(
