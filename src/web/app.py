@@ -3,9 +3,11 @@
 from datetime import datetime
 import json
 import logging
+import secrets
 from typing import Any, Dict, List, Optional
-from fastapi import FastAPI, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from jinja2 import Template
 from src.config import settings
 from src.models.order import OrderPriority, RawOrder, SourcePlatform
@@ -2126,12 +2128,62 @@ DASHBOARD_HTML = """
 """
 
 
-def create_web_app(repo: Optional[OrderRepository] = None) -> FastAPI:
-    """Создать и настроить экземпляр FastAPI приложения."""
+security = HTTPBasic(realm="Freelance Leads Monitor", auto_error=False)
+
+
+def verify_basic_auth(
+    request: Request,
+    credentials: Optional[HTTPBasicCredentials] = Depends(security),
+) -> str:
+    """Проверка HTTP Basic Auth учетных данных для защиты дашборда и API."""
+    # Публичный эндпоинт проверки здоровья для мониторинга
+    if request.url.path == "/health":
+        return "healthcheck"
+
+    if not getattr(settings, "WEB_AUTH_ENABLED", True):
+        return "anonymous"
+
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Требуется авторизация",
+            headers={"WWW-Authenticate": 'Basic realm="Freelance Leads Monitor"'},
+        )
+
+    expected_username = getattr(settings, "WEB_AUTH_USERNAME", "Horizontal42")
+    expected_password = getattr(settings, "WEB_AUTH_PASSWORD", "qaz403111")
+
+    is_correct_username = secrets.compare_digest(
+        credentials.username.encode("utf8"), expected_username.encode("utf8")
+    )
+    is_correct_password = secrets.compare_digest(
+        credentials.password.encode("utf8"), expected_password.encode("utf8")
+    )
+
+    if not (is_correct_username and is_correct_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверный логин или пароль",
+            headers={"WWW-Authenticate": 'Basic realm="Freelance Leads Monitor"'},
+        )
+    return credentials.username
+
+
+def create_web_app(
+    repo: Optional[OrderRepository] = None,
+    enable_auth: Optional[bool] = None,
+) -> FastAPI:
+    """Создать и настроить экземпляр FastAPI приложения с защитой по HTTP Basic Auth."""
+    auth_dep = []
+    auth_active = getattr(settings, "WEB_AUTH_ENABLED", True) if enable_auth is None else enable_auth
+    if auth_active:
+        auth_dep.append(Depends(verify_basic_auth))
+
     app = FastAPI(
         title="Freelance Leads Monitor",
         description="Web dashboard for monitoring freelance leads on jobs.3dvex.ru",
         version="0.3.0",
+        dependencies=auth_dep,
     )
 
     repository = repo or OrderRepository()

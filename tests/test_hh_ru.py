@@ -181,7 +181,11 @@ async def test_web_split_sections_freelance_vs_hh(tmp_path):
 
     app = create_web_app(repo=repo)
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        auth=("Horizontal42", "qaz403111"),
+    ) as client:
         # 1. Проверяем раздел Фриланс-биржи
         resp_fl = await client.get("/?section=freelance")
         assert resp_fl.status_code == 200
@@ -280,7 +284,11 @@ async def test_vacancy_settings_api_and_pipeline_salary_filter(tmp_path):
 
     app = create_web_app(repo=repo)
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        auth=("Horizontal42", "qaz403111"),
+    ) as client:
         # Сохранение настроек вакансий
         resp = await client.post(
             "/api/settings",
