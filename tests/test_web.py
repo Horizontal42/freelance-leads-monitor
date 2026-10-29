@@ -53,7 +53,7 @@ async def test_web_dashboard_endpoints(tmp_path):
     )
     await repo.update_analysis(order_id, analysis)
 
-    app = create_web_app(repo=repo)
+    app = create_web_app(repo=repo, enable_auth=False)
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(
@@ -319,3 +319,65 @@ async def test_web_basic_auth(tmp_path):
     ) as client_disabled:
         resp_disabled = await client_disabled.get("/")
         assert resp_disabled.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_web_dashboard_vacancy_bullet_formatting(tmp_path):
+    """Проверка форматирования анализа вакансий на сайте в аккуратные буллеты без сырых скобок."""
+    db_path = tmp_path / "test_vac_format.db"
+    await init_db(db_path)
+    repo = OrderRepository(db_path=db_path)
+
+    vac = RawOrder(
+        source=SourcePlatform.HH_RU,
+        external_id="hh_777",
+        title="Junior ML-инженер",
+        description="Разработка компьютерного зрения",
+        url="https://hh.ru/vacancy/777",
+        price=150000,
+    )
+    vac_id = await repo.insert_raw_order(order=vac, status=OrderStatus.ANALYZED, priority=OrderPriority.HOT)
+
+    raw_reqs = "['Python (обязательно)', 'PyTorch/TensorFlow'] {'years': '1-3 года'} ['Docker (базовый)']"
+    raw_match = "['Опыт работы с **YOLOv8** (AgroTech CV)', 'Работа с **FastAPI**']"
+
+    analysis = AnalysisResult(
+        take_order=True,
+        score=9,
+        priority=OrderPriority.HOT,
+        candidate_requirements=raw_reqs,
+        match_reason=raw_match,
+        company_overview="АО Концерн ЦНИИ",
+        job_responsibilities="Разработка CV алгоритмов",
+        pert=PertEstimate(
+            optimistic_days=1.0,
+            most_likely_days=2.0,
+            pessimistic_days=3.0,
+            expected_days=2.0,
+            sigma=0.3,
+        ),
+        realistic_days=2.0,
+        complexity=3,
+        pure_dev_hours=4.0,
+        matched_project="Cortex IT",
+        executive_summary="Junior ML Инженер",
+    )
+    await repo.update_analysis(vac_id, analysis)
+
+    app = create_web_app(repo=repo, enable_auth=False)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/?section=hh_ru&tab=hot")
+        assert resp.status_code == 200
+        html_text = resp.text
+
+        # Проверяем отсутствие сырого мусора
+        assert "['Python (обязательно)'" not in html_text
+        assert "['Опыт работы с" not in html_text
+
+        # Проверяем наличие чистого HTML-списка и выделения
+        assert "Python (обязательно)" in html_text
+        assert "PyTorch/TensorFlow" in html_text
+        assert "Docker (базовый)" in html_text
+        assert '<strong class="text-white font-semibold">YOLOv8</strong>' in html_text
+        assert '<strong class="text-white font-semibold">FastAPI</strong>' in html_text

@@ -1,8 +1,10 @@
 """FastAPI Web Dashboard for Freelance Leads Monitor (jobs.3dvex.ru)."""
 
 from datetime import datetime
+import html
 import json
 import logging
+import re
 import secrets
 from typing import Any, Dict, List, Optional
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
@@ -10,10 +12,33 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from jinja2 import Template
 from src.config import settings
+from src.models.analysis import extract_clean_text_items
 from src.models.order import OrderPriority, RawOrder, SourcePlatform
 from src.storage.repository import OrderRepository
 
 logger = logging.getLogger(__name__)
+
+
+def format_bullet_html(raw_val: Any, accent: str = "slate") -> str:
+    """Форматирует анализ вакансии в аккуратный маркированный HTML-список с подсветкой ключевых терминов."""
+    items = extract_clean_text_items(raw_val)
+    if not items:
+        return ""
+
+    if len(items) == 1 and len(items[0]) < 120 and "•" not in items[0]:
+        escaped = html.escape(items[0])
+        rendered = re.sub(r"\*\*(.*?)\*\*", r'<strong class="text-white font-semibold">\1</strong>', escaped)
+        return f'<p class="leading-relaxed">{rendered}</p>'
+
+    html_bullets = []
+    bullet_dot = f'<span class="text-xs text-{accent}-400 mt-0.5 shrink-0">•</span>'
+    for item in items:
+        escaped = html.escape(item)
+        rendered = re.sub(r"\*\*(.*?)\*\*", r'<strong class="text-white font-semibold">\1</strong>', escaped)
+        html_bullets.append(
+            f'<li class="flex items-start gap-2">{bullet_dot}<span>{rendered}</span></li>'
+        )
+    return f'<ul class="space-y-1.5 leading-relaxed">{"".join(html_bullets)}</ul>'
 
 DASHBOARD_HTML = """
 <!DOCTYPE html>
@@ -480,7 +505,7 @@ DASHBOARD_HTML = """
                                             <div class="font-bold text-slate-200 flex items-center gap-1.5">
                                                 <span>🏢</span> О компании:
                                             </div>
-                                            <p class="text-slate-300 leading-relaxed">{{ order.analysis.company_overview }}</p>
+                                            <div class="text-slate-300 leading-relaxed">{{ format_bullet_html(order.analysis.company_overview, 'slate') | safe }}</div>
                                         </div>
                                     {% endif %}
 
@@ -490,7 +515,7 @@ DASHBOARD_HTML = """
                                             <div class="font-bold text-slate-200 flex items-center gap-1.5">
                                                 <span>🎯</span> Требования к кандидату:
                                             </div>
-                                            <p class="text-slate-300 leading-relaxed">{{ order.analysis.candidate_requirements }}</p>
+                                            <div class="text-slate-300 leading-relaxed">{{ format_bullet_html(order.analysis.candidate_requirements, 'rose') | safe }}</div>
                                         </div>
                                     {% endif %}
 
@@ -500,7 +525,7 @@ DASHBOARD_HTML = """
                                             <div class="font-bold text-slate-200 flex items-center gap-1.5">
                                                 <span>🛠</span> Чем предстоит заниматься:
                                             </div>
-                                            <p class="text-slate-300 leading-relaxed">{{ order.analysis.job_responsibilities }}</p>
+                                            <div class="text-slate-300 leading-relaxed">{{ format_bullet_html(order.analysis.job_responsibilities, 'blue') | safe }}</div>
                                         </div>
                                     {% endif %}
 
@@ -510,7 +535,7 @@ DASHBOARD_HTML = """
                                             <div class="font-bold text-emerald-300 flex items-center gap-1.5">
                                                 <span>💡</span> Соответствие резюме Андрея:
                                             </div>
-                                            <p class="text-emerald-200 leading-relaxed">{{ order.analysis.match_reason }}</p>
+                                            <div class="text-emerald-200 leading-relaxed">{{ format_bullet_html(order.analysis.match_reason, 'emerald') | safe }}</div>
                                         </div>
                                     {% endif %}
 
@@ -520,11 +545,11 @@ DASHBOARD_HTML = """
                                             <div class="font-bold text-amber-400 flex items-center gap-1.5">
                                                 <span>⚠️</span> Пробелы в требованиях (Skills Gap):
                                             </div>
-                                            <p class="text-amber-200 text-xs leading-relaxed font-mono bg-amber-950/40 p-2 rounded border border-amber-900/40">{{ order.analysis.skills_gap }}</p>
+                                            <div class="text-amber-200 text-xs leading-relaxed font-mono bg-amber-950/40 p-2 rounded border border-amber-900/40">{{ format_bullet_html(order.analysis.skills_gap, 'amber') | safe }}</div>
                                             {% if order.analysis.skills_gap_counter %}
                                                 <div class="text-[11px] text-slate-300 pt-1 flex items-start gap-1.5">
                                                     <span class="font-semibold text-emerald-400 shrink-0">🛡 Парирование в Cover Letter:</span>
-                                                    <span class="text-slate-200">{{ order.analysis.skills_gap_counter }}</span>
+                                                    <div class="text-slate-200">{{ format_bullet_html(order.analysis.skills_gap_counter, 'emerald') | safe }}</div>
                                                 </div>
                                             {% endif %}
                                         </div>
@@ -2308,6 +2333,7 @@ def create_web_app(
             uptime_info=uptime_info,
             raw_config_yaml=raw_config_yaml,
             yaml_app_config=settings.app_config,
+            format_bullet_html=format_bullet_html,
         )
         return HTMLResponse(content=html_content)
 

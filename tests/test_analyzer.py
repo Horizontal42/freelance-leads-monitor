@@ -376,3 +376,42 @@ def test_extract_clean_proposal_payload_robustness():
     assert res_plain["proposal_text"] == plain
     assert res_plain["recommended_price"] is None
 
+
+def test_analysis_result_clean_vacancy_formatting():
+    """Тест очистки сырых структур списков и словарей Python/JSON в полях анализа вакансий."""
+    from src.models.analysis import AnalysisResult, PertEstimate
+
+    raw_reqs = "['Python (обязательно)', 'PyTorch (базовый)'] {'years': '1-3 года', 'role': 'Junior ML'} ['Docker']"
+    raw_match = "['Опыт с **YOLOv8** (AgroTech CV)', 'Работа с **FastAPI**']"
+
+    analysis = AnalysisResult(
+        take_order=True,
+        score=8,
+        priority="hot",
+        candidate_requirements=raw_reqs,
+        match_reason=raw_match,
+        pert=PertEstimate(
+            optimistic_days=1.0,
+            most_likely_days=2.0,
+            pessimistic_days=3.0,
+            expected_days=2.0,
+            sigma=0.3,
+        ),
+        realistic_days=2.0,
+        complexity=3,
+        pure_dev_hours=4.0,
+        matched_project="Cortex IT",
+        executive_summary="Разработка ML",
+    )
+
+    # Проверяем, что нет сырых скобок Python-списков
+    assert "['" not in analysis.candidate_requirements
+    assert "']" not in analysis.candidate_requirements
+    assert "{" not in analysis.candidate_requirements
+    assert "• Python (обязательно)" in analysis.candidate_requirements
+    assert "Опыт: 1-3 года" in analysis.candidate_requirements
+
+    assert "['" not in analysis.match_reason
+    assert "• Опыт с **YOLOv8** (AgroTech CV)" in analysis.match_reason
+
+

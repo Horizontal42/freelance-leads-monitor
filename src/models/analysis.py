@@ -1,8 +1,76 @@
 """Domain models for LLM evaluation and proposals."""
 
+import ast
+import re
 from typing import Any, List, Optional
 from pydantic import BaseModel, Field, field_validator
 from src.models.order import OrderPriority
+
+
+def extract_clean_text_items(v: Any) -> list[str]:
+    """Рекурсивно извлекает плоский список строк из любых вложенных списков, словарей или строк."""
+    if v is None:
+        return []
+    items: list[str] = []
+    if isinstance(v, (list, tuple, set)):
+        for x in v:
+            items.extend(extract_clean_text_items(x))
+    elif isinstance(v, dict):
+        parts = []
+        for k, val in v.items():
+            if val is not None and str(val).strip():
+                label = ""
+                k_lower = str(k).lower()
+                if k_lower in ("years", "experience"):
+                    label = "Опыт: "
+                elif k_lower in ("role", "position"):
+                    label = "Позиция: "
+                elif k_lower not in ("note", "text", "description"):
+                    label = f"{k}: "
+                parts.append(f"{label}{str(val).strip()}")
+        if parts:
+            items.append("; ".join(parts))
+    elif isinstance(v, str):
+        text = v.strip()
+        if not text:
+            return []
+        if ("['" in text or '["' in text or "{'" in text or '{"' in text) and (text.startswith("[") or text.startswith("{") or "]" in text):
+            parsed_any = False
+            matches = re.findall(r"(\[.*?\]|\{.*?\})", text, flags=re.DOTALL)
+            for m in matches:
+                try:
+                    res = ast.literal_eval(m)
+                    sub = extract_clean_text_items(res)
+                    if sub:
+                        items.extend(sub)
+                        parsed_any = True
+                except Exception:
+                    pass
+            if not parsed_any:
+                items.append(text)
+        else:
+            lines = [l.strip() for l in text.splitlines() if l.strip()]
+            for l in lines:
+                cleaned_line = re.sub(r"^([\*\-\•]|\d+[\.\)])\s*", "", l).strip()
+                if cleaned_line:
+                    items.append(cleaned_line)
+    else:
+        s = str(v).strip()
+        if s:
+            items.append(s)
+    return items
+
+
+def clean_analysis_field(v: Any) -> str:
+    """Форматирует значение поля анализа в аккуратный читаемый текст без сырых структур Python/JSON."""
+    if v is None:
+        return ""
+    items = extract_clean_text_items(v)
+    if not items:
+        return ""
+    if len(items) == 1:
+        return items[0]
+    return "\n".join(f"• {it}" if not it.startswith("• ") else it for it in items)
 
 
 class PertEstimate(BaseModel):
@@ -112,68 +180,32 @@ class AnalysisResult(BaseModel):
     @field_validator("company_overview", mode="before")
     @classmethod
     def sanitize_company_overview(cls, v: Any) -> str:
-        if v is None:
-            return ""
-        if isinstance(v, (list, tuple)):
-            return " ".join(str(x) for x in v)
-        if isinstance(v, dict):
-            return " ".join(str(val) for val in v.values() if val)
-        return str(v)
+        return clean_analysis_field(v)
 
     @field_validator("candidate_requirements", mode="before")
     @classmethod
     def sanitize_candidate_requirements(cls, v: Any) -> str:
-        if v is None:
-            return ""
-        if isinstance(v, (list, tuple)):
-            return " ".join(str(x) for x in v)
-        if isinstance(v, dict):
-            return " ".join(str(val) for val in v.values() if val)
-        return str(v)
+        return clean_analysis_field(v)
 
     @field_validator("job_responsibilities", mode="before")
     @classmethod
     def sanitize_job_responsibilities(cls, v: Any) -> str:
-        if v is None:
-            return ""
-        if isinstance(v, (list, tuple)):
-            return " ".join(str(x) for x in v)
-        if isinstance(v, dict):
-            return " ".join(str(val) for val in v.values() if val)
-        return str(v)
+        return clean_analysis_field(v)
 
     @field_validator("match_reason", mode="before")
     @classmethod
     def sanitize_match_reason(cls, v: Any) -> str:
-        if v is None:
-            return ""
-        if isinstance(v, (list, tuple)):
-            return " ".join(str(x) for x in v)
-        if isinstance(v, dict):
-            return " ".join(str(val) for val in v.values() if val)
-        return str(v)
+        return clean_analysis_field(v)
 
     @field_validator("skills_gap", mode="before")
     @classmethod
     def sanitize_skills_gap(cls, v: Any) -> str:
-        if v is None:
-            return ""
-        if isinstance(v, (list, tuple)):
-            return " ".join(str(x) for x in v)
-        if isinstance(v, dict):
-            return " ".join(str(val) for val in v.values() if val)
-        return str(v)
+        return clean_analysis_field(v)
 
     @field_validator("skills_gap_counter", mode="before")
     @classmethod
     def sanitize_skills_gap_counter(cls, v: Any) -> str:
-        if v is None:
-            return ""
-        if isinstance(v, (list, tuple)):
-            return " ".join(str(x) for x in v)
-        if isinstance(v, dict):
-            return " ".join(str(val) for val in v.values() if val)
-        return str(v)
+        return clean_analysis_field(v)
 
 
 class ProposalResult(str):
