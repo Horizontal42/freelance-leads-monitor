@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import logging
+import signal
 import sys
 from typing import List, Optional
 import uvicorn
@@ -253,6 +254,20 @@ async def main() -> None:
 
     if bot and dp:
         tasks.append(dp.start_polling(bot, allowed_updates=["message", "callback_query"]))
+
+    loop = asyncio.get_running_loop()
+    stop_event = asyncio.Event()
+
+    def _on_signal():
+        logger.info("Получен сигнал завершения (SIGTERM/SIGINT), останавливаем воркеры...")
+        stop_event.set()
+        server.should_exit = True
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, _on_signal)
+        except (NotImplementedError, RuntimeError):
+            pass
 
     logger.info("Запуск системы через asyncio.gather: веб-сервер, фоновый опрос и бот...")
     try:
