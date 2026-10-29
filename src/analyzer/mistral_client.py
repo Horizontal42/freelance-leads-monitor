@@ -15,7 +15,7 @@ from tenacity import (
 from src.analyzer.base import BaseLLMClient
 from src.analyzer.prompts import build_analysis_prompt, build_proposal_prompt, build_chat_prompt
 from src.config import settings
-from src.models.analysis import AnalysisResult, ProposalResult
+from src.models.analysis import AnalysisResult, ProposalResult, extract_clean_proposal_payload
 from src.models.order import OrderPriority, RawOrder
 
 logger = logging.getLogger(__name__)
@@ -282,36 +282,40 @@ class MistralClient(BaseLLMClient):
         try:
             result_json = await self._execute_with_rate_limit(payload)
             content = result_json["choices"][0]["message"]["content"].strip()
-            # Попытка извлечь JSON если есть
-            try:
-                json_str = self._clean_json_output(content)
-                parsed = json.loads(json_str)
-                if isinstance(parsed, dict) and "proposal_text" in parsed:
-                    rec_price = None
-                    if parsed.get("recommended_price"):
-                        try:
-                            rec_price = float(parsed["recommended_price"])
-                        except (ValueError, TypeError):
-                            pass
-                    market_price = None
-                    if parsed.get("market_price"):
-                        try:
-                            market_price = float(parsed["market_price"])
-                        except (ValueError, TypeError):
-                            pass
-                    if market_price is None and rec_price is not None:
-                        market_price = round(rec_price * 1.2 / 500) * 500
-                    price_just = parsed.get("price_justification")
-                    return ProposalResult(
-                        self._sanitize_proposal(str(parsed["proposal_text"]).strip()),
-                        recommended_price=rec_price,
-                        price_justification=str(price_just) if price_just else None,
-                        market_price=market_price,
-                    )
-            except Exception:
-                pass
+            payload_data = extract_clean_proposal_payload(content)
 
-            return ProposalResult(self._sanitize_proposal(content))
+            rec_price = None
+            if payload_data.get("recommended_price") is not None:
+                try:
+                    rec_price = float(payload_data["recommended_price"])
+                except (ValueError, TypeError):
+                    pass
+            market_price = None
+            if payload_data.get("market_price") is not None:
+                try:
+                    market_price = float(payload_data["market_price"])
+                except (ValueError, TypeError):
+                    pass
+            if market_price is None and rec_price is not None:
+                market_price = round(rec_price * 1.2 / 500) * 500
+
+            price_just = payload_data.get("price_justification")
+            if price_just:
+                price_just = self._sanitize_proposal(str(price_just).strip())
+
+            estimated_days = payload_data.get("estimated_days")
+            if estimated_days:
+                estimated_days = self._sanitize_proposal(str(estimated_days).strip())
+
+            prop_text = self._sanitize_proposal(str(payload_data.get("proposal_text") or "").strip())
+
+            return ProposalResult(
+                prop_text,
+                recommended_price=rec_price,
+                price_justification=price_just,
+                market_price=market_price,
+                estimated_days=estimated_days,
+            )
         except Exception as e:
             logger.warning("Сбой генерации отклика Mistral: %s", e)
             if self.fallback_client:

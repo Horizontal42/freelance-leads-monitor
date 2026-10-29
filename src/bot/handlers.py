@@ -13,6 +13,7 @@ from src.bot.keyboards import (
     get_settings_inline_keyboard,
 )
 from src.config import settings
+from src.models.analysis import extract_clean_proposal_payload
 from src.models.order import OrderStatus, RawOrder, SourcePlatform
 from src.services.uptime import get_system_status_info
 from src.storage.repository import OrderRepository
@@ -368,10 +369,11 @@ async def handle_generate_proposal(callback: CallbackQuery, repo: OrderRepositor
 
     try:
         proposal_res = await llm_client.generate_proposal(raw_order, analysis_data)
-        proposal_text = str(proposal_res)
+        proposal_text = str(proposal_res).strip()
         rec_price = getattr(proposal_res, "recommended_price", None)
         price_just = getattr(proposal_res, "price_justification", None)
         market_price = getattr(proposal_res, "market_price", None)
+        estimated_days = getattr(proposal_res, "estimated_days", None)
 
         await repo.update_proposal(
             order_id,
@@ -379,6 +381,7 @@ async def handle_generate_proposal(callback: CallbackQuery, repo: OrderRepositor
             recommended_price=rec_price,
             price_justification=price_just,
             market_price=market_price,
+            estimated_days=estimated_days,
         )
 
         is_vacancy = raw_order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
@@ -395,19 +398,21 @@ async def handle_generate_proposal(callback: CallbackQuery, repo: OrderRepositor
 
             price_block = ""
             if market_price and market_price > 0:
-                price_block += f"🎯 <b>Рыночная ставка (agy):</b> <code>{int(market_price):,} ₽</code>\n".replace(",", " ")
+                price_block += f"🎯 <b>Рыночная цена:</b> <code>{int(market_price):,} ₽</code>\n".replace(",", " ")
             if rec_price and rec_price > 0:
                 price_block += f"💡 <b>Рекомендуем предложить:</b> <code>{int(rec_price):,} ₽</code>\n".replace(",", " ")
+            if estimated_days:
+                price_block += f"⏱ <b>Ориентировочный срок:</b> <code>{html.escape(str(estimated_days))}</code>\n"
             if price_just:
-                price_block += f"📝 <b>Обоснование:</b> {html.escape(price_just)}\n\n"
+                price_block += f"📝 <b>Обоснование и тактика:</b> {html.escape(price_just.strip())}\n\n"
 
             type_title = "сопроводительное письмо" if is_vacancy else "отклик"
             header = f"✍️ <b>Сгенерированный {type_title} на #{order_id}:</b>\n\n"
             single_msg = (
                 f"{header}"
                 f"{price_block}"
-                f"<blockquote>{html.escape(proposal_text)}</blockquote>\n\n"
-                f"<i>(Нажмите и удерживайте цитату выше для быстрого копирования)</i>"
+                f"📋 <b>Текст для отправки заказчику</b> <i>(нажмите на блок ниже, чтобы скопировать в 1 клик):</i>\n\n"
+                f"<pre><code>{html.escape(proposal_text)}</code></pre>"
             )
 
             # Если всё помещается в лимит (<= 3800 символов), отправляем одним сообщением
@@ -431,19 +436,19 @@ async def handle_generate_proposal(callback: CallbackQuery, repo: OrderRepositor
                         plain_fallback=f"Оценка #{order_id}:\n{price_just or ''}",
                     )
 
-                # 2. Отправляем текст отклика частями (каждая внутри blockquote)
+                # 2. Отправляем текст отклика частями (каждая в кликабельном pre/code)
                 chunks = split_proposal_chunks(proposal_text, max_chunk_escaped_len=3200)
                 for idx, chunk in enumerate(chunks, 1):
                     part_label = f" (часть {idx}/{len(chunks)})" if len(chunks) > 1 else ""
                     chunk_msg = (
-                        f"✍️ <b>Сгенерированный {type_title} на #{order_id}{part_label}:</b>\n\n"
-                        f"<blockquote>{html.escape(chunk)}</blockquote>\n\n"
-                        f"<i>(Нажмите и удерживайте цитату выше для быстрого копирования)</i>"
+                        f"✍️ <b>Сгенерированный {type_title} на #{order_id}{part_label}:</b>\n"
+                        f"<i>(Нажмите на текст ниже, чтобы скопировать в 1 клик)</i>\n\n"
+                        f"<pre><code>{html.escape(chunk.strip())}</code></pre>"
                     )
                     await safe_reply(
                         callback.message,
                         html_text=chunk_msg,
-                        plain_fallback=f"{type_title.capitalize()} #{order_id}{part_label}:\n\n{chunk}",
+                        plain_fallback=f"{type_title.capitalize()} #{order_id}{part_label}:\n\n{chunk.strip()}",
                     )
 
     except Exception as e:
@@ -460,7 +465,7 @@ async def handle_generate_proposal(callback: CallbackQuery, repo: OrderRepositor
 
 @router.callback_query(F.data.startswith("copy:"))
 async def handle_copy_proposal(callback: CallbackQuery, repo: OrderRepository) -> None:
-    """Прислать текст отклика отдельным сообщением для копирования в 1 клик на смартфоне."""
+    """Прислать чистый текст отклика отдельным сообщением для копирования в 1 клик на смартфоне."""
     order_id_str = callback.data.split(":")[1]
     order_id = int(order_id_str)
 
@@ -469,28 +474,32 @@ async def handle_copy_proposal(callback: CallbackQuery, repo: OrderRepository) -
         await callback.answer("Заказ не найден в базе данных.", show_alert=True)
         return
 
-    proposal_text = order_data.get("proposal_text")
-    if not proposal_text:
+    raw_proposal = order_data.get("proposal_text")
+    if not raw_proposal or not str(raw_proposal).strip():
         await callback.answer("Для этого заказа отклик еще не сгенерирован.", show_alert=True)
         return
 
+    # Очищаем от случайного JSON/разметки, извлекая чистый текст
+    payload = extract_clean_proposal_payload(str(raw_proposal))
+    clean_text = payload.get("proposal_text") or str(raw_proposal).strip()
+
     # Разбиваем текст отклика на части, если он длинный (Telegram лимит 4096 символов)
-    chunks = split_proposal_chunks(proposal_text, max_chunk_escaped_len=3200)
+    chunks = split_proposal_chunks(clean_text, max_chunk_escaped_len=3200)
     if callback.message:
         for idx, chunk in enumerate(chunks, 1):
             part_label = f" (часть {idx}/{len(chunks)})" if len(chunks) > 1 else ""
             formatted_msg = (
-                f"📋 <b>Готовый текст отклика на #{order_id}{part_label}:</b>\n\n"
-                f"<blockquote>{html.escape(chunk)}</blockquote>\n\n"
-                f"<i>(Нажмите и удерживайте цитату выше для быстрого копирования)</i>"
+                f"📋 <b>Текст для отправки заказчику #{order_id}{part_label}:</b>\n"
+                f"<i>(Нажмите на блок ниже для копирования в 1 клик)</i>\n\n"
+                f"<pre><code>{html.escape(chunk.strip())}</code></pre>"
             )
             await safe_reply(
                 callback.message,
                 html_text=formatted_msg,
-                plain_fallback=f"Отклик #{order_id}{part_label}:\n\n{chunk}",
+                plain_fallback=f"Отклик #{order_id}{part_label}:\n\n{chunk.strip()}",
             )
 
-    await callback.answer("Отклик отправлен сообщением ниже!")
+    await callback.answer("Готово! Нажмите на текст сообщения для копирования")
 
 
 @router.callback_query(F.data.startswith("archive:"))

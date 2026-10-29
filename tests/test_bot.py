@@ -323,5 +323,41 @@ async def test_handle_copy_proposal_splits_long_message():
     for call in reply_calls:
         text = call.kwargs.get("text") or (call.args[0] if call.args else "")
         assert len(text) <= 4000
-        assert "📋" in text
+
+
+@pytest.mark.asyncio
+async def test_handle_copy_proposal_cleans_legacy_json_and_formats_code_block():
+    """Проверка, что устаревший сырой JSON в proposal_text очищается и оформляется в кликабельный pre/code."""
+    from src.bot.handlers import handle_copy_proposal
+
+    mock_callback = AsyncMock()
+    mock_callback.data = "copy:1510"
+    mock_callback.message = AsyncMock()
+
+    mock_repo = AsyncMock()
+    # Сырой JSON в proposal_text как в заказе 1510
+    raw_json_in_db = '''```json
+{
+  "market_price": 45000,
+  "recommended_price": 42000,
+  "price_justification": "Обоснование ставки",
+  "proposal_text": "Добрый день! Разрабатываю ботов на Python."
+}
+```'''
+    mock_repo.get_by_id.return_value = {
+        "id": 1510,
+        "proposal_text": raw_json_in_db,
+    }
+
+    await handle_copy_proposal(mock_callback, mock_repo)
+
+    reply_calls = mock_callback.message.reply.call_args_list
+    assert len(reply_calls) == 1
+    text = reply_calls[0].kwargs.get("text") or (reply_calls[0].args[0] if reply_calls[0].args else "")
+
+    # Проверяем, что нет сырого JSON, а есть чистый отклик в pre/code
+    assert '```json' not in text
+    assert '"market_price"' not in text
+    assert "<pre><code>Добрый день! Разрабатываю ботов на Python.</code></pre>" in text
+    assert "📋" in text
 

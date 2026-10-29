@@ -180,7 +180,7 @@ class ProposalResult(str):
     """Результат генерации отклика Antigravity (agy) с финансовой оценкой на основе поиска в интернете.
 
     Наследуется от str для 100% обратной совместимости со всеми существующими хэндлерами и тестами,
-    но несет в себе дополнительные поля recommended_price и price_justification.
+    но несет в себе дополнительные поля recommended_price, price_justification, market_price, estimated_days.
     """
 
     def __new__(
@@ -189,10 +189,112 @@ class ProposalResult(str):
         recommended_price: Optional[float] = None,
         price_justification: Optional[str] = None,
         market_price: Optional[float] = None,
+        estimated_days: Optional[str] = None,
     ) -> "ProposalResult":
         obj = super().__new__(cls, text)
         obj.proposal_text = text
         obj.recommended_price = recommended_price
         obj.price_justification = price_justification
         obj.market_price = market_price
+        obj.estimated_days = estimated_days
         return obj
+
+
+def extract_clean_proposal_payload(raw_text: str) -> dict:
+    """Извлечь чистый текст отклика и метаданные даже из сырого, неэкранированного JSON-ответа модели."""
+    import json
+    import re
+
+    if not raw_text or not str(raw_text).strip():
+        return {
+            "proposal_text": "",
+            "recommended_price": None,
+            "market_price": None,
+            "price_justification": None,
+            "estimated_days": None,
+        }
+
+    text = str(raw_text).strip()
+    result = {
+        "proposal_text": "",
+        "recommended_price": None,
+        "market_price": None,
+        "price_justification": None,
+        "estimated_days": None,
+    }
+
+    # Если текст содержит структуру JSON (ключ proposal_text и фигурные скобки/блок кода)
+    if "proposal_text" in text and ("{" in text or "```" in text):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", text, flags=re.MULTILINE)
+        cleaned = re.sub(r"\s*```$", "", cleaned, flags=re.MULTILINE).strip()
+        start_idx = cleaned.find("{")
+        end_idx = cleaned.rfind("}")
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            candidate = cleaned[start_idx : end_idx + 1]
+            try:
+                parsed = json.loads(candidate, strict=False)
+                if isinstance(parsed, dict) and "proposal_text" in parsed:
+                    rec_p = None
+                    if parsed.get("recommended_price") is not None:
+                        try:
+                            rec_p = float(parsed["recommended_price"])
+                        except (ValueError, TypeError):
+                            pass
+                    mkt_p = None
+                    if parsed.get("market_price") is not None:
+                        try:
+                            mkt_p = float(parsed["market_price"])
+                        except (ValueError, TypeError):
+                            pass
+                    days = parsed.get("estimated_days") or parsed.get("realistic_days")
+                    return {
+                        "proposal_text": str(parsed.get("proposal_text") or "").strip(),
+                        "recommended_price": rec_p,
+                        "market_price": mkt_p,
+                        "price_justification": str(parsed["price_justification"]).strip() if parsed.get("price_justification") else None,
+                        "estimated_days": str(days).strip() if days else None,
+                    }
+            except Exception:
+                pass
+
+        # Регэксп-фоллбэк, если json.loads не справился (например, сложные кавычки или спецсимволы)
+        prop_m = re.search(r'"proposal_text"\s*:\s*"((?:\\.|[^"\\])*)"', text, flags=re.DOTALL)
+        if prop_m:
+            raw_val = prop_m.group(1)
+            try:
+                clean_prop = json.loads(f'"{raw_val}"')
+            except Exception:
+                clean_prop = raw_val.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
+            result["proposal_text"] = clean_prop.strip()
+
+            rec_m = re.search(r'"recommended_price"\s*:\s*([0-9.]+)', text)
+            if rec_m:
+                result["recommended_price"] = float(rec_m.group(1))
+
+            mkt_m = re.search(r'"market_price"\s*:\s*([0-9.]+)', text)
+            if mkt_m:
+                result["market_price"] = float(mkt_m.group(1))
+
+            just_m = re.search(r'"price_justification"\s*:\s*"((?:\\.|[^"\\])*)"', text, flags=re.DOTALL)
+            if just_m:
+                raw_just = just_m.group(1)
+                try:
+                    clean_just = json.loads(f'"{raw_just}"')
+                except Exception:
+                    clean_just = raw_just.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
+                result["price_justification"] = clean_just.strip()
+
+            days_m = re.search(r'"(?:estimated_days|realistic_days)"\s*:\s*"([^"]+)"', text)
+            if days_m:
+                result["estimated_days"] = days_m.group(1).strip()
+            elif re.search(r'"(?:estimated_days|realistic_days)"\s*:\s*([0-9.]+)', text):
+                dm = re.search(r'"(?:estimated_days|realistic_days)"\s*:\s*([0-9.]+)', text)
+                result["estimated_days"] = f"{dm.group(1)} дн."
+
+            return result
+
+    # Если это чистый текст (не JSON)
+    cleaned_text = re.sub(r"^```[a-zA-Z]*\n", "", text)
+    cleaned_text = re.sub(r"\n```$", "", cleaned_text).strip()
+    result["proposal_text"] = cleaned_text
+    return result
