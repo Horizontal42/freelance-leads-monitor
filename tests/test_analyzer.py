@@ -415,3 +415,26 @@ def test_analysis_result_clean_vacancy_formatting():
     assert "• Опыт с **YOLOv8** (AgroTech CV)" in analysis.match_reason
 
 
+def test_sanitize_proposal_text_markdown_and_emdash_removal():
+    """Тест автоматической очистки отклика от жирного шрифта (**), курсива (*), em-dash и заголовков."""
+    from src.models.analysis import sanitize_proposal_text
+
+    raw_proposal = (
+        "Добрый день! По вашей задаче сделаю интеграцию с **Битрикс24**.\n"
+        "### Сроки и детали\n"
+        "По срокам: сделаем за **2-3 недели** (или *10-12 дней*).\n"
+        "Опыт — коммерческая разработка B2B – речевая аналитика."
+    )
+    cleaned = sanitize_proposal_text(raw_proposal)
+    assert "**" not in cleaned
+    assert "*" not in cleaned
+    assert "###" not in cleaned
+    assert "—" not in cleaned
+    assert "–" not in cleaned
+    assert "Битрикс24" in cleaned
+    assert "2-3 недели" in cleaned
+    assert "10-12 дней" in cleaned
+    assert "Опыт - коммерческая разработка B2B - речевая аналитика." in cleaned
+
+
+
