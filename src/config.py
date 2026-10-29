@@ -270,6 +270,9 @@ class Secrets(BaseSettings):
     MISTRAL_API_KEY: str = ""
     HH_APP_TOKEN: str = ""
     HH_USER_AGENT: str = "JobSearch/1.0 (frolka84@gmail.com)"
+    WEB_AUTH_ENABLED: bool = True
+    WEB_AUTH_USERNAME: str = "Horizontal42"
+    WEB_AUTH_PASSWORD: str = "qaz403111"
 
 
 # ==========================================
@@ -308,6 +311,18 @@ class Settings:
     @property
     def HH_USER_AGENT(self) -> str:
         return self.secrets.HH_USER_AGENT
+
+    @property
+    def WEB_AUTH_ENABLED(self) -> bool:
+        return self.secrets.WEB_AUTH_ENABLED
+
+    @property
+    def WEB_AUTH_USERNAME(self) -> str:
+        return self.secrets.WEB_AUTH_USERNAME
+
+    @property
+    def WEB_AUTH_PASSWORD(self) -> str:
+        return self.secrets.WEB_AUTH_PASSWORD
 
     # База данных
     @property

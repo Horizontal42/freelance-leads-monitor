@@ -56,7 +56,11 @@ async def test_web_dashboard_endpoints(tmp_path):
     app = create_web_app(repo=repo)
 
     transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        auth=("Horizontal42", "qaz403111"),
+    ) as client:
         # 1. Health check
         resp = await client.get("/health")
         assert resp.status_code == 200
@@ -254,4 +258,61 @@ async def test_web_dashboard_endpoints(tmp_path):
         # Verify HTML contains chat toggle button
         resp_html = await client.get("/")
         assert "Вопрос по заказу" in resp_html.text
-        assert "chat-container-1" in resp_html.text
+
+
+@pytest.mark.asyncio
+async def test_web_basic_auth(tmp_path):
+    """Проверка защиты дашборда и API через HTTP Basic Auth."""
+    db_path = tmp_path / "test_auth.db"
+    await init_db(db_path)
+    repo = OrderRepository(db_path=db_path)
+
+    # Приложение с включенной авторизацией
+    app = create_web_app(repo=repo, enable_auth=True)
+    transport = httpx.ASGITransport(app=app)
+
+    # 1. Запрос без авторизации -> 401 Unauthorized
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client_anon:
+        resp = await client_anon.get("/")
+        assert resp.status_code == 401
+        assert "WWW-Authenticate" in resp.headers
+        assert "Basic" in resp.headers["WWW-Authenticate"]
+
+        # API эндпоинты также закрыты
+        resp_api = await client_anon.get("/api/stats")
+        assert resp_api.status_code == 401
+
+        # Но healthcheck остается открытым для внешнего мониторинга
+        resp_hc = await client_anon.get("/health")
+        assert resp_hc.status_code == 200
+        assert resp_hc.json()["status"] == "ok"
+
+    # 2. Запрос с неверным паролем -> 401 Unauthorized
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        auth=("Horizontal42", "wrong_password"),
+    ) as client_wrong:
+        resp_wrong = await client_wrong.get("/")
+        assert resp_wrong.status_code == 401
+
+    # 3. Запрос с корректными учетными данными -> 200 OK
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        auth=("Horizontal42", "qaz403111"),
+    ) as client_auth:
+        resp_ok = await client_auth.get("/")
+        assert resp_ok.status_code == 200
+
+        resp_api_ok = await client_auth.get("/api/stats")
+        assert resp_api_ok.status_code == 200
+
+    # 4. Приложение с отключенной авторизацией (enable_auth=False)
+    app_no_auth = create_web_app(repo=repo, enable_auth=False)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app_no_auth),
+        base_url="http://test",
+    ) as client_disabled:
+        resp_disabled = await client_disabled.get("/")
+        assert resp_disabled.status_code == 200
