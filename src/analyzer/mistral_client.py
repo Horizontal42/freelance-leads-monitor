@@ -15,7 +15,7 @@ from tenacity import (
 from src.analyzer.base import BaseLLMClient
 from src.analyzer.prompts import build_analysis_prompt, build_proposal_prompt, build_chat_prompt
 from src.config import settings
-from src.models.analysis import AnalysisResult, ProposalResult, extract_clean_proposal_payload
+from src.models.analysis import AnalysisResult, ProposalResult, extract_clean_proposal_payload, sanitize_proposal_text
 from src.models.order import OrderPriority, RawOrder
 
 logger = logging.getLogger(__name__)
@@ -105,8 +105,8 @@ class MistralClient(BaseLLMClient):
         self.rate_limiter = AsyncRateLimiter(rpm=self.rpm_limit)
 
     def _sanitize_proposal(self, text: str) -> str:
-        """Гарантированная замена длинных тире на дефисы."""
-        return text.replace("—", "-").replace("–", "-")
+        """Гарантированная очистка отклика: дефисы, удаление звездочек (**) и markdown-мусора."""
+        return sanitize_proposal_text(text)
 
     async def _post_chat_completion(
         self,

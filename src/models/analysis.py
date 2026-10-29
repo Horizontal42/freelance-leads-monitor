@@ -232,6 +232,24 @@ class ProposalResult(str):
         return obj
 
 
+def sanitize_proposal_text(text: str) -> str:
+    """Гарантированная очистка отклика: замена длинных тире на дефисы, удаление звездочек (**) и markdown-разметки."""
+    if not text:
+        return ""
+    import re
+    # 1. Замена длинных и средних тире на обычный дефис
+    t = text.replace("—", "-").replace("–", "-")
+    # 2. Удаление жирного шрифта markdown (**текст** -> текст)
+    t = re.sub(r"\*\*([^*]+)\*\*", r"\1", t)
+    # 3. Удаление курсива (*текст* -> текст)
+    t = re.sub(r"\*([^*]+)\*", r"\1", t)
+    # 4. Удаление оставшихся звездочек
+    t = t.replace("*", "")
+    # 5. Удаление заголовков markdown (например ### Опыт)
+    t = re.sub(r"^#{1,6}\s*", "", t, flags=re.MULTILINE)
+    return t.strip()
+
+
 def extract_clean_proposal_payload(raw_text: str) -> dict:
     """Извлечь чистый текст отклика и метаданные даже из сырого, неэкранированного JSON-ответа модели."""
     import json
@@ -279,12 +297,13 @@ def extract_clean_proposal_payload(raw_text: str) -> dict:
                         except (ValueError, TypeError):
                             pass
                     days = parsed.get("estimated_days") or parsed.get("realistic_days")
+                    raw_just = str(parsed["price_justification"]).strip() if parsed.get("price_justification") else None
                     return {
-                        "proposal_text": str(parsed.get("proposal_text") or "").strip(),
+                        "proposal_text": sanitize_proposal_text(str(parsed.get("proposal_text") or "")),
                         "recommended_price": rec_p,
                         "market_price": mkt_p,
-                        "price_justification": str(parsed["price_justification"]).strip() if parsed.get("price_justification") else None,
-                        "estimated_days": str(days).strip() if days else None,
+                        "price_justification": sanitize_proposal_text(raw_just) if raw_just else None,
+                        "estimated_days": sanitize_proposal_text(str(days)) if days else None,
                     }
             except Exception:
                 pass
@@ -297,7 +316,7 @@ def extract_clean_proposal_payload(raw_text: str) -> dict:
                 clean_prop = json.loads(f'"{raw_val}"')
             except Exception:
                 clean_prop = raw_val.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
-            result["proposal_text"] = clean_prop.strip()
+            result["proposal_text"] = sanitize_proposal_text(clean_prop)
 
             rec_m = re.search(r'"recommended_price"\s*:\s*([0-9.]+)', text)
             if rec_m:
@@ -314,11 +333,11 @@ def extract_clean_proposal_payload(raw_text: str) -> dict:
                     clean_just = json.loads(f'"{raw_just}"')
                 except Exception:
                     clean_just = raw_just.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
-                result["price_justification"] = clean_just.strip()
+                result["price_justification"] = sanitize_proposal_text(clean_just)
 
             days_m = re.search(r'"(?:estimated_days|realistic_days)"\s*:\s*"([^"]+)"', text)
             if days_m:
-                result["estimated_days"] = days_m.group(1).strip()
+                result["estimated_days"] = sanitize_proposal_text(days_m.group(1))
             elif re.search(r'"(?:estimated_days|realistic_days)"\s*:\s*([0-9.]+)', text):
                 dm = re.search(r'"(?:estimated_days|realistic_days)"\s*:\s*([0-9.]+)', text)
                 result["estimated_days"] = f"{dm.group(1)} дн."
@@ -328,5 +347,5 @@ def extract_clean_proposal_payload(raw_text: str) -> dict:
     # Если это чистый текст (не JSON)
     cleaned_text = re.sub(r"^```[a-zA-Z]*\n", "", text)
     cleaned_text = re.sub(r"\n```$", "", cleaned_text).strip()
-    result["proposal_text"] = cleaned_text
+    result["proposal_text"] = sanitize_proposal_text(cleaned_text)
     return result
