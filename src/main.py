@@ -271,8 +271,12 @@ async def main() -> None:
 
     tasks = [server.serve(), *worker_tasks]
 
+    bot_polling_task = None
     if bot and dp:
-        tasks.append(dp.start_polling(bot, allowed_updates=["message", "callback_query"]))
+        bot_polling_task = asyncio.create_task(
+            dp.start_polling(bot, allowed_updates=["message", "callback_query"], handle_signals=False)
+        )
+        tasks.append(bot_polling_task)
 
     def _on_signal():
         logger.info("Получен сигнал завершения (SIGTERM/SIGINT), останавливаем воркеры...")
@@ -281,6 +285,8 @@ async def main() -> None:
         for wt in worker_tasks:
             if not wt.done():
                 wt.cancel()
+        if bot_polling_task and not bot_polling_task.done():
+            bot_polling_task.cancel()
 
     for sig in (signal.SIGTERM, signal.SIGINT):
         try:
@@ -295,6 +301,11 @@ async def main() -> None:
         logger.info("Получен сигнал на остановку...")
     finally:
         server.should_exit = True
+        if bot and dp:
+            try:
+                await dp.stop_polling()
+            except Exception:
+                pass
         if bot:
             await bot.session.close()
         logger.info("Система корректно остановлена.")

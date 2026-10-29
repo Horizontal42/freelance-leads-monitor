@@ -107,14 +107,27 @@ fi
 
 # 6. Перезапуск systemd службы
 echo -e "${BLUE}==>${NC} Перезапуск службы ${PROD_SERVICE} на ${PROD_HOST}..."
-ssh "${PROD_HOST}" "sudo systemctl restart ${PROD_SERVICE}" || {
-    echo -e "${YELLOW}[WARN]${NC} Рестарт завис или вернул ошибку, проверяем статус процесса..."
-    # Если процесс завис на deactivating, форсированно завершаем старый PID
+ssh "${PROD_HOST}" "sudo systemctl stop --no-block ${PROD_SERVICE} 2>/dev/null || true"
+
+# Ждем до 5 секунд штатного завершения, при необходимости форсированно завершаем старый PID
+STOP_WAIT=0
+while [ $STOP_WAIT -lt 5 ]; do
     OLD_PID="$(ssh "${PROD_HOST}" "pgrep -f 'src.main' || true")"
-    if [ -n "$OLD_PID" ]; then
-        ssh "${PROD_HOST}" "sudo kill -9 ${OLD_PID} && sudo systemctl start ${PROD_SERVICE}"
+    if [ -z "$OLD_PID" ]; then
+        break
     fi
-}
+    sleep 1
+    STOP_WAIT=$((STOP_WAIT + 1))
+done
+
+OLD_PID="$(ssh "${PROD_HOST}" "pgrep -f 'src.main' || true")"
+if [ -n "$OLD_PID" ]; then
+    echo -e "${YELLOW}[WARN]${NC} Процесс не завершился за 5 секунд, завершаю принудительно PID ${OLD_PID}..."
+    ssh "${PROD_HOST}" "sudo kill -9 ${OLD_PID} 2>/dev/null || true"
+    sleep 1
+fi
+
+ssh "${PROD_HOST}" "sudo systemctl restart ${PROD_SERVICE}"
 
 # 7. Проверка активности службы
 echo -e "${BLUE}==>${NC} Ожидание запуска службы..."
