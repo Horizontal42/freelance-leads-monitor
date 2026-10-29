@@ -381,3 +381,96 @@ async def test_web_dashboard_vacancy_bullet_formatting(tmp_path):
         assert "Docker (базовый)" in html_text
         assert '<strong class="text-white font-semibold">YOLOv8</strong>' in html_text
         assert '<strong class="text-white font-semibold">FastAPI</strong>' in html_text
+
+
+@pytest.mark.asyncio
+async def test_web_generate_proposal_fallback_and_api(tmp_path, monkeypatch):
+    """Проверка генерации отклика по требованию и отображения контейнера отклика без анализа."""
+    db_path = tmp_path / "test_gen_prop.db"
+    await init_db(db_path)
+    repo = OrderRepository(db_path=db_path)
+
+    # Заказ без анализа (например, только поступил или trash/normal без analysis_json)
+    raw = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="raw_123",
+        title="Парсер сайта объявлений",
+        description="Нужен парсер на Python с экспортом в CSV",
+        url="https://kwork.ru/projects/raw_123",
+        price=15000,
+    )
+    raw_id = await repo.insert_raw_order(order=raw, status=OrderStatus.NEW, priority=OrderPriority.NORMAL)
+
+    # Мокируем get_llm_client
+    class FakeProposalResult:
+        def __init__(self):
+            self.proposal_text = "Здравствуйте! Имею подтвержденный опыт разработки парсеров на Playwright."
+            self.recommended_price = 16000
+            self.market_price = 18000
+            self.price_justification = "Рыночная цена парсинга объявлений"
+            self.estimated_days = 2.0
+
+        def __str__(self):
+            return self.proposal_text
+
+    class FakeLLMClient:
+        async def generate_proposal(self, order, analysis_data):
+            return FakeProposalResult()
+
+        async def chat_order(self, order, analysis_data, proposal_text, history, user_message, model_preference):
+            return "Ответ модели по стеку и рискам", "fake-gemini"
+
+    fake_client = FakeLLMClient()
+    monkeypatch.setattr("src.analyzer.factory.get_llm_client", lambda: fake_client)
+
+    app = create_web_app(repo=repo, enable_auth=False)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Проверяем наличие proposal-box даже для заказа без анализа
+        resp = await client.get("/?tab=all")
+        assert resp.status_code == 200
+        assert f'id="proposal-box-{raw_id}"' in resp.text
+        assert f"generateProposal('{raw_id}', this)" in resp.text
+
+        # 2. Вызываем API генерации отклика
+        gen_resp = await client.post(f"/api/orders/{raw_id}/generate-proposal")
+        assert gen_resp.status_code == 200
+        gen_data = gen_resp.json()
+        assert gen_data["ok"] is True
+        assert "Имею подтвержденный опыт разработки" in gen_data["proposal_text"]
+        assert gen_data["recommended_price"] == 16000
+        assert gen_data["market_price"] == 18000
+
+        # 3. Проверяем чат по заказу
+        chat_post = await client.post(
+            f"/api/orders/{raw_id}/chat",
+            json={"message": "Какой стек лучше использовать?", "model": "auto"},
+        )
+        assert chat_post.status_code == 200
+        chat_data = chat_post.json()
+        assert chat_data["ok"] is True
+        assert chat_data["reply"] == "Ответ модели по стеку и рискам"
+
+        # 4. Проверяем получение истории чата
+        chat_get = await client.get(f"/api/orders/{raw_id}/chat")
+        assert chat_get.status_code == 200
+        history = chat_get.json()["messages"]
+        assert len(history) == 2
+        assert history[0]["message"] == "Какой стек лучше использовать?"
+        assert history[1]["message"] == "Ответ модели по стеку и рискам"
+
+        # 5. Проверяем сохранение настроек вакансий через /api/settings
+        settings_post = await client.post(
+            "/api/settings",
+            json={
+                "vacancy_city": "Москва",
+                "vacancy_min_salary": 90000,
+                "vacancy_work_format": "remote",
+                "vacancy_allow_negotiable": True,
+            },
+        )
+        assert settings_post.status_code == 200
+        assert settings_post.json()["ok"] is True
+        assert settings_post.json()["settings"]["vacancy_city"] == "Москва"
+        assert settings_post.json()["settings"]["vacancy_min_salary"] == 90000
+
