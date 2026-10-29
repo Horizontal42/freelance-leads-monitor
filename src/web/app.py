@@ -708,6 +708,37 @@ DASHBOARD_HTML = """
                                 </div>
                             </div>
                         {% endif %}
+                    {% else %}
+                        <!-- Order without initial analysis: proposal generation on demand -->
+                        {% set is_vac = order.source in ['hh_ru', 'habr_career'] %}
+                        <div id="proposal-box-{{ order.id }}">
+                            {% if order.proposal_text %}
+                                <div class="mt-3 pt-3 border-t border-slate-800 space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-xs font-semibold {% if is_vac %}text-rose-400{% else %}text-emerald-400{% endif %} uppercase tracking-wider flex items-center gap-1">
+                                            <span>{% if is_vac %}✉️{% else %}✍️{% endif %}</span> {% if is_vac %}Сгенерированное Cover Letter (agy):{% else %}Сгенерированный отклик:{% endif %}
+                                        </span>
+                                        <div class="flex items-center space-x-2">
+                                            <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
+                                                🔄 Перегенерировать
+                                            </button>
+                                            <button onclick="copyProposal('proposal-text-{{ order.id }}', this)" class="text-xs {% if is_vac %}bg-rose-600 hover:bg-rose-500{% else %}bg-emerald-600 hover:bg-emerald-500{% endif %} text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                                <span>📋</span> {% if is_vac %}Скопировать Cover Letter{% else %}Скопировать отклик{% endif %}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div id="proposal-text-{{ order.id }}" class="text-xs font-mono bg-slate-900/90 text-slate-200 p-3.5 rounded-lg border border-slate-800 whitespace-pre-wrap leading-relaxed select-all">
+{{ order.proposal_text }}</div>
+                                </div>
+                            {% else %}
+                                <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
+                                    <span class="text-xs text-slate-400">{% if is_vac %}Сопроводительное письмо генерируется под конкретную вакансию.{% else %}Отклик не генерировался для экономии квот.{% endif %}</span>
+                                    <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs {% if is_vac %}bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500{% else %}bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500{% endif %} text-white font-semibold px-4 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md">
+                                        <span>✨</span> {% if is_vac %}Сгенерировать Cover Letter (agy){% else %}Сгенерировать отклик (ИИ){% endif %}
+                                    </button>
+                                </div>
+                            {% endif %}
+                        </div>
                     {% endif %}
 
                     <!-- Description / Text -->
@@ -1500,20 +1531,50 @@ DASHBOARD_HTML = """
             const el = document.getElementById(elementId);
             if (!el) return;
             const text = el.innerText;
-            navigator.clipboard.writeText(text).then(() => {
-                const toast = document.getElementById('copyToast');
-                toast.classList.remove('translate-y-20', 'opacity-0');
+            const toast = document.getElementById('copyToast');
+
+            const onSuccess = () => {
+                if (toast) {
+                    toast.classList.remove('translate-y-20', 'opacity-0');
+                }
                 const origText = btn.innerHTML;
                 btn.innerHTML = '<span>✅</span> Скопировано!';
                 btn.classList.replace('bg-emerald-600', 'bg-emerald-700');
                 btn.classList.replace('bg-rose-600', 'bg-rose-700');
                 setTimeout(() => {
-                    toast.classList.add('translate-y-20', 'opacity-0');
+                    if (toast) {
+                        toast.classList.add('translate-y-20', 'opacity-0');
+                    }
                     btn.innerHTML = origText;
                     btn.classList.replace('bg-emerald-700', 'bg-emerald-600');
                     btn.classList.replace('bg-rose-700', 'bg-rose-600');
                 }, 2000);
-            });
+            };
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(onSuccess).catch(() => {
+                    fallbackCopy(text, onSuccess);
+                });
+            } else {
+                fallbackCopy(text, onSuccess);
+            }
+        }
+
+        function fallbackCopy(text, callback) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                if (callback) callback();
+            } catch (err) {
+                alert('Не удалось скопировать текст в буфер: ' + err);
+            }
         }
 
         async function generateProposal(orderId, btn) {
@@ -1521,7 +1582,10 @@ DASHBOARD_HTML = """
             btn.disabled = true;
             btn.innerHTML = '<span>⏳</span> Генерация (agy)...';
             try {
-                const res = await fetch(`/api/orders/${orderId}/generate-proposal`, { method: 'POST' });
+                const res = await fetch(`/api/orders/${orderId}/generate-proposal`, {
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
                 const data = await res.json();
                 if (data.ok && data.proposal_text) {
                     if (data.recommended_price) {
@@ -1562,30 +1626,33 @@ DASHBOARD_HTML = """
                     }
 
                     const box = document.getElementById(`proposal-box-${orderId}`);
-                    const isHh = data.is_hh;
-                    const titleText = isHh ? 'Сгенерированное Cover Letter (agy):' : 'Сгенерированный отклик:';
-                    const icon = isHh ? '✉️' : '✍️';
-                    const btnClass = isHh ? 'bg-rose-600 hover:bg-rose-500' : 'bg-emerald-600 hover:bg-emerald-500';
-                    const btnCopyText = isHh ? 'Скопировать Cover Letter' : 'Скопировать отклик';
+                    if (box) {
+                        const isHh = data.is_hh;
+                        const titleText = isHh ? 'Сгенерированное Cover Letter (agy):' : 'Сгенерированный отклик:';
+                        const icon = isHh ? '✉️' : '✍️';
+                        const btnClass = isHh ? 'bg-rose-600 hover:bg-rose-500' : 'bg-emerald-600 hover:bg-emerald-500';
+                        const btnCopyText = isHh ? 'Скопировать Cover Letter' : 'Скопировать отклик';
 
-                    box.className = "mt-3 pt-3 border-t border-slate-800 space-y-2";
-                    box.innerHTML = `
-                        <div class="flex items-center justify-between">
-                            <span class="text-xs font-semibold ${isHh ? 'text-rose-400' : 'text-emerald-400'} uppercase tracking-wider flex items-center gap-1">
-                                <span>${icon}</span> ${titleText}
-                            </span>
-                            <div class="flex items-center space-x-2">
-                                <button onclick="generateProposal('${orderId}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
-                                    🔄 Перегенерировать
-                                </button>
-                                <button onclick="copyProposal('proposal-text-${orderId}', this)" class="text-xs ${btnClass} text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
-                                    <span>📋</span> ${btnCopyText}
-                                </button>
+                        box.className = "mt-3 pt-3 border-t border-slate-800 space-y-2";
+                        box.innerHTML = `
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-semibold ${isHh ? 'text-rose-400' : 'text-emerald-400'} uppercase tracking-wider flex items-center gap-1">
+                                    <span>${icon}</span> ${titleText}
+                                </span>
+                                <div class="flex items-center space-x-2">
+                                    <button onclick="generateProposal('${orderId}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
+                                        🔄 Перегенерировать
+                                    </button>
+                                    <button onclick="copyProposal('proposal-text-${orderId}', this)" class="text-xs ${btnClass} text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                        <span>📋</span> ${btnCopyText}
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                        ${finBlock}
-                        <div id="proposal-text-${orderId}" class="text-xs font-mono bg-slate-900/90 text-slate-200 p-3.5 rounded-lg border border-slate-800 whitespace-pre-wrap leading-relaxed select-all">${data.proposal_text}</div>
-                    `;
+                            ${finBlock}
+                            <div id="proposal-text-${orderId}" class="text-xs font-mono bg-slate-900/90 text-slate-200 p-3.5 rounded-lg border border-slate-800 whitespace-pre-wrap leading-relaxed select-all">${escapeHtml(data.proposal_text)}</div>
+                        `;
+                    }
+                    showToast('Отклик успешно сгенерирован!');
                 } else {
                     alert('Ошибка генерации: ' + (data.error || 'не удалось составить отклик'));
                     btn.disabled = false;
@@ -1602,6 +1669,7 @@ DASHBOARD_HTML = """
             try {
                 const res = await fetch('/api/settings', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ [key]: value })
                 });
@@ -1626,11 +1694,16 @@ DASHBOARD_HTML = """
                 platform_habr_career: document.getElementById('setting_platform_habr_career')?.checked ?? true,
                 filter_pro_only: document.getElementById('setting_filter_pro_only')?.checked ?? false,
                 min_budget: parseInt(document.getElementById('setting_min_budget')?.value || '10000', 10),
-                hot_score_threshold: parseInt(document.getElementById('setting_hot_score_threshold')?.value || '7', 10)
+                hot_score_threshold: parseInt(document.getElementById('setting_hot_score_threshold')?.value || '7', 10),
+                vacancy_city: document.getElementById('setting_vacancy_city')?.value || 'all',
+                vacancy_work_format: document.getElementById('setting_vacancy_work_format')?.value || 'all',
+                vacancy_min_salary: parseInt(document.getElementById('setting_vacancy_min_salary')?.value || '80000', 10),
+                vacancy_allow_negotiable: document.getElementById('setting_vacancy_allow_negotiable')?.checked ?? true
             };
             try {
                 const res = await fetch('/api/settings', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
@@ -1638,7 +1711,7 @@ DASHBOARD_HTML = """
                 if (data.ok) {
                     showToast('Все настройки успешно сохранены!');
                 } else {
-                    alert('Ошибка сохранения настроек');
+                    alert('Ошибка сохранения настроек: ' + (data.error || 'неизвестная ошибка'));
                 }
             } catch (e) {
                 alert('Ошибка сети: ' + e);
@@ -1754,13 +1827,18 @@ DASHBOARD_HTML = """
 
         let activeTopic = 'all';
 
+        function isVacancySection() {
+            const href = window.location.href;
+            return href.includes('section=hh_ru') || href.includes('section=hh') || href.includes('section=vacancies');
+        }
+
         function setTopicFilter(topic, btn) {
             activeTopic = topic;
             document.querySelectorAll('.topic-chip').forEach(el => {
                 el.classList.remove('bg-blue-600', 'bg-rose-600', 'text-white', 'font-bold');
                 el.classList.add('bg-slate-800', 'text-slate-300');
             });
-            const isHh = window.location.href.includes('section=hh_ru');
+            const isHh = isVacancySection();
             const activeClass = isHh ? 'bg-rose-600' : 'bg-blue-600';
             btn.classList.remove('bg-slate-800', 'text-slate-300');
             btn.classList.add(activeClass, 'text-white', 'font-bold');
@@ -1777,7 +1855,7 @@ DASHBOARD_HTML = """
             const sortSel = document.getElementById('orderSortSelect');
             if (sortSel) sortSel.value = 'default';
             activeTopic = 'all';
-            const isHh = window.location.href.includes('section=hh_ru');
+            const isHh = isVacancySection();
             const activeClass = isHh ? 'bg-rose-600' : 'bg-blue-600';
             document.querySelectorAll('.topic-chip').forEach((el, idx) => {
                 if (idx === 0) {
@@ -1846,6 +1924,8 @@ DASHBOARD_HTML = """
                 if (sortMode === 'price_asc') {
                     const priceA = parseFloat(a.getAttribute('data-price') || '0');
                     const priceB = parseFloat(b.getAttribute('data-price') || '0');
+                    if (priceA === 0 && priceB > 0) return 1;
+                    if (priceB === 0 && priceA > 0) return -1;
                     return priceA - priceB;
                 }
                 // default: по времени поступления в систему (новые заказы сверху)
@@ -1966,7 +2046,7 @@ DASHBOARD_HTML = """
             const input = document.getElementById(`chat-input-${orderId}`);
             const btn = document.getElementById(`chat-send-btn-${orderId}`);
             const modelSelect = document.getElementById(`chat-model-${orderId}`);
-            if (!input || !btn) return;
+            if (!input || !btn || btn.disabled) return;
 
             const text = input.value.trim();
             if (!text) return;
@@ -1979,8 +2059,9 @@ DASHBOARD_HTML = """
             btn.innerHTML = '<span>⏳ Думает...</span>';
 
             const box = document.getElementById(`chat-messages-${orderId}`);
+            const tempBubbleId = `temp-bubble-${Date.now()}`;
             const tempUserBubble = `
-                <div class="flex justify-end">
+                <div id="${tempBubbleId}" class="flex justify-end">
                     <div class="max-w-[85%] bg-indigo-950/80 border border-indigo-800/60 rounded-xl rounded-tr-sm p-2.5 text-slate-100 space-y-1">
                         <div class="flex items-center justify-between gap-3 text-[10px] text-indigo-300 font-semibold">
                             <span>👤 Андрей</span>
@@ -1990,7 +2071,8 @@ DASHBOARD_HTML = """
                     </div>
                 </div>
             `;
-            if (box && box.innerText.includes('Нет сообщений')) {
+            const hadNoMessages = box && box.innerText.includes('Нет сообщений');
+            if (hadNoMessages) {
                 box.innerHTML = tempUserBubble;
             } else if (box) {
                 box.insertAdjacentHTML('beforeend', tempUserBubble);
@@ -2000,6 +2082,7 @@ DASHBOARD_HTML = """
             try {
                 const res = await fetch(`/api/orders/${orderId}/chat`, {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ message: text, model: modelVal })
                 });
@@ -2009,14 +2092,23 @@ DASHBOARD_HTML = """
                     const badge = document.getElementById(`chat-badge-${orderId}`);
                     if (badge) {
                         const cur = parseInt(badge.innerText || '0', 10);
-                        badge.innerText = cur + 2;
+                        badge.innerText = isNaN(cur) ? 2 : cur + 2;
                         badge.classList.remove('hidden');
                     }
                 } else {
                     alert('Ошибка ответа модели: ' + (data.error || 'не удалось получить ответ'));
+                    // Restore text to input on error
+                    input.value = text;
+                    const tempEl = document.getElementById(tempBubbleId);
+                    if (tempEl) tempEl.remove();
+                    if (hadNoMessages) await loadOrderChatMessages(orderId);
                 }
             } catch (e) {
                 alert('Сетевая ошибка при отправке вопроса: ' + e);
+                input.value = text;
+                const tempEl = document.getElementById(tempBubbleId);
+                if (tempEl) tempEl.remove();
+                if (hadNoMessages) await loadOrderChatMessages(orderId);
             } finally {
                 input.disabled = false;
                 btn.disabled = false;
@@ -2024,6 +2116,9 @@ DASHBOARD_HTML = """
                 input.focus();
             }
         }
+
+        window.toggleChat = toggleOrderChat;
+        window.sendOrderChatMessage = sendOrderMessage;
 
         async function saveYamlConfig() {
             const editor = document.getElementById('yamlConfigEditor');
@@ -2038,6 +2133,7 @@ DASHBOARD_HTML = """
             try {
                 const res = await fetch('/api/config', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ yaml: yamlText })
                 });
@@ -2059,6 +2155,7 @@ DASHBOARD_HTML = """
         }
 
         async function saveGuiConfig() {
+            if (!document.getElementById('cfg_filter_keywords')) return;
             const btn = document.getElementById('saveGuiConfigBtn');
             const origHtml = btn ? btn.innerHTML : '';
             if (btn) {
@@ -2128,6 +2225,7 @@ DASHBOARD_HTML = """
 
                 const res = await fetch('/api/config', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ config: payload })
                 });
@@ -2347,30 +2445,37 @@ def create_web_app(
         from src.analyzer.factory import get_llm_client
         llm_client = get_llm_client()
 
-        raw_order = RawOrder(
-            source=SourcePlatform(order_data["source"]),
-            external_id=order_data["external_id"],
-            title=order_data["title"],
-            description=order_data["description"] or "",
-            url=order_data["url"],
-            price=order_data["price"],
-            is_negotiable=bool(order_data.get("is_negotiable", 0)),
-            is_pro_only=bool(order_data.get("is_pro_only", 0)),
-            attachments_text=order_data.get("attachments_text"),
-        )
-
-        analysis_data = (
-            json.loads(order_data["analysis_json"])
-            if order_data.get("analysis_json")
-            else None
-        )
-
         try:
+            try:
+                src_platform = SourcePlatform(order_data["source"])
+            except Exception:
+                src_platform = SourcePlatform.CUSTOM
+
+            raw_order = RawOrder(
+                source=src_platform,
+                external_id=order_data["external_id"],
+                title=order_data["title"],
+                description=order_data["description"] or "",
+                url=order_data["url"],
+                price=order_data["price"],
+                is_negotiable=bool(order_data.get("is_negotiable", 0)),
+                is_pro_only=bool(order_data.get("is_pro_only", 0)),
+                attachments_text=order_data.get("attachments_text"),
+            )
+
+            analysis_data = None
+            if order_data.get("analysis_json"):
+                try:
+                    analysis_data = json.loads(order_data["analysis_json"])
+                except Exception:
+                    analysis_data = None
+
             proposal_res = await llm_client.generate_proposal(raw_order, analysis_data)
             proposal_text = str(proposal_res)
             rec_price = getattr(proposal_res, "recommended_price", None)
             mkt_price = getattr(proposal_res, "market_price", None)
             price_just = getattr(proposal_res, "price_justification", None)
+            est_days = getattr(proposal_res, "estimated_days", None)
 
             await repository.update_proposal(
                 order_id,
@@ -2378,6 +2483,7 @@ def create_web_app(
                 recommended_price=rec_price,
                 market_price=mkt_price,
                 price_justification=price_just,
+                estimated_days=est_days,
             )
             is_hh = raw_order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
             return {
@@ -2387,6 +2493,7 @@ def create_web_app(
                 "recommended_price": rec_price,
                 "market_price": mkt_price,
                 "price_justification": price_just,
+                "estimated_days": est_days,
             }
         except Exception as e:
             logger.error("Ошибка при генерации для заказа/вакансии #%d: %s", order_id, e)
@@ -2419,36 +2526,33 @@ def create_web_app(
         from src.analyzer.factory import get_llm_client
         llm_client = get_llm_client()
 
-        raw_order = RawOrder(
-            source=SourcePlatform(order_data["source"]),
-            external_id=order_data["external_id"],
-            title=order_data["title"],
-            description=order_data["description"] or "",
-            url=order_data["url"],
-            price=order_data["price"],
-            is_negotiable=bool(order_data.get("is_negotiable", 0)),
-            is_pro_only=bool(order_data.get("is_pro_only", 0)),
-            attachments_text=order_data.get("attachments_text"),
-        )
-        analysis_data = (
-            json.loads(order_data["analysis_json"])
-            if order_data.get("analysis_json")
-            else None
-        )
-        proposal_text = order_data.get("proposal_text")
-
-        history = await repository.get_chat_messages(order_id)
-
         try:
-            # 1. Сохраняем вопрос пользователя
-            await repository.add_chat_message(
-                order_id=order_id,
-                role="user",
-                model="user",
-                message=user_message,
-            )
+            try:
+                src_platform = SourcePlatform(order_data["source"])
+            except Exception:
+                src_platform = SourcePlatform.CUSTOM
 
-            # 2. Вызываем модель
+            raw_order = RawOrder(
+                source=src_platform,
+                external_id=order_data["external_id"],
+                title=order_data["title"],
+                description=order_data["description"] or "",
+                url=order_data["url"],
+                price=order_data["price"],
+                is_negotiable=bool(order_data.get("is_negotiable", 0)),
+                is_pro_only=bool(order_data.get("is_pro_only", 0)),
+                attachments_text=order_data.get("attachments_text"),
+            )
+            analysis_data = None
+            if order_data.get("analysis_json"):
+                try:
+                    analysis_data = json.loads(order_data["analysis_json"])
+                except Exception:
+                    analysis_data = None
+            proposal_text = order_data.get("proposal_text")
+            history = await repository.get_chat_messages(order_id)
+
+            # 1. Вызываем модель
             reply_text, model_used = await llm_client.chat_order(
                 order=raw_order,
                 analysis_data=analysis_data,
@@ -2458,7 +2562,13 @@ def create_web_app(
                 model_preference=model_choice,
             )
 
-            # 3. Сохраняем ответ модели
+            # 2. Сохраняем вопрос пользователя и ответ модели только после успешного ответа
+            await repository.add_chat_message(
+                order_id=order_id,
+                role="user",
+                model="user",
+                message=user_message,
+            )
             await repository.add_chat_message(
                 order_id=order_id,
                 role="assistant",
@@ -2492,18 +2602,26 @@ def create_web_app(
 
     @app.get("/api/stats", response_class=JSONResponse)
     async def get_stats_api():
-        stats = await repository.get_extended_stats()
-        return stats
+        try:
+            stats = await repository.get_extended_stats()
+            return stats
+        except Exception as e:
+            logger.error("Ошибка получения статистики: %s", e)
+            return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
     @app.get("/api/health-check", response_class=JSONResponse)
     async def api_health_check_full():
         """Запустить полную проверку доступности бирж, LLM и базы данных."""
-        from src.services.health_check import HealthCheckService
-        from src.services.uptime import get_system_status_info
-        service = HealthCheckService()
-        result = await service.run_full_check()
-        result["uptime"] = get_system_status_info()
-        return result
+        try:
+            from src.services.health_check import HealthCheckService
+            from src.services.uptime import get_system_status_info
+            service = HealthCheckService()
+            result = await service.run_full_check()
+            result["uptime"] = get_system_status_info()
+            return result
+        except Exception as e:
+            logger.error("Ошибка проверки здоровья: %s", e)
+            return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
 
     @app.get("/api/settings", response_class=JSONResponse)
     async def api_get_settings():
