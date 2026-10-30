@@ -335,7 +335,6 @@ DASHBOARD_HTML = """
                 <span id="filterCountBadge" class="ml-auto text-xs text-slate-400 font-mono"></span>
             </div>
         </div>
-        </div>
 
         <!-- Orders & Vacancies Feed List -->
         <div id="ordersContainer" class="space-y-4">
@@ -1685,20 +1684,34 @@ DASHBOARD_HTML = """
         }
 
         async function saveAllSettingsForm() {
+            const getEl = id => document.getElementById(id);
+            const isChecked = (id, defVal) => {
+                const el = getEl(id);
+                return el ? el.checked : defVal;
+            };
+            const getVal = (id, defVal) => {
+                const el = getEl(id);
+                return el ? el.value : defVal;
+            };
+            const getInt = (id, defVal) => {
+                const val = parseInt(getVal(id, ''), 10);
+                return isNaN(val) ? defVal : val;
+            };
+
             const payload = {
-                platform_kwork: document.getElementById('setting_platform_kwork')?.checked ?? true,
-                platform_fl_ru: document.getElementById('setting_platform_fl_ru')?.checked ?? true,
-                platform_freelance_ru: document.getElementById('setting_platform_freelance_ru')?.checked ?? true,
-                platform_pchel_net: document.getElementById('setting_platform_pchel_net')?.checked ?? true,
-                platform_hh_ru: document.getElementById('setting_platform_hh_ru')?.checked ?? true,
-                platform_habr_career: document.getElementById('setting_platform_habr_career')?.checked ?? true,
-                filter_pro_only: document.getElementById('setting_filter_pro_only')?.checked ?? false,
-                min_budget: parseInt(document.getElementById('setting_min_budget')?.value || '10000', 10),
-                hot_score_threshold: parseInt(document.getElementById('setting_hot_score_threshold')?.value || '7', 10),
-                vacancy_city: document.getElementById('setting_vacancy_city')?.value || 'all',
-                vacancy_work_format: document.getElementById('setting_vacancy_work_format')?.value || 'all',
-                vacancy_min_salary: parseInt(document.getElementById('setting_vacancy_min_salary')?.value || '80000', 10),
-                vacancy_allow_negotiable: document.getElementById('setting_vacancy_allow_negotiable')?.checked ?? true
+                platform_kwork: isChecked('setting_platform_kwork', true),
+                platform_fl_ru: isChecked('setting_platform_fl_ru', true),
+                platform_freelance_ru: isChecked('setting_platform_freelance_ru', true),
+                platform_pchel_net: isChecked('setting_platform_pchel_net', true),
+                platform_hh_ru: isChecked('setting_platform_hh_ru', true),
+                platform_habr_career: isChecked('setting_platform_habr_career', true),
+                filter_pro_only: isChecked('setting_filter_pro_only', false),
+                min_budget: getInt('setting_min_budget', 10000),
+                hot_score_threshold: getInt('setting_hot_score_threshold', 7),
+                vacancy_city: getVal('setting_vacancy_city', 'all'),
+                vacancy_work_format: getVal('setting_vacancy_work_format', 'all'),
+                vacancy_min_salary: getInt('setting_vacancy_min_salary', 80000),
+                vacancy_allow_negotiable: isChecked('setting_vacancy_allow_negotiable', true)
             };
             try {
                 const res = await fetch('/api/settings', {
@@ -2142,7 +2155,7 @@ DASHBOARD_HTML = """
                     alert('✅ Конфигурация успешно сохранена и применена!');
                     window.location.reload();
                 } else {
-                    alert('❌ Ошибка валидации конфигурации:\n' + (data.error || 'Неверный формат YAML'));
+                    alert('❌ Ошибка валидации конфигурации:\\n' + (data.error || 'Неверный формат YAML'));
                 }
             } catch (e) {
                 alert('❌ Ошибка отправки запроса: ' + e);
@@ -2178,7 +2191,7 @@ DASHBOARD_HTML = """
                 };
                 const getLines = id => {
                     const val = getVal(id);
-                    return val.split('\n').map(s => s.trim()).filter(Boolean);
+                    return val.split('\\n').map(s => s.trim()).filter(Boolean);
                 };
 
                 const payload = {
@@ -2234,7 +2247,7 @@ DASHBOARD_HTML = """
                     alert('✅ Настройки успешно сохранены в config.yml и применены!');
                     window.location.reload();
                 } else {
-                    alert('❌ Ошибка валидации настроек:\n' + (data.error || 'Ошибка сохранения'));
+                    alert('❌ Ошибка валидации настроек:\\n' + (data.error || 'Ошибка сохранения'));
                 }
             } catch (e) {
                 alert('❌ Ошибка отправки запроса: ' + e);
