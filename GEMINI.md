@@ -21,3 +21,7 @@
 ## 3. Verification & Quality Assurance
 - Always run the test suite (`pytest`) before committing.
 - Ensure 100% test passing rate and zero regression before pushing.
+
+## 4. Background Tasks & No-Polling Policy
+- **Strict Prohibition on Task Polling:** Never poll the status of background tasks or commands in a loop (e.g. repeated calls to `manage_task(Action='status')` or rapid sleep checks).
+- Launch background tasks/commands and immediately conclude turn or proceed to other independent work. The system will deliver a message notification when the task completes.
