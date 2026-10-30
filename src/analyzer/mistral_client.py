@@ -174,6 +174,7 @@ class MistralClient(BaseLLMClient):
             "messages": [{"role": "user", "content": prompt}],
             "response_format": {"type": "json_object"},
             "temperature": 0.2,
+            "max_tokens": 3500,
         }
 
         try:
@@ -277,6 +278,7 @@ class MistralClient(BaseLLMClient):
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.3,
+            "max_tokens": 3500,
         }
 
         try:
@@ -344,6 +346,7 @@ class MistralClient(BaseLLMClient):
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.3,
+            "max_tokens": 3500,
         }
 
         try:
