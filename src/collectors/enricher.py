@@ -173,6 +173,20 @@ class OrderEnricher:
                 if items:
                     order.attachments_text = "\n".join(items)
 
+            # Уточнение бюджета со страницы задания (если не определен в ленте)
+            if order.price is None:
+                m_price = re.search(r'class="tv-meta-item__val[^"]*--budget[^"]*">(.*?)</div>', html_text, re.DOTALL)
+                if m_price:
+                    raw_b = html.unescape(m_price.group(1)).replace("\xa0", " ")
+                    if not ("индивидуально" in raw_b.lower() or "договор" in raw_b.lower() or "cost-not-set" in raw_b.lower()):
+                        p_d = re.search(r"(\d[\d\s]*)\s*(?:₽|&#8381;|руб|р\b)", raw_b, re.IGNORECASE)
+                        if p_d:
+                            try:
+                                order.price = float(re.sub(r"\s+", "", p_d.group(1)))
+                                order.is_negotiable = False
+                            except ValueError:
+                                pass
+
             # Проверка статуса PRO / Премиум
             if (
                 "task-card--premium" in html_text

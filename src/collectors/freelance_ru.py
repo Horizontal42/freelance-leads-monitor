@@ -80,9 +80,9 @@ class FreelanceRuCollector(BaseCollector):
                 clean_desc = re.sub(r"<[^>]+>", " ", raw_desc)
                 description = html.unescape(clean_desc).strip()
 
-            # 3. Бюджет
+            # 3. Бюджет (используем negative lookahead (?![a-zA-Z0-9_-]), чтобы не сматчить соседний <div class="task-card__budget-lbl">Гонорар</div>)
             m_budget = re.search(
-                r'<div class="task-card__budget[^"]*">(.*?)</div>',
+                r'<div class="task-card__budget(?![a-zA-Z0-9_-])[^"]*">(.*?)</div>',
                 article_html,
                 re.DOTALL,
             )
@@ -98,8 +98,8 @@ class FreelanceRuCollector(BaseCollector):
 
             price: Optional[float] = None
             if not is_negotiable:
-                # Ищем число перед символом рубля или &#8381;
-                clean_budget = html.unescape(budget_raw)
+                # Ищем число перед символом рубля или &#8381;, нормализуя неразрывные пробелы
+                clean_budget = html.unescape(budget_raw).replace("\xa0", " ")
                 p_digits = re.search(
                     r"(\d[\d\s]*)\s*(?:₽|&#8381;|руб|р\b)",
                     clean_budget,

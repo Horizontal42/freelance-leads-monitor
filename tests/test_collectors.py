@@ -58,8 +58,11 @@ def test_freelance_ru_article_parsing():
         </a>
         <p class="task-card__desc">Нужно написать скрипт на Python с использованием httpx.</p>
         <div class="task-card__side">
-            <div class="task-card__budget">
-                <span class="bold">25 000 &#8381;</span>
+            <div>
+                <div class="task-card__budget-lbl">Гонорар</div>
+                <div class="task-card__budget">
+                    <span class="bold">15 000 &#8381;</span> <span class="cost-unit">/ заказ</span>
+                </div>
             </div>
         </div>
         <div class="task-card__chips">
@@ -73,10 +76,29 @@ def test_freelance_ru_article_parsing():
     assert order is not None
     assert order.external_id == "9999"
     assert order.title == "Парсинг сайта на Python"
-    assert order.price == 25000.0
+    assert order.price == 15000.0
     assert order.is_negotiable is False
     assert order.source == SourcePlatform.FREELANCE_RU
     assert "Python" in order.tags
+
+    # Тест на договорную цену
+    mock_negotiable = """
+    <article class="task-card">
+        <a class="task-card__title-link" href="/task/view/10000" title="Доработка сервиса">
+            Доработка сервиса
+        </a>
+        <div class="task-card__side">
+            <div class="task-card__budget-lbl">Гонорар</div>
+            <div class="task-card__budget task-card__budget--soft">
+                <span class="bold cost-not-set">Обсуждается индивидуально</span>
+            </div>
+        </div>
+    </article>
+    """
+    order_neg = collector._parse_article(mock_negotiable)
+    assert order_neg is not None
+    assert order_neg.price is None
+    assert order_neg.is_negotiable is True
 
 
 def test_pchel_net_block_parsing():
