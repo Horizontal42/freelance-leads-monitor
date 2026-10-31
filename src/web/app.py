@@ -309,12 +309,17 @@ DASHBOARD_HTML = """
                 </div>
 
                 <!-- Price Range Filter Inputs -->
-                <div class="flex items-center gap-2 text-xs">
+                <div class="flex items-center gap-2 text-xs flex-wrap">
                     <span class="text-slate-400 font-semibold uppercase">{% if active_section == 'hh_ru' %}З/П от:{% else %}Бюджет от:{% endif %}</span>
                     <input type="number" id="filterPriceMin" oninput="applyClientFilters()" placeholder="0 ₽" class="w-24 bg-slate-950 border border-slate-800 text-slate-200 rounded px-2.5 py-1 text-xs outline-none focus:border-blue-500 font-mono">
                     <span class="text-slate-500">до</span>
                     <input type="number" id="filterPriceMax" oninput="applyClientFilters()" placeholder="макс" class="w-24 bg-slate-950 border border-slate-800 text-slate-200 rounded px-2.5 py-1 text-xs outline-none focus:border-blue-500 font-mono">
                     <button type="button" onclick="resetFilters()" class="text-[11px] text-slate-400 hover:text-white px-2 py-1 bg-slate-800 rounded border border-slate-700 transition">Сброс</button>
+
+                    <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-300 hover:text-white select-none bg-slate-950 border border-slate-800 hover:border-slate-700 px-2.5 py-1 rounded transition ml-1" title="Скрывать заказы и вакансии, на которые уже отправлен отклик">
+                        <input type="checkbox" id="filterHideResponded" onchange="applyClientFilters()" class="w-3.5 h-3.5 rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer">
+                        <span class="flex items-center gap-1"><span>🙈</span> Скрывать отклики</span>
+                    </label>
                 </div>
             </div>
 
@@ -354,7 +359,7 @@ DASHBOARD_HTML = """
             {% endif %}
 
             {% for order in orders %}
-                <div class="order-card bg-slate-900 border {% if order.priority == 'hot' %}border-amber-500/50 shadow-lg shadow-amber-950/20{% elif order.priority == 'trash' %}border-slate-800 opacity-60{% else %}border-slate-800{% endif %} p-5 rounded-xl transition hover:border-slate-700 space-y-3.5" data-id="{{ order.id }}" data-title="{{ order.title|lower }}" data-desc="{{ order.description|lower }} {{ order.attachments_text|lower if order.attachments_text else '' }}" data-price="{{ order.price or 0 }}" data-score="{{ order.score or 0 }}" data-created="{{ order.created_at or '' }}">
+                <div class="order-card bg-slate-900 border {% if order.priority == 'hot' %}border-amber-500/50 shadow-lg shadow-amber-950/20{% elif order.priority == 'trash' %}border-slate-800 opacity-60{% else %}border-slate-800{% endif %} {% if order.is_responded %}opacity-65 border-dashed{% endif %} p-5 rounded-xl transition hover:border-slate-700 space-y-3.5" data-id="{{ order.id }}" data-title="{{ order.title|lower }}" data-desc="{{ order.description|lower }} {{ order.attachments_text|lower if order.attachments_text else '' }}" data-price="{{ order.price or 0 }}" data-score="{{ order.score or 0 }}" data-responded="{{ 1 if order.is_responded else 0 }}" data-created="{{ order.created_at or '' }}">
 
                     <!-- Card Header Row -->
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
@@ -363,6 +368,12 @@ DASHBOARD_HTML = """
                             <span class="text-xs font-bold uppercase px-2.5 py-1 rounded-md {% if order.source == 'hh_ru' %}bg-rose-950 text-rose-300 border border-rose-800/60{% elif order.source == 'habr_career' %}bg-cyan-950 text-cyan-300 border border-cyan-800/60{% elif order.source == 'kwork' %}bg-emerald-950 text-emerald-300 border border-emerald-800/60{% elif order.source == 'fl_ru' %}bg-blue-950 text-blue-300 border border-blue-800/60{% elif order.source == 'freelance_ru' %}bg-purple-950 text-purple-300 border border-purple-800/60{% elif order.source == 'pchel_net' %}bg-amber-950 text-amber-300 border border-amber-800/60{% else %}bg-cyan-950 text-cyan-300 border border-cyan-800/60{% endif %}">
                                 {{ 'Хабр Карьера' if order.source == 'habr_career' else (order.source|upper) }}
                             </span>
+
+                            <!-- Responded Status Toggle Button -->
+                            <button type="button" onclick="toggleResponded('{{ order.id }}', this)" id="responded-btn-{{ order.id }}" class="responded-toggle-btn text-xs px-2.5 py-0.5 rounded-md transition flex items-center gap-1.5 border font-medium {% if order.is_responded %}bg-emerald-950/90 text-emerald-300 border-emerald-700/80 hover:bg-emerald-900/90{% else %}bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700{% endif %}" title="Отметить, что отклик уже отправлен">
+                                <span class="responded-icon">{% if order.is_responded %}✅{% else %}⬜{% endif %}</span>
+                                <span class="responded-text">{% if order.is_responded %}Откликнулся{% else %}Не откликнулся{% endif %}</span>
+                            </button>
 
                             {% if order.source not in ['hh_ru', 'habr_career'] %}
                                 <!-- Paid vs Free Response Badge (Freelance only) -->
@@ -1891,6 +1902,41 @@ DASHBOARD_HTML = """
             applyClientFilters();
         }
 
+        async function toggleResponded(orderId, btn) {
+            if (!orderId) return;
+            try {
+                const resp = await fetch(`/api/orders/${orderId}/toggle-responded`, { method: 'POST' });
+                const data = await resp.json();
+                if (data.ok) {
+                    const card = document.querySelector(`.order-card[data-id="${orderId}"]`);
+                    const isResp = !!data.is_responded;
+                    if (card) {
+                        card.setAttribute('data-responded', isResp ? '1' : '0');
+                        if (isResp) {
+                            card.classList.add('opacity-65', 'border-dashed');
+                        } else {
+                            card.classList.remove('opacity-65', 'border-dashed');
+                        }
+                    }
+                    if (btn) {
+                        const icon = btn.querySelector('.responded-icon');
+                        const text = btn.querySelector('.responded-text');
+                        if (icon) icon.innerText = isResp ? '✅' : '⬜';
+                        if (text) text.innerText = isResp ? 'Откликнулся' : 'Не откликнулся';
+                        if (isResp) {
+                            btn.className = "responded-toggle-btn text-xs px-2.5 py-0.5 rounded-md transition flex items-center gap-1.5 border font-medium bg-emerald-950/90 text-emerald-300 border-emerald-700/80 hover:bg-emerald-900/90";
+                        } else {
+                            btn.className = "responded-toggle-btn text-xs px-2.5 py-0.5 rounded-md transition flex items-center gap-1.5 border font-medium bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700";
+                        }
+                    }
+                    showToast(isResp ? 'Отмечено: отклик отправлен' : 'Отметка отклика снята');
+                    applyClientFilters();
+                }
+            } catch (e) {
+                alert('Ошибка обновления статуса: ' + e);
+            }
+        }
+
         function applyClientFilters() {
             const queryEl = document.getElementById('orderSearch');
             const query = queryEl ? queryEl.value.toLowerCase().trim() : '';
@@ -1900,6 +1946,9 @@ DASHBOARD_HTML = """
             const maxPrice = maxEl && maxEl.value ? parseFloat(maxEl.value) : null;
             const sortEl = document.getElementById('orderSortSelect');
             const sortMode = sortEl ? sortEl.value : 'default';
+            const hideRespondedEl = document.getElementById('filterHideResponded');
+            const hideResponded = hideRespondedEl ? hideRespondedEl.checked : false;
+            try { localStorage.setItem('hideResponded', hideResponded ? '1' : '0'); } catch(e){}
 
             const container = document.getElementById('ordersContainer');
             if (!container) return;
@@ -1910,6 +1959,7 @@ DASHBOARD_HTML = """
                 const title = card.getAttribute('data-title') || '';
                 const desc = card.getAttribute('data-desc') || '';
                 const price = parseFloat(card.getAttribute('data-price') || '0');
+                const isResponded = card.getAttribute('data-responded') === '1';
 
                 // Поиск по тексту
                 const matchesText = !query || title.includes(query) || desc.includes(query);
@@ -1925,7 +1975,13 @@ DASHBOARD_HTML = """
                 if (minPrice !== null && price > 0 && price < minPrice) matchesPrice = false;
                 if (maxPrice !== null && price > 0 && price > maxPrice) matchesPrice = false;
 
-                if (matchesText && matchesTopic && matchesPrice) {
+                // Фильтр скрытия уже отправленных откликов
+                let matchesResponded = true;
+                if (hideResponded && isResponded) {
+                    matchesResponded = false;
+                }
+
+                if (matchesText && matchesTopic && matchesPrice && matchesResponded) {
                     card.style.display = 'block';
                     visibleCount++;
                 } else {
@@ -2269,6 +2325,17 @@ DASHBOARD_HTML = """
                 }
             }
         }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            try {
+                const savedHide = localStorage.getItem('hideResponded');
+                const hideRespondedEl = document.getElementById('filterHideResponded');
+                if (savedHide === '1' && hideRespondedEl) {
+                    hideRespondedEl.checked = true;
+                    applyClientFilters();
+                }
+            } catch(e) {}
+        });
     </script>
 </body>
 </html>
@@ -2458,6 +2525,16 @@ def create_web_app(
             format_bullet_html=format_bullet_html,
         )
         return HTMLResponse(content=html_content)
+
+    @app.post("/api/orders/{order_id}/toggle-responded")
+    async def api_toggle_responded(order_id: int):
+        """Переключить статус отклика (откликнулся / не откликнулся)."""
+        order_data = await repository.get_by_id(order_id)
+        if not order_data:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "Заказ или вакансия не найдена"})
+
+        new_state = await repository.toggle_responded(order_id)
+        return JSONResponse(content={"ok": True, "is_responded": new_state})
 
     @app.post("/api/orders/{order_id}/generate-proposal")
     async def api_generate_proposal(order_id: int):

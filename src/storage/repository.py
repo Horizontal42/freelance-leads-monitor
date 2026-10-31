@@ -108,6 +108,24 @@ class OrderRepository:
             )
             await db.commit()
 
+    async def toggle_responded(self, order_id: int, is_responded: Optional[bool] = None) -> bool:
+        """Переключить или установить статус отклика по заказу."""
+        async with self._get_conn() as db:
+            if is_responded is None:
+                async with db.execute("SELECT is_responded FROM orders WHERE id = ?", (order_id,)) as cursor:
+                    row = await cursor.fetchone()
+                    current = bool(row[0]) if row and row[0] is not None else False
+                new_state = not current
+            else:
+                new_state = is_responded
+
+            await db.execute(
+                "UPDATE orders SET is_responded = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (1 if new_state else 0, order_id),
+            )
+            await db.commit()
+            return new_state
+
     async def update_status(self, order_id: int, status: OrderStatus) -> None:
         """Обновить статус заказа (например, отправлен в TG или архивирован)."""
         async with self._get_conn() as db:
@@ -242,6 +260,7 @@ class OrderRepository:
         source: Optional[str] = None,
         only_free: bool = False,
         section: Optional[str] = None,
+        hide_responded: bool = False,
     ) -> List[Dict[str, Any]]:
         """Получить список свежих заказов с возможностью фильтрации по секциям и биржам."""
         query = """
@@ -269,6 +288,8 @@ class OrderRepository:
             params.append(str(source).lower())
         if only_free:
             query += " AND is_pro_only = 0"
+        if hide_responded:
+            query += " AND is_responded = 0"
 
         query += " ORDER BY id DESC LIMIT ?"
         params.append(limit)

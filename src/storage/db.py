@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS orders (
     price REAL,
     is_negotiable INTEGER NOT NULL DEFAULT 0,
     is_pro_only INTEGER NOT NULL DEFAULT 0,
+    is_responded INTEGER NOT NULL DEFAULT 0,
     tags TEXT,
     status TEXT NOT NULL DEFAULT 'new',
     priority TEXT NOT NULL DEFAULT 'normal',
@@ -89,6 +90,10 @@ async def init_db(db_path: Path | str | None = None) -> None:
             pass  # колонка уже существует
         try:
             await db.execute("ALTER TABLE orders ADD COLUMN market_price REAL;")
+        except Exception:
+            pass  # колонка уже существует
+        try:
+            await db.execute("ALTER TABLE orders ADD COLUMN is_responded INTEGER NOT NULL DEFAULT 0;")
         except Exception:
             pass  # колонка уже существует
         await db.execute("""
