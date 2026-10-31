@@ -249,11 +249,20 @@ def sanitize_proposal_text(text: str) -> str:
     t = re.sub(r"^#{1,6}\s*", "", t, flags=re.MULTILINE)
     # 6. Удаление горизонтальных разделителей markdown (---, ___, ***)
     t = re.sub(r"^\s*[-*_]{3,}\s*$", "", t, flags=re.MULTILINE)
-    # 7. Удаление ссылок на GitHub (коммерческие проекты под NDA, ссылки на код не отправляем)
-    t = re.sub(r"^[^\n]*github\.com[^\n]*\n?", "", t, flags=re.MULTILINE | re.IGNORECASE)
-    # 8. Удаление блоков ожиданий по зарплате и срокам выхода (работодатель сам должен предложить условия)
+    # 7. Преобразование markdown-ссылок [текст](url) и [Ссылка: url] в чистые URL
+    t = re.sub(r"\[(?:[^\]]*)\]\((https?://[^\)]+)\)", r"\1", t)
+    t = re.sub(r"\[(?:[^:\]]+:\s*)?(https?://[^\]]+)\]", r"\1", t)
+    # 8. Гарантия пометки об NDA для ссылок на GitHub (коммерческие проекты закрыты NDA)
+    lines = t.split("\n")
+    processed_lines = []
+    for line in lines:
+        if "github.com" in line.lower() and not any(w in line.lower() for w in ["nda", "коммерческ", "закрыт", "скрыт"]):
+            line = line.rstrip(".") + " (коммерческие проекты закрыты NDA)"
+        processed_lines.append(line)
+    t = "\n".join(processed_lines)
+    # 9. Удаление блоков ожиданий по зарплате и срокам выхода (работодатель сам должен предложить условия)
     t = re.sub(r"^[ \t]*Ожидания:[\s\S]*?(?=\n\n|\n[А-ЯA-Z]|\Z)", "", t, flags=re.MULTILINE)
-    # 9. Схлопывание избыточных пустых строк
+    # 10. Схлопывание избыточных пустых строк
     t = re.sub(r"\n{3,}", "\n\n", t)
     return t.strip()
 
