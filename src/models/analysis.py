@@ -247,6 +247,14 @@ def sanitize_proposal_text(text: str) -> str:
     t = t.replace("*", "")
     # 5. Удаление заголовков markdown (например ### Опыт)
     t = re.sub(r"^#{1,6}\s*", "", t, flags=re.MULTILINE)
+    # 6. Удаление горизонтальных разделителей markdown (---, ___, ***)
+    t = re.sub(r"^\s*[-*_]{3,}\s*$", "", t, flags=re.MULTILINE)
+    # 7. Удаление ссылок на GitHub (коммерческие проекты под NDA, ссылки на код не отправляем)
+    t = re.sub(r"^[^\n]*github\.com[^\n]*\n?", "", t, flags=re.MULTILINE | re.IGNORECASE)
+    # 8. Удаление блоков ожиданий по зарплате и срокам выхода (работодатель сам должен предложить условия)
+    t = re.sub(r"^[ \t]*Ожидания:[\s\S]*?(?=\n\n|\n[А-ЯA-Z]|\Z)", "", t, flags=re.MULTILINE)
+    # 9. Схлопывание избыточных пустых строк
+    t = re.sub(r"\n{3,}", "\n\n", t)
     return t.strip()
 
 

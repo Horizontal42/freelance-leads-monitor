@@ -269,7 +269,7 @@ class Secrets(BaseSettings):
     VACANCIES_ADMIN_CHAT_ID: Optional[int] = None
     MISTRAL_API_KEY: str = ""
     HH_APP_TOKEN: str = ""
-    HH_USER_AGENT: str = "JobSearch/1.0 (frolka84@gmail.com)"
+    HH_USER_AGENT: str = "JobSearch/1.0 (pimenoffandrew@gmail.com)"
     WEB_AUTH_ENABLED: bool = True
     WEB_AUTH_USERNAME: str = "Horizontal42"
     WEB_AUTH_PASSWORD: str = "qaz403111"

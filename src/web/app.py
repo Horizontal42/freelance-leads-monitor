@@ -590,7 +590,7 @@ DASHBOARD_HTML = """
                                                     </button>
                                                 </div>
                                             </div>
-                                            <div id="proposal-text-{{ order.id }}" class="text-xs font-mono bg-slate-900/90 text-slate-200 p-3.5 rounded-lg border border-slate-800 whitespace-pre-wrap leading-relaxed select-all">
+                                            <div id="proposal-text-{{ order.id }}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-all cursor-pointer transition">
 {{ order.proposal_text or order.analysis.proposal_text }}</div>
                                         </div>
                                     {% else %}
@@ -693,7 +693,7 @@ DASHBOARD_HTML = """
                                                     </button>
                                                 </div>
                                             </div>
-                                            <div id="proposal-text-{{ order.id }}" class="text-xs font-mono bg-slate-900/90 text-slate-200 p-3.5 rounded-lg border border-slate-800 whitespace-pre-wrap leading-relaxed select-all">
+                                            <div id="proposal-text-{{ order.id }}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-all cursor-pointer transition">
 {{ order.proposal_text or order.analysis.proposal_text }}</div>
                                         </div>
                                     {% else %}
@@ -726,7 +726,7 @@ DASHBOARD_HTML = """
                                             </button>
                                         </div>
                                     </div>
-                                    <div id="proposal-text-{{ order.id }}" class="text-xs font-mono bg-slate-900/90 text-slate-200 p-3.5 rounded-lg border border-slate-800 whitespace-pre-wrap leading-relaxed select-all">
+                                    <div id="proposal-text-{{ order.id }}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-all cursor-pointer transition">
 {{ order.proposal_text }}</div>
                                 </div>
                             {% else %}
@@ -913,7 +913,7 @@ DASHBOARD_HTML = """
                         <p class="text-xs text-slate-400 mt-1">Разработчик решений на базе AI / Специалист по автоматизации (AI), Python-разработчик</p>
                     </div>
                     <div class="text-xs font-mono text-slate-400">
-                        Контакты: frolka84@gmail.com | Telegram: @horizontal42
+                        Контакты: pimenoffandrew@gmail.com | Telegram: @horizontal42
                     </div>
                 </div>
 
@@ -1516,27 +1516,42 @@ DASHBOARD_HTML = """
     </div>
 
     <script>
-        function copyProposal(elementId, btn) {
-            const el = document.getElementById(elementId);
-            if (!el) return;
-            const text = el.innerText;
+        function copyProposalText(boxEl) {
+            if (!boxEl) return;
+            const text = boxEl.innerText;
             const toast = document.getElementById('copyToast');
+
+            // Find associated copy button in the same container if present
+            const container = boxEl.closest('[id^="proposal-box-"]') || boxEl.parentElement;
+            const btn = container ? container.querySelector('button[onclick*="copyProposal("]') : null;
 
             const onSuccess = () => {
                 if (toast) {
                     toast.classList.remove('translate-y-20', 'opacity-0');
                 }
-                const origText = btn.innerHTML;
-                btn.innerHTML = '<span>✅</span> Скопировано!';
-                btn.classList.replace('bg-emerald-600', 'bg-emerald-700');
-                btn.classList.replace('bg-rose-600', 'bg-rose-700');
+                const origBorder = boxEl.style.borderColor;
+                boxEl.style.borderColor = '#10b981';
+                boxEl.classList.add('ring-1', 'ring-emerald-500/50');
+
+                let origBtnText = '';
+                if (btn) {
+                    origBtnText = btn.innerHTML;
+                    btn.innerHTML = '<span>✅</span> Скопировано!';
+                    btn.classList.replace('bg-emerald-600', 'bg-emerald-700');
+                    btn.classList.replace('bg-rose-600', 'bg-rose-700');
+                }
+
                 setTimeout(() => {
                     if (toast) {
                         toast.classList.add('translate-y-20', 'opacity-0');
                     }
-                    btn.innerHTML = origText;
-                    btn.classList.replace('bg-emerald-700', 'bg-emerald-600');
-                    btn.classList.replace('bg-rose-700', 'bg-rose-600');
+                    boxEl.style.borderColor = origBorder;
+                    boxEl.classList.remove('ring-1', 'ring-emerald-500/50');
+                    if (btn && origBtnText) {
+                        btn.innerHTML = origBtnText;
+                        btn.classList.replace('bg-emerald-700', 'bg-emerald-600');
+                        btn.classList.replace('bg-rose-700', 'bg-rose-600');
+                    }
                 }, 2000);
             };
 
@@ -1547,6 +1562,12 @@ DASHBOARD_HTML = """
             } else {
                 fallbackCopy(text, onSuccess);
             }
+        }
+
+        function copyProposal(elementId, btn) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            copyProposalText(el);
         }
 
         function fallbackCopy(text, callback) {
@@ -1638,7 +1659,7 @@ DASHBOARD_HTML = """
                                 </div>
                             </div>
                             ${finBlock}
-                            <div id="proposal-text-${orderId}" class="text-xs font-mono bg-slate-900/90 text-slate-200 p-3.5 rounded-lg border border-slate-800 whitespace-pre-wrap leading-relaxed select-all">${escapeHtml(data.proposal_text)}</div>
+                            <div id="proposal-text-${orderId}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-all cursor-pointer transition">${escapeHtml(data.proposal_text)}</div>
                         `;
                     }
                     showToast('Отклик успешно сгенерирован!');
