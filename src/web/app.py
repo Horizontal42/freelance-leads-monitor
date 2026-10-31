@@ -1224,15 +1224,11 @@ DASHBOARD_HTML = """
                             <label for="setting_min_budget" class="text-xs font-semibold text-slate-300 block">
                                 💰 Минимальный бюджет заказа (₽):
                             </label>
-                            <p class="text-[11px] text-slate-400">Заказы с указанным бюджетом ниже этой суммы отсеиваются в Tier 3.</p>
-                            <select id="setting_min_budget" onchange="autoSaveSetting('min_budget', parseInt(this.value, 10))" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2.5 focus:border-indigo-500 outline-none">
-                                <option value="5000" {% if settings_map.min_budget == 5000 %}selected{% endif %}>5 000 ₽</option>
-                                <option value="10000" {% if settings_map.min_budget == 10000 %}selected{% endif %}>10 000 ₽ (по умолчанию)</option>
-                                <option value="15000" {% if settings_map.min_budget == 15000 %}selected{% endif %}>15 000 ₽</option>
-                                <option value="20000" {% if settings_map.min_budget == 20000 %}selected{% endif %}>20 000 ₽</option>
-                                <option value="30000" {% if settings_map.min_budget == 30000 %}selected{% endif %}>30 000 ₽</option>
-                                <option value="50000" {% if settings_map.min_budget == 50000 %}selected{% endif %}>50 000 ₽</option>
-                            </select>
+                            <p class="text-[11px] text-slate-400">Заказы с указанным бюджетом ниже этой суммы отсеиваются в Tier 3 (произвольное число).</p>
+                            <div class="relative">
+                                <input type="number" id="setting_min_budget" min="0" step="500" value="{{ settings_map.min_budget if settings_map.min_budget is not none else 10000 }}" onchange="autoSaveSetting('min_budget', parseInt(this.value, 10) || 0)" placeholder="10000" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2.5 pr-8 focus:border-indigo-500 outline-none">
+                                <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-medium">₽</span>
+                            </div>
                         </div>
 
                         <!-- Hot score threshold -->
@@ -1240,13 +1236,11 @@ DASHBOARD_HTML = """
                             <label for="setting_hot_score_threshold" class="text-xs font-semibold text-slate-300 block">
                                 🔥 Порог Hot (Tier 1 совпадения):
                             </label>
-                            <p class="text-[11px] text-slate-400">Минимальный балл Mistral/Agy (1-10) для присвоения категории Hot и мгновенной отправки в Telegram.</p>
-                            <select id="setting_hot_score_threshold" onchange="autoSaveSetting('hot_score_threshold', parseInt(this.value, 10))" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2.5 focus:border-indigo-500 outline-none">
-                                <option value="6" {% if settings_map.hot_score_threshold == 6 %}selected{% endif %}>6 / 10 (мягкий отбор)</option>
-                                <option value="7" {% if settings_map.hot_score_threshold == 7 %}selected{% endif %}>7 / 10 (рекомендуемый)</option>
-                                <option value="8" {% if settings_map.hot_score_threshold == 8 %}selected{% endif %}>8 / 10 (строгий отбор)</option>
-                                <option value="9" {% if settings_map.hot_score_threshold == 9 %}selected{% endif %}>9 / 10 (только топовые)</option>
-                            </select>
+                            <p class="text-[11px] text-slate-400">Минимальный балл Mistral/Agy (от 1 до 10) для присвоения категории Hot и мгновенной отправки в Telegram.</p>
+                            <div class="relative">
+                                <input type="number" id="setting_hot_score_threshold" min="1" max="10" step="1" value="{{ settings_map.hot_score_threshold if settings_map.hot_score_threshold is not none else 7 }}" onchange="autoSaveSetting('hot_score_threshold', parseInt(this.value, 10) || 7)" placeholder="7" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2.5 pr-12 focus:border-indigo-500 outline-none">
+                                <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-medium">/ 10</span>
+                            </div>
                         </div>
                     </div>
 
@@ -1287,15 +1281,11 @@ DASHBOARD_HTML = """
                             <label for="setting_vacancy_min_salary" class="text-xs font-semibold text-slate-300 block">
                                 💵 Минимальная зарплата вакансии (₽):
                             </label>
-                            <p class="text-[11px] text-slate-400">Вакансии с указанной зарплатой ниже этой суммы отсеиваются в Tier 3.</p>
-                            <select id="setting_vacancy_min_salary" onchange="autoSaveSetting('vacancy_min_salary', parseInt(this.value, 10))" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2.5 focus:border-indigo-500 outline-none">
-                                <option value="0" {% if not settings_map.vacancy_min_salary %}selected{% endif %}>Любая (включая по договоренности)</option>
-                                <option value="80000" {% if settings_map.vacancy_min_salary == 80000 %}selected{% endif %}>от 80 000 ₽</option>
-                                <option value="100000" {% if settings_map.vacancy_min_salary == 100000 %}selected{% endif %}>от 100 000 ₽</option>
-                                <option value="120000" {% if settings_map.vacancy_min_salary == 120000 %}selected{% endif %}>от 120 000 ₽</option>
-                                <option value="150000" {% if settings_map.vacancy_min_salary == 150000 %}selected{% endif %}>от 150 000 ₽</option>
-                                <option value="200000" {% if settings_map.vacancy_min_salary == 200000 %}selected{% endif %}>от 200 000 ₽</option>
-                            </select>
+                            <p class="text-[11px] text-slate-400">Вакансии с указанной зарплатой ниже этой суммы отсеиваются в Tier 3 (укажите 0 для любых).</p>
+                            <div class="relative">
+                                <input type="number" id="setting_vacancy_min_salary" min="0" step="5000" value="{{ settings_map.vacancy_min_salary if settings_map.vacancy_min_salary is not none else 80000 }}" onchange="autoSaveSetting('vacancy_min_salary', parseInt(this.value, 10) || 0)" placeholder="80000" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2.5 pr-8 focus:border-indigo-500 outline-none">
+                                <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-medium">₽</span>
+                            </div>
                         </div>
 
                         <!-- Allow Negotiable Vacancies Toggle -->
