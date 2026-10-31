@@ -923,7 +923,7 @@ DASHBOARD_HTML = """
                             <span>🎙</span> Речевая аналитика звонков
                         </div>
                         <p class="text-xs text-slate-300 leading-relaxed">
-                            Cortex IT (6 мес). WhisperX, pyannote, Qwen 32B, FastAPI, Celery, Redis, PostgreSQL, Bitrix24 REST API, Weasyprint. Батчинг на GPU, сброс памяти malloc_trim, flip-rate 0%.
+                            Cortex IT (6 мес). WhisperX, pyannote, Qwen 32B, FastAPI, Celery, Redis, PostgreSQL, Bitrix24 REST API, Weasyprint. Батчинг на GPU, оптимизация памяти, детерминированная валидация оценок.
                         </p>
                     </div>
 
