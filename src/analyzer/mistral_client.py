@@ -211,7 +211,14 @@ class MistralClient(BaseLLMClient):
                     pass
 
             score = int(data.get("score", 5))
-            if "priority" not in data or data["priority"] not in ["hot", "normal"]:
+
+            # Наивысший приоритет для AI-First и Agentic проектов
+            if order.is_ai_first:
+                score = max(score, 9)
+                data["score"] = score
+                data["priority"] = OrderPriority.HOT.value
+                data["take_order"] = True
+            elif "priority" not in data or data["priority"] not in ["hot", "normal"]:
                 data["priority"] = (
                     OrderPriority.HOT.value
                     if score >= settings.HOT_SCORE_THRESHOLD

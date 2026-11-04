@@ -52,6 +52,20 @@ class RawOrder(BaseModel):
         """Объединенный текст названия, описания и тегов для фильтрации."""
         return f"{self.title}\n{self.description}\n{' '.join(self.tags)}"
 
+    @property
+    def is_ai_first(self) -> bool:
+        """Определяет, относится ли заказ или вакансия к приоритетной категории AI-First / Agentic."""
+        import re
+        text = f"{self.title}\n{self.description}\n{self.attachments_text or ''}\n{' '.join(self.tags)}".lower()
+        patterns = [
+            r"ai[- ]?first",
+            r"ai[- ]?native",
+            r"agentic",
+            r"ai[- ]?агент",
+            r"ai[- ]?agents?",
+        ]
+        return any(re.search(p, text) for p in patterns)
+
 
 class FilterResult(BaseModel):
     """Результат работы эвристического Hard-Filter."""

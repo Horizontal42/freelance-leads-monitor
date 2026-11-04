@@ -54,3 +54,32 @@ async def test_recalculator_recovers_trash_order(tmp_path):
     assert updated["priority"] == "hot"
     assert updated["status"] == "analyzed"
     assert updated["score"] == 9
+
+
+def test_raw_order_is_ai_first():
+    o1 = RawOrder(
+        source=SourcePlatform.HH_RU,
+        external_id="1",
+        title="AI-first Developer",
+        description="Разработка",
+        url="https://hh.ru",
+    )
+    assert o1.is_ai_first is True
+
+    o2 = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="2",
+        title="Создать бота для агентных пайплайнов (agentic)",
+        description="Нужен бот",
+        url="https://kwork.ru",
+    )
+    assert o2.is_ai_first is True
+
+    o3 = RawOrder(
+        source=SourcePlatform.FL_RU,
+        external_id="3",
+        title="Обычный парсер сайтов",
+        description="Парсер на bs4",
+        url="https://fl.ru",
+    )
+    assert o3.is_ai_first is False

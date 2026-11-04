@@ -95,6 +95,7 @@ class DatabaseRecalculator:
             filter_res = hard_filter.evaluate(raw_order)
 
             if filter_res.passed:
+                target_priority = "hot" if raw_order.is_ai_first else "normal"
                 # Если заказ был в trash, восстанавливаем его
                 if current_priority == "trash" or current_status == "rejected":
                     if analyze_llm and llm_client:
@@ -110,17 +111,26 @@ class DatabaseRecalculator:
                             logger.warning("Ошибка AI-анализа при пересчете заказа #%d: %s", order_id, e)
                             async with self.repo._get_conn() as db:
                                 await db.execute(
-                                    "UPDATE orders SET priority = 'normal', status = 'new', filter_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                                    (order_id,),
+                                    "UPDATE orders SET priority = ?, status = 'new', filter_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                                    (target_priority, order_id),
                                 )
                                 await db.commit()
                     else:
                         async with self.repo._get_conn() as db:
                             await db.execute(
-                                "UPDATE orders SET priority = 'normal', status = 'new', filter_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                                (order_id,),
+                                "UPDATE orders SET priority = ?, status = 'new', filter_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                                (target_priority, order_id),
                             )
                             await db.commit()
+                    recovered_count += 1
+                elif raw_order.is_ai_first and current_priority != "hot":
+                    # Если AI-First заказ был в normal, повышаем его в hot
+                    async with self.repo._get_conn() as db:
+                        await db.execute(
+                            "UPDATE orders SET priority = 'hot', updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                            (order_id,),
+                        )
+                        await db.commit()
                     recovered_count += 1
                 else:
                     unchanged_count += 1

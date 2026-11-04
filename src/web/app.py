@@ -309,6 +309,7 @@ DASHBOARD_HTML = """
                     <span class="text-xs text-slate-400 font-semibold uppercase mr-1">Тематика:</span>
                     {% if active_section == 'freelance' %}
                         <button type="button" onclick="setTopicFilter('all', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-blue-600 text-white font-bold">Все</button>
+                        <button type="button" onclick="setTopicFilter('ai-first', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-purple-950 text-purple-300 border border-purple-700/60 hover:bg-purple-900/60 font-semibold">🚀 AI-First</button>
                         <button type="button" onclick="setTopicFilter('бот', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">🤖 Боты & TG</button>
                         <button type="button" onclick="setTopicFilter('парсер', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">🕷 Парсинг</button>
                         <button type="button" onclick="setTopicFilter('ai', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">🧠 ИИ & LLM</button>
@@ -316,6 +317,7 @@ DASHBOARD_HTML = """
                         <button type="button" onclick="setTopicFilter('битрикс', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">🔗 CRM</button>
                     {% else %}
                         <button type="button" onclick="setTopicFilter('all', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-rose-600 text-white font-bold">Все</button>
+                        <button type="button" onclick="setTopicFilter('ai-first', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-purple-950 text-purple-300 border border-purple-700/60 hover:bg-purple-900/60 font-semibold">🚀 AI-First</button>
                         <button type="button" onclick="setTopicFilter('ai', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">🧠 AI & LLM</button>
                         <button type="button" onclick="setTopicFilter('python', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">🐍 Python</button>
                         <button type="button" onclick="setTopicFilter('ml', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">📊 ML & Data</button>
@@ -374,7 +376,7 @@ DASHBOARD_HTML = """
             {% endif %}
 
             {% for order in orders %}
-                <div id="order-{{ order.id }}" class="order-card bg-slate-900 border {% if order.priority == 'hot' %}border-amber-500/50 shadow-lg shadow-amber-950/20{% elif order.priority == 'trash' %}border-slate-800 opacity-60{% else %}border-slate-800{% endif %} {% if order.is_responded %}opacity-65 border-dashed{% endif %} p-5 rounded-xl transition hover:border-slate-700 space-y-3.5" data-id="{{ order.id }}" data-title="{{ order.title|lower }}" data-desc="{{ order.description|lower }} {{ order.attachments_text|lower if order.attachments_text else '' }}" data-price="{{ order.price or 0 }}" data-score="{{ order.score or 0 }}" data-responded="{{ 1 if order.is_responded else 0 }}" data-created="{{ order.created_at or '' }}">
+                <div id="order-{{ order.id }}" class="order-card bg-slate-900 border {% if order.priority == 'hot' %}border-amber-500/50 shadow-lg shadow-amber-950/20{% elif order.priority == 'trash' %}border-slate-800 opacity-60{% else %}border-slate-800{% endif %} {% if order.is_responded %}opacity-65 border-dashed{% endif %} p-5 rounded-xl transition hover:border-slate-700 space-y-3.5" data-id="{{ order.id }}" data-ai-first="{{ 1 if order.is_ai_first else 0 }}" data-title="{{ order.title|lower }}" data-desc="{{ order.description|lower }} {{ order.attachments_text|lower if order.attachments_text else '' }}" data-price="{{ order.price or 0 }}" data-score="{{ order.score or 0 }}" data-responded="{{ 1 if order.is_responded else 0 }}" data-created="{{ order.created_at or '' }}">
 
                     <!-- Card Header Row -->
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
@@ -421,6 +423,12 @@ DASHBOARD_HTML = """
                             {% if order.matched_project %}
                                 <span class="text-xs font-medium px-2 py-0.5 rounded-md bg-indigo-950 text-indigo-300 border border-indigo-800/60">
                                     🎯 Кейс: {{ order.matched_project }}
+                                </span>
+                            {% endif %}
+
+                            {% if order.is_ai_first %}
+                                <span class="text-xs font-bold uppercase px-2.5 py-0.5 rounded-md bg-purple-900/70 text-purple-200 border border-purple-500/80 flex items-center gap-1 shadow-sm font-mono tracking-wide" title="Приоритетное AI-First / Agentic направление">
+                                    <span>🚀</span> AI-FIRST
                                 </span>
                             {% endif %}
 
@@ -2099,7 +2107,10 @@ DASHBOARD_HTML = """
 
                 // Фильтр по тематике/тегу
                 let matchesTopic = true;
-                if (activeTopic !== 'all') {
+                if (activeTopic === 'ai-first') {
+                    const isAiFirst = (card.getAttribute('data-ai-first') === '1');
+                    matchesTopic = isAiFirst || title.includes('ai-first') || title.includes('ai first') || desc.includes('ai-first') || desc.includes('agentic');
+                } else if (activeTopic !== 'all') {
                     matchesTopic = title.includes(activeTopic) || desc.includes(activeTopic);
                 }
 
@@ -2663,6 +2674,10 @@ def create_web_app(
                 section=active_section,
             )
 
+        def check_is_ai_first(it: Dict[str, Any]) -> bool:
+            check_str = f"{it.get('title') or ''}\n{it.get('description') or ''}\n{it.get('attachments_text') or ''}".lower()
+            return bool(re.search(r"ai[- ]?first|ai[- ]?native|agentic|ai[- ]?агент|ai[- ]?agents?", check_str))
+
         formatted_orders: List[Dict[str, Any]] = []
         for o in raw_orders:
             item = dict(o)
@@ -2673,6 +2688,7 @@ def create_web_app(
                     item["analysis"] = None
             else:
                 item["analysis"] = None
+            item["is_ai_first"] = check_is_ai_first(item)
             formatted_orders.append(item)
 
         if order_id:
@@ -2694,6 +2710,7 @@ def create_web_app(
                         item["analysis"] = None
                 else:
                     item["analysis"] = None
+                item["is_ai_first"] = check_is_ai_first(item)
                 formatted_orders.insert(0, item)
 
         extended_stats = await repository.get_extended_stats()
