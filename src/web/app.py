@@ -252,6 +252,21 @@ DASHBOARD_HTML = """
         {% endif %}
 
         {% if active_tab in ['hot', 'all', 'normal', 'trash'] %}
+        <!-- URL Quick Lookup & Import Bar -->
+        <div class="bg-gradient-to-r from-blue-950/40 via-slate-900 to-indigo-950/40 border border-blue-900/50 p-3 sm:p-3.5 rounded-xl flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shadow-sm">
+            <div class="flex items-center gap-2 text-xs font-semibold text-blue-300 whitespace-nowrap pl-1">
+                <span>🔗</span>
+                <span>Импорт / Поиск ссылки:</span>
+            </div>
+            <div class="relative flex-1">
+                <input type="url" id="importOrderUrl" onkeydown="if(event.key==='Enter') lookupOrImportOrder()" placeholder="Вставьте ссылку на заказ или вакансию (hh.ru, kwork.ru, fl.ru, freelance.ru, pchel.net, habr.com...)" class="w-full bg-slate-950 border border-slate-700/80 text-slate-100 text-xs rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition placeholder-slate-500 font-mono">
+            </div>
+            <button id="importOrderBtn" type="button" onclick="lookupOrImportOrder()" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-bold rounded-lg transition flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/30 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                <span>⚡</span>
+                <span id="importBtnLabel">Найти или Анализировать</span>
+            </button>
+        </div>
+
         <!-- Advanced Filter & Control Bar -->
         <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-3">
             <!-- Row 1: Search box & Sort & Quick Toggle -->
@@ -359,7 +374,7 @@ DASHBOARD_HTML = """
             {% endif %}
 
             {% for order in orders %}
-                <div class="order-card bg-slate-900 border {% if order.priority == 'hot' %}border-amber-500/50 shadow-lg shadow-amber-950/20{% elif order.priority == 'trash' %}border-slate-800 opacity-60{% else %}border-slate-800{% endif %} {% if order.is_responded %}opacity-65 border-dashed{% endif %} p-5 rounded-xl transition hover:border-slate-700 space-y-3.5" data-id="{{ order.id }}" data-title="{{ order.title|lower }}" data-desc="{{ order.description|lower }} {{ order.attachments_text|lower if order.attachments_text else '' }}" data-price="{{ order.price or 0 }}" data-score="{{ order.score or 0 }}" data-responded="{{ 1 if order.is_responded else 0 }}" data-created="{{ order.created_at or '' }}">
+                <div id="order-{{ order.id }}" class="order-card bg-slate-900 border {% if order.priority == 'hot' %}border-amber-500/50 shadow-lg shadow-amber-950/20{% elif order.priority == 'trash' %}border-slate-800 opacity-60{% else %}border-slate-800{% endif %} {% if order.is_responded %}opacity-65 border-dashed{% endif %} p-5 rounded-xl transition hover:border-slate-700 space-y-3.5" data-id="{{ order.id }}" data-title="{{ order.title|lower }}" data-desc="{{ order.description|lower }} {{ order.attachments_text|lower if order.attachments_text else '' }}" data-price="{{ order.price or 0 }}" data-score="{{ order.score or 0 }}" data-responded="{{ 1 if order.is_responded else 0 }}" data-created="{{ order.created_at or '' }}">
 
                     <!-- Card Header Row -->
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
@@ -2326,6 +2341,75 @@ DASHBOARD_HTML = """
             }
         }
 
+        async function lookupOrImportOrder() {
+            const inputEl = document.getElementById('importOrderUrl');
+            const btnEl = document.getElementById('importOrderBtn');
+            const labelEl = document.getElementById('importBtnLabel');
+            if (!inputEl) return;
+
+            const rawUrl = (inputEl.value || '').trim();
+            if (!rawUrl || (!rawUrl.startsWith('http://') && !rawUrl.startsWith('https://'))) {
+                alert('Пожалуйста, введите корректную ссылку, начинающуюся с http:// или https://');
+                inputEl.focus();
+                return;
+            }
+
+            const origHtml = labelEl ? labelEl.innerHTML : '';
+            if (btnEl) btnEl.disabled = true;
+            if (labelEl) labelEl.innerHTML = 'Загрузка и анализ...';
+
+            try {
+                const res = await fetch('/api/orders/lookup-or-add', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: rawUrl })
+                });
+                const data = await res.json();
+
+                if (!res.ok || !data.ok) {
+                    alert('Ошибка: ' + (data.error || 'Не удалось обработать ссылку'));
+                    return;
+                }
+
+                const order = data.order;
+                const status = data.status;
+
+                if (status === 'found') {
+                    const card = document.querySelector(`.order-card[data-id="${order.id}"]`);
+                    if (card) {
+                        card.style.display = '';
+                        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        card.classList.add('ring-4', 'ring-amber-400', 'border-amber-400');
+                        setTimeout(() => {
+                            card.classList.remove('ring-4', 'ring-amber-400', 'border-amber-400');
+                        }, 4000);
+                        showToast(`Заказ уже есть в базе (ID #${order.id})! Перешли к нему.`);
+                    } else {
+                        const isHh = (order.source === 'hh_ru' || order.source === 'habr_career');
+                        const targetSection = isHh ? 'hh_ru' : 'freelance';
+                        showToast(`Найдено в базе (ID #${order.id})! Перенаправляем...`);
+                        setTimeout(() => {
+                            window.location.href = `/?section=${targetSection}&tab=all#order-${order.id}`;
+                        }, 600);
+                    }
+                } else if (status === 'created') {
+                    const isHh = (order.source === 'hh_ru' || order.source === 'habr_career');
+                    const targetSection = isHh ? 'hh_ru' : 'freelance';
+                    showToast(`Заказ добавлен и проанализирован (ID #${order.id})! Открываем...`);
+                    inputEl.value = '';
+                    setTimeout(() => {
+                        window.location.href = `/?section=${targetSection}&tab=all#order-${order.id}`;
+                    }, 800);
+                }
+            } catch (err) {
+                alert('Сетевая ошибка при анализе ссылки: ' + err);
+            } finally {
+                if (btnEl) btnEl.disabled = false;
+                if (labelEl) labelEl.innerHTML = origHtml || 'Найти или Анализировать';
+            }
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             try {
                 const savedHide = localStorage.getItem('hideResponded');
@@ -2333,6 +2417,20 @@ DASHBOARD_HTML = """
                 if (savedHide === '1' && hideRespondedEl) {
                     hideRespondedEl.checked = true;
                     applyClientFilters();
+                }
+            } catch(e) {}
+
+            try {
+                if (window.location.hash && window.location.hash.startsWith('#order-')) {
+                    const targetId = window.location.hash.replace('#order-', '');
+                    const targetCard = document.querySelector(`.order-card[data-id="${targetId}"]`);
+                    if (targetCard) {
+                        targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        targetCard.classList.add('ring-4', 'ring-emerald-400', 'border-emerald-400');
+                        setTimeout(() => {
+                            targetCard.classList.remove('ring-4', 'ring-emerald-400', 'border-emerald-400');
+                        }, 4000);
+                    }
                 }
             } catch(e) {}
         });
@@ -2685,6 +2783,26 @@ def create_web_app(
         except Exception as e:
             logger.error("Ошибка в чате по заказу #%d: %s", order_id, e)
             return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+    @app.post("/api/orders/lookup-or-add", response_class=JSONResponse)
+    async def api_lookup_or_add_order(request: Request):
+        """Найти заказ или вакансию по URL в базе данных, либо скачать, добавить и проанализировать."""
+        try:
+            body = await request.json()
+            url = (body.get("url") or "").strip()
+            if not url:
+                return JSONResponse(status_code=400, content={"ok": False, "error": "Поле url обязательно для заполнения"})
+
+            from src.analyzer.factory import get_llm_client
+            from src.services.order_importer import OrderImporterService
+
+            importer = OrderImporterService()
+            llm_client = get_llm_client()
+            result = await importer.import_or_lookup(url=url, repo=repository, llm_client=llm_client)
+            return JSONResponse(content=result)
+        except Exception as e:
+            logger.error("Ошибка при поиске или импорте заказа по URL: %s", e)
+            return JSONResponse(status_code=500, content={"ok": False, "error": f"Ошибка обработки ссылки: {str(e)}"})
 
     @app.get("/api/orders", response_class=JSONResponse)
     async def get_orders_api(

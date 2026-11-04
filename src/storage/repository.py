@@ -252,6 +252,77 @@ class OrderRepository:
                 row = await cursor.fetchone()
                 return self._clean_order_row(dict(row)) if row else None
 
+    async def find_by_url_or_external_id(
+        self,
+        source: Optional[str] = None,
+        external_id: Optional[str] = None,
+        url: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Найти заказ по источнику и external_id, либо по URL."""
+        async with self._get_conn() as db:
+            # 1. Поиск по source и external_id
+            if source and external_id:
+                async with db.execute(
+                    """
+                    SELECT orders.*,
+                           (SELECT COUNT(*) FROM order_messages WHERE order_messages.order_id = orders.id) as messages_count
+                    FROM orders WHERE source = ? AND external_id = ?
+                    ORDER BY id DESC LIMIT 1
+                    """,
+                    (source, external_id),
+                ) as cursor:
+                    row = await cursor.fetchone()
+                    if row:
+                        return self._clean_order_row(dict(row))
+
+            # 2. Поиск по точному URL или без query-параметров
+            if url:
+                clean_url = url.strip()
+                async with db.execute(
+                    """
+                    SELECT orders.*,
+                           (SELECT COUNT(*) FROM order_messages WHERE order_messages.order_id = orders.id) as messages_count
+                    FROM orders WHERE url = ?
+                    ORDER BY id DESC LIMIT 1
+                    """,
+                    (clean_url,),
+                ) as cursor:
+                    row = await cursor.fetchone()
+                    if row:
+                        return self._clean_order_row(dict(row))
+
+                url_base = clean_url.split("?")[0].rstrip("/")
+                if len(url_base) > 10:
+                    async with db.execute(
+                        """
+                        SELECT orders.*,
+                               (SELECT COUNT(*) FROM order_messages WHERE order_messages.order_id = orders.id) as messages_count
+                        FROM orders WHERE url LIKE ?
+                        ORDER BY id DESC LIMIT 1
+                        """,
+                        (f"{url_base}%",),
+                    ) as cursor:
+                        row = await cursor.fetchone()
+                        if row:
+                            return self._clean_order_row(dict(row))
+
+            # 3. Поиск по external_id в поле url
+            if external_id and len(external_id) >= 4:
+                async with db.execute(
+                    """
+                    SELECT orders.*,
+                           (SELECT COUNT(*) FROM order_messages WHERE order_messages.order_id = orders.id) as messages_count
+                    FROM orders WHERE external_id = ? OR url LIKE ?
+                    ORDER BY id DESC LIMIT 1
+                    """,
+                    (external_id, f"%{external_id}%"),
+                ) as cursor:
+                    row = await cursor.fetchone()
+                    if row:
+                        return self._clean_order_row(dict(row))
+
+            return None
+
     async def get_recent_orders(
         self,
         limit: int = 50,

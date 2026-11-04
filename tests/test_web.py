@@ -474,3 +474,24 @@ async def test_web_generate_proposal_fallback_and_api(tmp_path, monkeypatch):
         assert settings_post.json()["settings"]["vacancy_city"] == "Москва"
         assert settings_post.json()["settings"]["vacancy_min_salary"] == 90000
 
+        # 6. Проверяем поиск существующего заказа по URL через /api/orders/lookup-or-add
+        lookup_resp = await client.post(
+            "/api/orders/lookup-or-add",
+            json={"url": "https://kwork.ru/projects/raw_123"},
+        )
+        assert lookup_resp.status_code == 200
+        lookup_data = lookup_resp.json()
+        assert lookup_data["ok"] is True
+        assert lookup_data["status"] == "found"
+        assert lookup_data["order"]["id"] == raw_id
+        assert lookup_data["order"]["external_id"] == "raw_123"
+
+        # 7. Проверяем валидацию пустого URL
+        empty_resp = await client.post(
+            "/api/orders/lookup-or-add",
+            json={"url": ""},
+        )
+        assert empty_resp.status_code == 400
+        assert empty_resp.json()["ok"] is False
+
+
