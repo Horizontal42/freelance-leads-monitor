@@ -1167,6 +1167,65 @@ DASHBOARD_HTML = """
                 </button>
             </div>
 
+            <!-- Local Database Re-evaluation Card -->
+            <div class="bg-gradient-to-r from-indigo-950/40 via-slate-900 to-purple-950/40 border border-indigo-900/50 p-6 rounded-xl space-y-4 shadow-sm">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                    <div>
+                        <h4 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            <span>⚡</span> Локальный пересчет базы заказов и вакансий
+                        </h4>
+                        <p class="text-xs text-slate-400 mt-1">
+                            Переоценка сохраненных в базе SQLite заказов и вакансий по текущим правилам фильтрации, ключевым и стоп-словам <strong>без запросов к внешним API бирж</strong>.
+                        </p>
+                    </div>
+                    <button type="button" id="recalculateBtn" onclick="runRecalculate()" class="text-xs bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold px-4 py-2.5 rounded-lg transition flex items-center gap-2 shadow-md shadow-indigo-600/30 whitespace-nowrap">
+                        <span>⚡</span>
+                        <span id="recalculateBtnText">Запустить пересчет</span>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                    <!-- Scope Selection -->
+                    <div class="space-y-1.5">
+                        <label for="recalc_scope" class="text-xs font-semibold text-slate-300 block">
+                            🎯 Область пересчета:
+                        </label>
+                        <select id="recalc_scope" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:border-indigo-500">
+                            <option value="trash">Только отсеянные (Trash) - вернуть подходящие</option>
+                            <option value="all">Вся база (все заказы и вакансии)</option>
+                            <option value="hh_ru">Только вакансии (hh.ru / Хабр)</option>
+                            <option value="freelance">Только фриланс-биржи</option>
+                        </select>
+                    </div>
+
+                    <!-- Limit Selection -->
+                    <div class="space-y-1.5">
+                        <label for="recalc_limit" class="text-xs font-semibold text-slate-300 block">
+                            🔢 Лимит записей:
+                        </label>
+                        <select id="recalc_limit" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:border-indigo-500">
+                            <option value="100">Последние 100 записей</option>
+                            <option value="300" selected>Последние 300 записей</option>
+                            <option value="1000">Последние 1000 записей</option>
+                            <option value="0">Вся история базы без ограничений</option>
+                        </select>
+                    </div>
+
+                    <!-- AI analyze recovered -->
+                    <div class="flex items-center pt-5">
+                        <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer select-none">
+                            <input type="checkbox" id="recalc_analyze_llm" checked class="w-4 h-4 text-indigo-600 rounded bg-slate-950 border-slate-800 focus:ring-indigo-500">
+                            <span>Запускать AI-анализ для восстановленных</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="recalcProgress" class="hidden text-xs bg-slate-950 border border-indigo-900/40 p-3 rounded-lg text-indigo-300 font-mono flex items-center gap-2">
+                    <span class="animate-spin">⏳</span>
+                    <span id="recalcStatusText">Выполняется локальный пересчет базы данных...</span>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <!-- Platform Toggles -->
                 <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
@@ -1765,6 +1824,55 @@ DASHBOARD_HTML = """
                 }
             } catch (e) {
                 alert('Ошибка сети: ' + e);
+            }
+        }
+
+        async function runRecalculate() {
+            const btn = document.getElementById('recalculateBtn');
+            const btnText = document.getElementById('recalculateBtnText');
+            const progress = document.getElementById('recalcProgress');
+            const statusText = document.getElementById('recalcStatusText');
+
+            const scopeEl = document.getElementById('recalc_scope');
+            const limitEl = document.getElementById('recalc_limit');
+            const analyzeEl = document.getElementById('recalc_analyze_llm');
+
+            const scope = scopeEl ? scopeEl.value : 'trash';
+            const limit = limitEl ? parseInt(limitEl.value, 10) : 300;
+            const analyze_llm = analyzeEl ? analyzeEl.checked : true;
+
+            const origText = btnText ? btnText.innerText : 'Запустить пересчет';
+            if (btn) btn.disabled = true;
+            if (btnText) btnText.innerText = 'Пересчет...';
+            if (progress) progress.classList.remove('hidden');
+            if (statusText) statusText.innerText = 'Выполняется локальная переоценка базы данных...';
+
+            try {
+                const res = await fetch('/api/orders/recalculate', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        scope: scope,
+                        limit: limit,
+                        analyze_llm: analyze_llm
+                    })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    showToast('Локальный пересчет успешно завершен!');
+                    if (statusText) statusText.innerText = `✅ ${data.message}`;
+                    alert(`✅ ${data.message}`);
+                } else {
+                    alert('Ошибка пересчета: ' + (data.error || 'неизвестная ошибка'));
+                    if (statusText) statusText.innerText = `❌ Ошибка: ${data.error}`;
+                }
+            } catch (err) {
+                alert('Сетевая ошибка при пересчете: ' + err);
+                if (statusText) statusText.innerText = `❌ Сетевая ошибка: ${err}`;
+            } finally {
+                if (btn) btn.disabled = false;
+                if (btnText) btnText.innerText = origText;
             }
         }
 
@@ -2844,6 +2952,31 @@ def create_web_app(
         except Exception as e:
             logger.error("Ошибка при поиске или импорте заказа по URL: %s", e)
             return JSONResponse(status_code=500, content={"ok": False, "error": f"Ошибка обработки ссылки: {str(e)}"})
+
+    @app.post("/api/orders/recalculate", response_class=JSONResponse)
+    async def api_recalculate_orders(request: Request):
+        """Локальный пересчет и переоценка заказов и вакансий в базе по актуальным правилам без внешних API."""
+        try:
+            body = await request.json()
+            scope = body.get("scope", "trash")
+            limit = int(body.get("limit", 300))
+            analyze_llm = bool(body.get("analyze_llm", True))
+
+            from src.analyzer.factory import get_llm_client
+            from src.services.recalculator import DatabaseRecalculator
+
+            recalculator = DatabaseRecalculator(repo=repository)
+            llm_client = get_llm_client() if analyze_llm else None
+            result = await recalculator.run(
+                scope=scope,
+                limit=limit,
+                analyze_llm=analyze_llm,
+                llm_client=llm_client,
+            )
+            return JSONResponse(content=result)
+        except Exception as e:
+            logger.error("Ошибка при локальном пересчете базы: %s", e)
+            return JSONResponse(status_code=500, content={"ok": False, "error": f"Ошибка пересчета: {str(e)}"})
 
     @app.get("/api/orders", response_class=JSONResponse)
     async def get_orders_api(

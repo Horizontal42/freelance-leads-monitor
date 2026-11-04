@@ -412,16 +412,19 @@ class OrderImporterService:
         # 1. Поиск в существующей базе
         existing = await repo.find_by_url_or_external_id(platform.value, ext_id, clean_url)
         if existing:
-            logger.info("Заказ по ссылке %s уже найден в базе (ID: %s)", clean_url, existing["id"])
-            return {
-                "ok": True,
-                "status": "found",
-                "order": existing,
-                "message": f"Найдено в базе данных (ID #{existing['id']})",
-            }
+            # Если заказ уже есть и был проанализирован LLM (или не в trash), возвращаем его
+            if existing.get("priority") != "trash" or existing.get("score") is not None:
+                logger.info("Заказ по ссылке %s уже найден в базе (ID: %s)", clean_url, existing["id"])
+                return {
+                    "ok": True,
+                    "status": "found",
+                    "order": existing,
+                    "message": f"Найдено в базе данных (ID #{existing['id']})",
+                }
+            logger.info("Заказ %s был в trash без анализа (ID: %s). Запускаем анализ по ссылке...", clean_url, existing["id"])
 
         # 2. Скачивание и парсинг страницы
-        logger.info("Заказ %s отсутствует в базе. Запуск загрузки со страницы...", clean_url)
+        logger.info("Заказ %s: запуск загрузки со страницы...", clean_url)
         try:
             raw_order = await self.fetch_raw_order(clean_url)
         except Exception as e:
@@ -441,24 +444,41 @@ class OrderImporterService:
         logger.info("Запуск анализа вакансии/заказа в LLM: '%s'...", raw_order.title[:40])
         try:
             analysis = await llm_client.analyze_order(raw_order)
-            order_id = await repo.insert_raw_order(
-                order=raw_order,
-                status=OrderStatus.ANALYZED,
-                priority=analysis.priority,
-            )
-            await repo.update_analysis(
-                order_id=order_id,
-                analysis=analysis,
-                status=OrderStatus.ANALYZED,
-            )
+            if existing:
+                order_id = existing["id"]
+                await repo.update_analysis(
+                    order_id=order_id,
+                    analysis=analysis,
+                    status=OrderStatus.ANALYZED,
+                )
+                async with repo._get_conn() as db:
+                    await db.execute(
+                        "UPDATE orders SET priority = ?, filter_reason = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                        (analysis.priority.value, order_id),
+                    )
+                    await db.commit()
+            else:
+                order_id = await repo.insert_raw_order(
+                    order=raw_order,
+                    status=OrderStatus.ANALYZED,
+                    priority=analysis.priority,
+                )
+                await repo.update_analysis(
+                    order_id=order_id,
+                    analysis=analysis,
+                    status=OrderStatus.ANALYZED,
+                )
         except Exception as e:
             logger.error("Ошибка при AI-анализе заказа: %s", e)
-            order_id = await repo.insert_raw_order(
-                order=raw_order,
-                status=OrderStatus.NEW,
-                priority=OrderPriority.NORMAL,
-                filter_reason=f"Ручной импорт (ошибка LLM: {e})",
-            )
+            if existing:
+                order_id = existing["id"]
+            else:
+                order_id = await repo.insert_raw_order(
+                    order=raw_order,
+                    status=OrderStatus.NEW,
+                    priority=OrderPriority.NORMAL,
+                    filter_reason=f"Ручной импорт (ошибка LLM: {e})",
+                )
 
         saved_order = await repo.get_by_id(order_id)
         return {

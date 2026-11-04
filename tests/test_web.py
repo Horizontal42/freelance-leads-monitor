@@ -500,4 +500,15 @@ async def test_web_generate_proposal_fallback_and_api(tmp_path, monkeypatch):
         assert empty_resp.status_code == 400
         assert empty_resp.json()["ok"] is False
 
+        # 8. Проверяем API локального пересчета /api/orders/recalculate
+        recalc_resp = await client.post(
+            "/api/orders/recalculate",
+            json={"scope": "trash", "limit": 10, "analyze_llm": False},
+        )
+        assert recalc_resp.status_code == 200
+        recalc_data = recalc_resp.json()
+        assert recalc_data["ok"] is True
+        assert "Локальный пересчет завершен" in recalc_data["message"]
+
+
 
