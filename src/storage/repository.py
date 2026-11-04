@@ -41,33 +41,45 @@ class OrderRepository:
     ) -> int:
         """Сохранить новый заказ в базу. Возвращает сгенерированный id."""
         tags_str = json.dumps(order.tags, ensure_ascii=False)
-        async with self._get_conn() as db:
-            cursor = await db.execute(
-                """
-                INSERT INTO orders (
-                    source, external_id, title, description, url, price,
-                    is_negotiable, is_pro_only, tags, status, priority, filter_reason, attachments_text, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    order.source.value,
-                    order.external_id,
-                    order.title,
-                    order.description,
-                    order.url,
-                    order.price,
-                    1 if order.is_negotiable else 0,
-                    1 if order.is_pro_only else 0,
-                    tags_str,
-                    status.value,
-                    priority.value,
-                    filter_reason,
-                    order.attachments_text,
-                    order.created_at.strftime("%Y-%m-%d %H:%M:%S"),
-                ),
-            )
-            await db.commit()
-            return cursor.lastrowid  # type: ignore
+        try:
+            async with self._get_conn() as db:
+                cursor = await db.execute(
+                    """
+                    INSERT INTO orders (
+                        source, external_id, title, description, url, price,
+                        is_negotiable, is_pro_only, tags, status, priority, filter_reason, attachments_text, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        order.source.value,
+                        order.external_id,
+                        order.title,
+                        order.description,
+                        order.url,
+                        order.price,
+                        1 if order.is_negotiable else 0,
+                        1 if order.is_pro_only else 0,
+                        tags_str,
+                        status.value,
+                        priority.value,
+                        filter_reason,
+                        order.attachments_text,
+                        order.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    ),
+                )
+                await db.commit()
+                return cursor.lastrowid  # type: ignore
+        except aiosqlite.IntegrityError:
+            # Если запись уже была добавлена параллельным процессом, находим ее ID
+            async with self._get_conn() as db:
+                async with db.execute(
+                    "SELECT id FROM orders WHERE source = ? AND external_id = ? ORDER BY id DESC LIMIT 1",
+                    (order.source.value, order.external_id),
+                ) as cursor:
+                    row = await cursor.fetchone()
+                    if row:
+                        return row[0]
+            raise
 
     async def update_analysis(
         self,

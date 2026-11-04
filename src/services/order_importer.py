@@ -444,6 +444,9 @@ class OrderImporterService:
         logger.info("Запуск анализа вакансии/заказа в LLM: '%s'...", raw_order.title[:40])
         try:
             analysis = await llm_client.analyze_order(raw_order)
+            if not existing:
+                existing = await repo.find_by_url_or_external_id(platform.value, ext_id, clean_url)
+
             if existing:
                 order_id = existing["id"]
                 await repo.update_analysis(
@@ -470,6 +473,8 @@ class OrderImporterService:
                 )
         except Exception as e:
             logger.error("Ошибка при AI-анализе заказа: %s", e)
+            if not existing:
+                existing = await repo.find_by_url_or_external_id(platform.value, ext_id, clean_url)
             if existing:
                 order_id = existing["id"]
             else:
