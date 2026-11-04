@@ -101,6 +101,12 @@ async def test_web_dashboard_endpoints(tmp_path):
         assert resp_analytics.status_code == 200
         assert "Сводная статистика по биржам" in resp_analytics.text
 
+        # 5b. HTML Target order loading via order_id param
+        resp_target = await client.get(f"/?order_id={order_id}")
+        assert resp_target.status_code == 200
+        assert f'data-id="{order_id}"' in resp_target.text
+        assert "Разработка Telegram бота" in resp_target.text
+
         resp_rules = await client.get("/?tab=rules")
         assert resp_rules.status_code == 200
         assert "Белый список ключевых слов" in resp_rules.text

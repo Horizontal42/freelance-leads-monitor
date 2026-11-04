@@ -1965,12 +1965,22 @@ DASHBOARD_HTML = """
             const hideResponded = hideRespondedEl ? hideRespondedEl.checked : false;
             try { localStorage.setItem('hideResponded', hideResponded ? '1' : '0'); } catch(e){}
 
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetOrderId = urlParams.get('order_id') || (window.location.hash.startsWith('#order-') ? window.location.hash.replace('#order-', '') : null);
+
             const container = document.getElementById('ordersContainer');
             if (!container) return;
             const cards = Array.from(container.querySelectorAll('.order-card'));
 
             let visibleCount = 0;
             cards.forEach(card => {
+                // Если карточка является целевой (передана в URL или hash), она всегда остается видимой
+                if (targetOrderId && card.getAttribute('data-id') === targetOrderId) {
+                    card.style.display = 'block';
+                    visibleCount++;
+                    return;
+                }
+
                 const title = card.getAttribute('data-title') || '';
                 const desc = card.getAttribute('data-desc') || '';
                 const price = parseFloat(card.getAttribute('data-price') || '0');
@@ -2375,32 +2385,37 @@ DASHBOARD_HTML = """
                 const order = data.order;
                 const status = data.status;
 
-                if (status === 'found') {
-                    const card = document.querySelector(`.order-card[data-id="${order.id}"]`);
-                    if (card) {
-                        card.style.display = '';
-                        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        card.classList.add('ring-4', 'ring-amber-400', 'border-amber-400');
-                        setTimeout(() => {
-                            card.classList.remove('ring-4', 'ring-amber-400', 'border-amber-400');
-                        }, 4000);
-                        showToast(`Заказ уже есть в базе (ID #${order.id})! Перешли к нему.`);
-                    } else {
-                        const isHh = (order.source === 'hh_ru' || order.source === 'habr_career');
-                        const targetSection = isHh ? 'hh_ru' : 'freelance';
-                        showToast(`Найдено в базе (ID #${order.id})! Перенаправляем...`);
-                        setTimeout(() => {
-                            window.location.href = `/?section=${targetSection}&tab=all#order-${order.id}`;
-                        }, 600);
-                    }
-                } else if (status === 'created') {
-                    const isHh = (order.source === 'hh_ru' || order.source === 'habr_career');
-                    const targetSection = isHh ? 'hh_ru' : 'freelance';
-                    showToast(`Заказ добавлен и проанализирован (ID #${order.id})! Открываем...`);
+                const isHh = (order.source === 'hh_ru' || order.source === 'habr_career');
+                const targetSection = isHh ? 'hh_ru' : 'freelance';
+                const targetTab = (order.priority === 'trash') ? 'trash' : ((order.priority === 'hot') ? 'hot' : 'all');
+                const targetUrl = `/?section=${targetSection}&tab=${targetTab}&order_id=${order.id}#order-${order.id}`;
+
+                // 1. Проверяем, есть ли уже карточка на текущей странице
+                const card = document.querySelector(`.order-card[data-id="${order.id}"]`);
+                if (card) {
+                    card.style.display = 'block';
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    card.classList.add('ring-4', 'ring-amber-400', 'border-amber-400');
+                    setTimeout(() => {
+                        card.classList.remove('ring-4', 'ring-amber-400', 'border-amber-400');
+                    }, 4000);
+                    showToast(`Заказ найден в базе (ID #${order.id})! Перешли к нему.`);
+                } else {
+                    const toastMsg = (status === 'created')
+                        ? `Заказ добавлен и проанализирован (ID #${order.id})! Перенаправляем...`
+                        : `Заказ найден в базе (ID #${order.id})! Перенаправляем...`;
+                    showToast(toastMsg);
                     inputEl.value = '';
                     setTimeout(() => {
-                        window.location.href = `/?section=${targetSection}&tab=all#order-${order.id}`;
-                    }, 800);
+                        const currentPathAndQuery = window.location.pathname + window.location.search;
+                        const targetPathAndQuery = targetUrl.split('#')[0];
+                        if (currentPathAndQuery === targetPathAndQuery) {
+                            window.location.hash = `order-${order.id}`;
+                            window.location.reload();
+                        } else {
+                            window.location.href = targetUrl;
+                        }
+                    }, 400);
                 }
             } catch (err) {
                 alert('Сетевая ошибка при анализе ссылки: ' + err);
@@ -2421,15 +2436,19 @@ DASHBOARD_HTML = """
             } catch(e) {}
 
             try {
-                if (window.location.hash && window.location.hash.startsWith('#order-')) {
-                    const targetId = window.location.hash.replace('#order-', '');
+                const urlParams = new URLSearchParams(window.location.search);
+                const targetId = urlParams.get('order_id') || (window.location.hash.startsWith('#order-') ? window.location.hash.replace('#order-', '') : null);
+                if (targetId) {
                     const targetCard = document.querySelector(`.order-card[data-id="${targetId}"]`);
                     if (targetCard) {
-                        targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        targetCard.classList.add('ring-4', 'ring-emerald-400', 'border-emerald-400');
+                        targetCard.style.display = 'block';
                         setTimeout(() => {
-                            targetCard.classList.remove('ring-4', 'ring-emerald-400', 'border-emerald-400');
-                        }, 4000);
+                            targetCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            targetCard.classList.add('ring-4', 'ring-emerald-400', 'border-emerald-400');
+                            setTimeout(() => {
+                                targetCard.classList.remove('ring-4', 'ring-emerald-400', 'border-emerald-400');
+                            }, 5000);
+                        }, 200);
                     }
                 }
             } catch(e) {}
@@ -2507,6 +2526,7 @@ def create_web_app(
         tab: str = Query("hot", description="Активная вкладка (hot, all, normal, trash, analytics, rules, profile)"),
         source: Optional[str] = Query(None, description="Фильтр по источнику (kwork, fl_ru, freelance_ru, pchel_net, remote_job, hh_ru)"),
         free_only: int = Query(0, description="Фильтр только бесплатных откликов (1 - без PRO, 0 - все)"),
+        order_id: Optional[int] = Query(None, description="ID конкретного заказа для целевого показа в ленте"),
         limit: int = Query(80, ge=1, le=300),
     ):
         active_section = "hh_ru" if section.strip().lower() in ["hh_ru", "hh"] else "freelance"
@@ -2546,6 +2566,27 @@ def create_web_app(
             else:
                 item["analysis"] = None
             formatted_orders.append(item)
+
+        if order_id:
+            # Гарантируем, что целевой заказ присутствует на странице даже если он за пределами limit
+            target_order = await repository.get_by_id(order_id)
+            if target_order:
+                # Если раздел не был явно передан в запросе, настраиваем под целевой заказ
+                if "section" not in request.query_params:
+                    order_is_hh = target_order.get("source") in ["hh_ru", "habr_career"]
+                    active_section = "hh_ru" if order_is_hh else "freelance"
+
+                # Удаляем старое вхождение если есть и вставляем на самый верх
+                formatted_orders = [o for o in formatted_orders if o.get("id") != order_id]
+                item = dict(target_order)
+                if item.get("analysis_json"):
+                    try:
+                        item["analysis"] = json.loads(item["analysis_json"])
+                    except Exception:
+                        item["analysis"] = None
+                else:
+                    item["analysis"] = None
+                formatted_orders.insert(0, item)
 
         extended_stats = await repository.get_extended_stats()
         current_stats = (
