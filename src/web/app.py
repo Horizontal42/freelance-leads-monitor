@@ -86,7 +86,7 @@ DASHBOARD_HTML = """
         }
     </style>
     <script>
-        window.APP_BUILD_VERSION = "2.4.2";
+        window.APP_BUILD_VERSION = "2.4.3";
         function logClient(action, data) {
             try {
                 const payload = Object.assign({ action: action }, data || {});
@@ -123,7 +123,7 @@ DASHBOARD_HTML = """
                     <h1 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
                         Freelance Leads Monitor
                         <span class="text-xs font-mono font-normal px-2.5 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800/60">jobs.3dvex.ru</span>
-                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/80 select-none" title="Версия интерфейса">v2.4.2</span>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/80 select-none" title="Версия интерфейса">v2.4.3</span>
                     </h1>
                     <p class="text-xs text-slate-400">
                         {% if active_section == 'hh_ru' %}
@@ -2857,14 +2857,14 @@ DASHBOARD_HTML = """
                     logClient('apply_hh_need_auth', { order_id: orderId });
                     btn.innerHTML = origHtml;
                     btn.disabled = false;
-                    if (confirm((data.message || 'Требуется подключение HeadHunter.') + '\n\nПерейти к авторизации на hh.ru сейчас?')) {
+                    if (confirm((data.message || 'Требуется подключение HeadHunter.') + '\\n\\nПерейти к авторизации на hh.ru сейчас?')) {
                         window.location.href = data.auth_url || '/hh/auth';
                     }
                 } else if (data.requires_test) {
                     logClient('apply_hh_requires_test', { order_id: orderId });
                     btn.innerHTML = origHtml;
                     btn.disabled = false;
-                    alert((data.message || 'Работодатель требует прохождения опросника/теста.') + '\n\nОткройте вакансию на hh.ru и ответьте на вопросы работодателя.');
+                    alert((data.message || 'Работодатель требует прохождения опросника/теста.') + '\\n\\nОткройте вакансию на hh.ru и ответьте на вопросы работодателя.');
                     if (data.url) {
                         window.open(data.url, '_blank');
                     }
