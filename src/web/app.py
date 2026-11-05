@@ -2250,20 +2250,6 @@ DASHBOARD_HTML = """
                 btn.innerHTML = origHtml;
             }
         }
-                    showToast('Отклик успешно сгенерирован!');
-                } else {
-                    alert('Ошибка генерации: ' + (data.error || 'не удалось составить отклик'));
-                    btn.disabled = false;
-                    btn.innerHTML = origHtml;
-                }
-            } catch (e) {
-                if (timerInterval) clearInterval(timerInterval);
-                if (progressEl) progressEl.remove();
-                alert('Сетевая ошибка: ' + e);
-                btn.disabled = false;
-                btn.innerHTML = origHtml;
-            }
-        }
 
         async function autoSaveSetting(key, value) {
             try {
