@@ -209,6 +209,10 @@ DASHBOARD_HTML = """
                         <span>🎯</span> Потенциальные (Tier 2)
                         <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">{{ stats.normal }}</span>
                     </a>
+                    <a href="/?section=freelance&tab=responded&source={{ selected_source }}&free_only={{ free_only }}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'responded' %}active border-b-2 border-emerald-500 text-emerald-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}" title="Заказы, на которые вы уже откликнулись">
+                        <span>✅</span> Отклики
+                        <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono">{{ stats.responded or 0 }}</span>
+                    </a>
                     <a href="/?section=freelance&tab=trash&source={{ selected_source }}&free_only={{ free_only }}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'trash' %}active border-b-2 border-slate-500 text-slate-300 font-bold{% else %}text-slate-500 hover:text-slate-300{% endif %}">
                         <span>🗑</span> Отсеянные (Tier 3)
                         <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono">{{ stats.trash }}</span>
@@ -236,9 +240,16 @@ DASHBOARD_HTML = """
                         <span>🎯</span> Потенциальные (Score 4-6)
                         <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">{{ stats.normal }}</span>
                     </a>
+                    <a href="/?section=hh_ru&tab=responded&source={{ selected_source }}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'responded' %}active border-b-2 border-emerald-500 text-emerald-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}" title="Вакансии, на которые вы уже откликнулись">
+                        <span>✅</span> Отклики
+                        <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono">{{ stats.responded or 0 }}</span>
+                    </a>
                     <a href="/?section=hh_ru&tab=trash" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'trash' %}active border-b-2 border-slate-500 text-slate-300 font-bold{% else %}text-slate-500 hover:text-slate-300{% endif %}">
                         <span>🗑</span> Отсеянные фильтрами
                         <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono">{{ stats.trash }}</span>
+                    </a>
+                    <a href="/?section=hh_ru&tab=analytics" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'analytics' %}active border-b-2 border-purple-500 text-purple-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        <span>📊</span> Аналитика вакансий
                     </a>
                     <a href="/?section=hh_ru&tab=profile" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'profile' %}active border-b-2 border-rose-500 text-rose-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                         <span>👤</span> Профиль поиска & Стек
@@ -251,7 +262,7 @@ DASHBOARD_HTML = """
         </div>
         {% endif %}
 
-        {% if active_tab in ['hot', 'all', 'normal', 'trash'] %}
+        {% if active_tab in ['hot', 'all', 'normal', 'trash', 'responded', 'skipped'] %}
         <!-- URL Quick Lookup & Import Bar -->
         <div class="bg-gradient-to-r from-blue-950/40 via-slate-900 to-indigo-950/40 border border-blue-900/50 p-3 sm:p-3.5 rounded-xl flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shadow-sm">
             <div class="flex items-center gap-2 text-xs font-semibold text-blue-300 whitespace-nowrap pl-1">
@@ -337,6 +348,11 @@ DASHBOARD_HTML = """
                         <input type="checkbox" id="filterHideResponded" onchange="applyClientFilters()" class="w-3.5 h-3.5 rounded bg-slate-900 border-slate-700 text-emerald-500 focus:ring-0 cursor-pointer">
                         <span class="flex items-center gap-1"><span>🙈</span> Скрывать отклики</span>
                     </label>
+
+                    <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-300 hover:text-white select-none bg-slate-950 border border-slate-800 hover:border-slate-700 px-2.5 py-1 rounded transition ml-1" title="Показывать пропущенные (скипнутые) заказы и вакансии">
+                        <input type="checkbox" id="filterShowSkipped" onchange="applyClientFilters()" class="w-3.5 h-3.5 rounded bg-slate-900 border-slate-700 text-rose-500 focus:ring-0 cursor-pointer">
+                        <span class="flex items-center gap-1"><span>⏭️</span> Показать скип</span>
+                    </label>
                 </div>
             </div>
 
@@ -376,7 +392,7 @@ DASHBOARD_HTML = """
             {% endif %}
 
             {% for order in orders %}
-                <div id="order-{{ order.id }}" class="order-card bg-slate-900 border {% if order.priority == 'hot' %}border-amber-500/50 shadow-lg shadow-amber-950/20{% elif order.priority == 'trash' %}border-slate-800 opacity-60{% else %}border-slate-800{% endif %} {% if order.is_responded %}opacity-65 border-dashed{% endif %} p-5 rounded-xl transition hover:border-slate-700 space-y-3.5" data-id="{{ order.id }}" data-ai-first="{{ 1 if order.is_ai_first else 0 }}" data-title="{{ order.title|lower }}" data-desc="{{ order.description|lower }} {{ order.attachments_text|lower if order.attachments_text else '' }}" data-price="{{ order.price or 0 }}" data-score="{{ order.score or 0 }}" data-responded="{{ 1 if order.is_responded else 0 }}" data-created="{{ order.created_at or '' }}">
+                <div id="order-{{ order.id }}" class="order-card bg-slate-900 border {% if order.priority == 'hot' %}border-amber-500/50 shadow-lg shadow-amber-950/20{% elif order.priority == 'trash' %}border-slate-800 opacity-60{% else %}border-slate-800{% endif %} {% if order.is_responded %}opacity-65 border-dashed{% endif %} {% if order.is_skipped %}opacity-45 border-rose-950/40{% endif %} p-5 rounded-xl transition hover:border-slate-700 space-y-3.5" data-id="{{ order.id }}" data-ai-first="{{ 1 if order.is_ai_first else 0 }}" data-title="{{ order.title|lower }}" data-desc="{{ order.description|lower }} {{ order.attachments_text|lower if order.attachments_text else '' }}" data-price="{{ order.price or 0 }}" data-score="{{ order.score or 0 }}" data-responded="{{ 1 if order.is_responded else 0 }}" data-skipped="{{ 1 if order.is_skipped else 0 }}" data-created="{{ order.created_at or '' }}">
 
                     <!-- Card Header Row -->
                     <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
@@ -390,6 +406,12 @@ DASHBOARD_HTML = """
                             <button type="button" onclick="toggleResponded('{{ order.id }}', this)" id="responded-btn-{{ order.id }}" class="responded-toggle-btn text-xs px-2.5 py-0.5 rounded-md transition flex items-center gap-1.5 border font-medium {% if order.is_responded %}bg-emerald-950/90 text-emerald-300 border-emerald-700/80 hover:bg-emerald-900/90{% else %}bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700{% endif %}" title="Отметить, что отклик уже отправлен">
                                 <span class="responded-icon">{% if order.is_responded %}✅{% else %}⬜{% endif %}</span>
                                 <span class="responded-text">{% if order.is_responded %}Откликнулся{% else %}Не откликнулся{% endif %}</span>
+                            </button>
+
+                            <!-- Skip / Ignore Button -->
+                            <button type="button" onclick="toggleSkipped('{{ order.id }}', this)" id="skip-btn-{{ order.id }}" class="skip-toggle-btn text-xs px-2 py-0.5 rounded-md transition flex items-center gap-1 border font-medium {% if order.is_skipped %}bg-rose-950/90 text-rose-300 border-rose-700/80 hover:bg-rose-900/90{% else %}bg-slate-950 text-slate-400 border-slate-800 hover:text-rose-300 hover:border-slate-700{% endif %}" title="Пропустить этот заказ/вакансию (скрыть из активной ленты)">
+                                <span class="skip-icon">{% if order.is_skipped %}↩️{% else %}⏭️{% endif %}</span>
+                                <span class="skip-text">{% if order.is_skipped %}Вернуть{% else %}Скип{% endif %}</span>
                             </button>
 
                             {% if order.source not in ['hh_ru', 'habr_career'] %}
@@ -435,6 +457,12 @@ DASHBOARD_HTML = """
                             <span class="text-xs text-slate-400 font-mono bg-slate-950/80 border border-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1" title="Дата и время">
                                 🕒 {{ order.created_at[:16].replace('T', ' ') if order.created_at else 'Только что' }}
                             </span>
+
+                            {% if order.is_responded and order.responded_at %}
+                                <span class="text-xs text-emerald-300 font-mono bg-emerald-950/80 border border-emerald-800/80 px-2 py-0.5 rounded-md flex items-center gap-1" title="Дата отправки отклика">
+                                    🎯 Отклик: {{ order.responded_at[:16].replace('T', ' ') if order.responded_at else '' }}
+                                </span>
+                            {% endif %}
                         </div>
 
                         <!-- Price / Salary Pills -->
@@ -854,32 +882,156 @@ DASHBOARD_HTML = """
         {% endif %}
 
         {% if active_tab == 'analytics' %}
-        <!-- Analytics & Platform Breakdown View -->
+        <!-- Analytics View -->
         <div class="space-y-6">
+            <!-- Header Banner -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div>
+                    <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                        <span>📊</span>
+                        {% if active_section == 'hh_ru' %}
+                            Аналитика воронки вакансий (HeadHunter)
+                        {% else %}
+                            Аналитика воронки фриланс-бирж
+                        {% endif %}
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">
+                        Динамика откликов, конверсия Hot-лидов, скорость реакции и ключевые компетенции
+                    </p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs px-3 py-1 rounded-lg bg-slate-950 border border-slate-800 text-slate-400 font-mono">
+                        Раздел: <b class="text-slate-200">{% if active_section == 'hh_ru' %}HeadHunter / Вакансии{% else %}Фриланс-биржи{% endif %}</b>
+                    </span>
+                </div>
+            </div>
+
+            <!-- KPI Cards Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Card 1: Responses by Period -->
+                <div class="bg-slate-900 border border-emerald-950/60 p-5 rounded-xl space-y-2 relative overflow-hidden">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Отклики</span>
+                        <span class="text-base">🎯</span>
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-2xl font-bold font-mono text-emerald-400">{{ section_analytics.resp_total if section_analytics else 0 }}</span>
+                        <span class="text-xs text-slate-400">всего</span>
+                    </div>
+                    <div class="text-xs font-mono text-slate-400 pt-2 border-t border-slate-800 flex justify-between">
+                        <span>Сегодня: <b class="text-white">{{ section_analytics.resp_today if section_analytics else 0 }}</b></span>
+                        <span>7 дн: <b class="text-white">{{ section_analytics.resp_7d if section_analytics else 0 }}</b></span>
+                        <span>30 дн: <b class="text-white">{{ section_analytics.resp_30d if section_analytics else 0 }}</b></span>
+                    </div>
+                </div>
+
+                <!-- Card 2: Hot Conversion -->
+                <div class="bg-slate-900 border border-amber-950/60 p-5 rounded-xl space-y-2 relative overflow-hidden">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Конверсия Hot</span>
+                        <span class="text-base">🔥</span>
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-2xl font-bold font-mono text-amber-400">{{ section_analytics.hot_conversion if section_analytics else 0 }}%</span>
+                        <span class="text-xs text-slate-400">в отклик</span>
+                    </div>
+                    <div class="text-xs font-mono text-slate-400 pt-2 border-t border-slate-800">
+                        Откликнулись на <b>{{ section_analytics.hot_responded if section_analytics else 0 }}</b> из <b>{{ section_analytics.hot_total if section_analytics else 0 }}</b> Hot-лидов
+                    </div>
+                </div>
+
+                <!-- Card 3: Response Velocity -->
+                <div class="bg-slate-900 border border-blue-950/60 p-5 rounded-xl space-y-2 relative overflow-hidden">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Скорость реакции</span>
+                        <span class="text-base">⏱️</span>
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-2xl font-bold font-mono text-blue-400">{{ section_analytics.response_velocity if section_analytics else 'Нет данных' }}</span>
+                    </div>
+                    <div class="text-xs font-mono text-slate-400 pt-2 border-t border-slate-800">
+                        Среднее время от сбора до отклика
+                    </div>
+                </div>
+
+                <!-- Card 4: Pipeline Money / Skipped -->
+                <div class="bg-slate-900 border border-purple-950/60 p-5 rounded-xl space-y-2 relative overflow-hidden">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                            {% if active_section == 'hh_ru' %}Вилка з/п в откликах{% else %}Пайплайн в откликах{% endif %}
+                        </span>
+                        <span class="text-base">💰</span>
+                    </div>
+                    <div class="flex items-baseline gap-2">
+                        <span class="text-2xl font-bold font-mono text-purple-400">
+                            {% if section_analytics and section_analytics.total_pipeline_rub > 0 %}
+                                {{ "{:,}".format(section_analytics.total_pipeline_rub).replace(',', ' ') }} ₽
+                            {% else %}
+                                По договоренности
+                            {% endif %}
+                        </span>
+                    </div>
+                    <div class="text-xs font-mono text-slate-400 pt-2 border-t border-slate-800 flex justify-between">
+                        <span>Средний чек: <b>{{ "{:,}".format(section_analytics.avg_resp_rub if section_analytics else 0).replace(',', ' ') }} ₽</b></span>
+                        <span title="Скипнуто">Скип: <b class="text-rose-400">{{ section_analytics.skipped_total if section_analytics else 0 }}</b></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Technologies & Skills in Hot Leads -->
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-base font-bold text-white flex items-center gap-2">
+                        <span>🧠</span> Топ востребованных технологий и навыков в Hot-лидах
+                    </h3>
+                    <span class="text-xs text-slate-400 font-mono">Частота упоминания</span>
+                </div>
+                {% if section_analytics and section_analytics.top_skills %}
+                    <div class="flex flex-wrap gap-2.5">
+                        {% for skill in section_analytics.top_skills %}
+                            <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-800 hover:border-blue-700/60 px-3 py-1.5 rounded-lg transition group">
+                                <span class="text-xs font-medium text-slate-200 group-hover:text-blue-300">{{ skill.name }}</span>
+                                <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 font-bold border border-blue-900/60">{{ skill.count }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-xs text-slate-500 italic">Пока недостаточно Hot-лидов для выделения навыков.</p>
+                {% endif %}
+            </div>
+
+            <!-- Platform / Sources Table Breakdown -->
             <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
                 <h3 class="text-base font-bold text-white flex items-center gap-2">
-                    <span>📊</span> Сводная статистика по биржам и конверсии
+                    <span>📋</span> Детализация по площадкам раздела
                 </h3>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm text-slate-300">
                         <thead class="bg-slate-950 text-slate-400 text-xs uppercase border-b border-slate-800">
                             <tr>
-                                <th class="p-3">Биржа</th>
-                                <th class="p-3">Всего заказов</th>
+                                <th class="p-3">Площадка</th>
+                                <th class="p-3">Всего</th>
                                 <th class="p-3">🔥 Hot (Tier 1)</th>
                                 <th class="p-3">⚡ Normal (Tier 2)</th>
                                 <th class="p-3">🗑 Trash (Tier 3)</th>
+                                <th class="p-3">🎯 Откликов</th>
+                                <th class="p-3">⏭️ Скипнуто</th>
                                 <th class="p-3">Конверсия в Hot</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-800">
-                            {% for item in extended_stats.by_source %}
+                            {% set source_list = extended_stats.by_source_vacancies if active_section == 'hh_ru' else extended_stats.by_source_freelance %}
+                            {% for item in source_list %}
                                 <tr class="hover:bg-slate-800/40 transition">
-                                    <td class="p-3 font-semibold uppercase text-slate-200">{{ item.source }}</td>
+                                    <td class="p-3 font-semibold uppercase text-slate-200">
+                                        {{ 'Хабр Карьера' if item.source == 'habr_career' else ('HeadHunter' if item.source == 'hh_ru' else item.source|upper) }}
+                                    </td>
                                     <td class="p-3 font-mono font-bold">{{ item.total }}</td>
                                     <td class="p-3 font-mono text-amber-400 font-bold">{{ item.hot }}</td>
                                     <td class="p-3 font-mono text-blue-400">{{ item.normal }}</td>
                                     <td class="p-3 font-mono text-slate-500">{{ item.trash }}</td>
+                                    <td class="p-3 font-mono text-emerald-400 font-bold">{{ item.responded or 0 }}</td>
+                                    <td class="p-3 font-mono text-rose-400">{{ item.skipped or 0 }}</td>
                                     <td class="p-3 font-mono">
                                         {% if item.total > 0 %}
                                             {{ "{:.1f}%".format((item.hot / item.total) * 100) }}
@@ -2075,6 +2227,41 @@ DASHBOARD_HTML = """
             }
         }
 
+        async function toggleSkipped(orderId, btn) {
+            if (!orderId) return;
+            try {
+                const resp = await fetch(`/api/orders/${orderId}/toggle-skipped`, { method: 'POST' });
+                const data = await resp.json();
+                if (data.ok) {
+                    const card = document.querySelector(`.order-card[data-id="${orderId}"]`);
+                    const isSkipped = !!data.is_skipped;
+                    if (card) {
+                        card.setAttribute('data-skipped', isSkipped ? '1' : '0');
+                        if (isSkipped) {
+                            card.classList.add('opacity-45', 'border-rose-950/40');
+                        } else {
+                            card.classList.remove('opacity-45', 'border-rose-950/40');
+                        }
+                    }
+                    if (btn) {
+                        const icon = btn.querySelector('.skip-icon');
+                        const text = btn.querySelector('.skip-text');
+                        if (icon) icon.innerText = isSkipped ? '↩️' : '⏭️';
+                        if (text) text.innerText = isSkipped ? 'Вернуть' : 'Скип';
+                        if (isSkipped) {
+                            btn.className = "skip-toggle-btn text-xs px-2 py-0.5 rounded-md transition flex items-center gap-1 border font-medium bg-rose-950/90 text-rose-300 border-rose-700/80 hover:bg-rose-900/90";
+                        } else {
+                            btn.className = "skip-toggle-btn text-xs px-2 py-0.5 rounded-md transition flex items-center gap-1 border font-medium bg-slate-950 text-slate-400 border-slate-800 hover:text-rose-300 hover:border-slate-700";
+                        }
+                    }
+                    showToast(isSkipped ? 'Заказ скрыт (скипнут)' : 'Заказ возвращен');
+                    applyClientFilters();
+                }
+            } catch (e) {
+                alert('Ошибка обновления статуса скипа: ' + e);
+            }
+        }
+
         function applyClientFilters() {
             const queryEl = document.getElementById('orderSearch');
             const query = queryEl ? queryEl.value.toLowerCase().trim() : '';
@@ -2088,7 +2275,12 @@ DASHBOARD_HTML = """
             const hideResponded = hideRespondedEl ? hideRespondedEl.checked : false;
             try { localStorage.setItem('hideResponded', hideResponded ? '1' : '0'); } catch(e){}
 
+            const showSkippedEl = document.getElementById('filterShowSkipped');
+            const showSkipped = showSkippedEl ? showSkippedEl.checked : false;
+            try { localStorage.setItem('showSkipped', showSkipped ? '1' : '0'); } catch(e){}
+
             const urlParams = new URLSearchParams(window.location.search);
+            const currentTab = urlParams.get('tab') || 'hot';
             const targetOrderId = urlParams.get('order_id') || (window.location.hash.startsWith('#order-') ? window.location.hash.replace('#order-', '') : null);
 
             const container = document.getElementById('ordersContainer');
@@ -2108,6 +2300,7 @@ DASHBOARD_HTML = """
                 const desc = card.getAttribute('data-desc') || '';
                 const price = parseFloat(card.getAttribute('data-price') || '0');
                 const isResponded = card.getAttribute('data-responded') === '1';
+                const isSkipped = card.getAttribute('data-skipped') === '1';
 
                 // Поиск по тексту
                 const matchesText = !query || title.includes(query) || desc.includes(query);
@@ -2128,11 +2321,17 @@ DASHBOARD_HTML = """
 
                 // Фильтр скрытия уже отправленных откликов
                 let matchesResponded = true;
-                if (hideResponded && isResponded) {
+                if (hideResponded && isResponded && currentTab !== 'responded') {
                     matchesResponded = false;
                 }
 
-                if (matchesText && matchesTopic && matchesPrice && matchesResponded) {
+                // Фильтр скрытия пропущенных (скипнутых) заказов
+                let matchesSkipped = true;
+                if (isSkipped && !showSkipped && currentTab !== 'skipped') {
+                    matchesSkipped = false;
+                }
+
+                if (matchesText && matchesTopic && matchesPrice && matchesResponded && matchesSkipped) {
                     card.style.display = 'block';
                     visibleCount++;
                 } else {
@@ -2562,6 +2761,15 @@ DASHBOARD_HTML = """
             } catch(e) {}
 
             try {
+                const savedShowSkipped = localStorage.getItem('showSkipped');
+                const showSkippedEl = document.getElementById('filterShowSkipped');
+                if (savedShowSkipped === '1' && showSkippedEl) {
+                    showSkippedEl.checked = true;
+                    applyClientFilters();
+                }
+            } catch(e) {}
+
+            try {
                 const urlParams = new URLSearchParams(window.location.search);
                 const targetId = urlParams.get('order_id') || (window.location.hash.startsWith('#order-') ? window.location.hash.replace('#order-', '') : null);
                 if (targetId) {
@@ -2691,13 +2899,16 @@ def create_web_app(
             p_filter = None
 
         raw_orders: List[Dict[str, Any]] = []
-        if active_tab in ["hot", "all", "normal", "trash"]:
+        if active_tab in ["hot", "all", "normal", "trash", "responded", "skipped"]:
             raw_orders = await repository.get_recent_orders(
                 limit=limit,
                 priority=p_filter,
                 source=s_filter,
                 only_free=only_free_flag,
                 section=active_section,
+                only_responded=(active_tab == "responded"),
+                only_skipped=(active_tab == "skipped"),
+                hide_skipped=(active_tab not in ["skipped", "responded"]),
             )
 
         def check_is_ai_first(it: Dict[str, Any]) -> bool:
@@ -2792,6 +3003,10 @@ def create_web_app(
             except Exception as e:
                 logger.error("Ошибка чтения %s: %s", CONFIG_YAML_PATH, e)
 
+        section_analytics = None
+        if active_tab == "analytics":
+            section_analytics = await repository.get_section_analytics(section=active_section)
+
         template = Template(DASHBOARD_HTML, autoescape=True)
         html_content = template.render(
             orders=formatted_orders,
@@ -2799,6 +3014,7 @@ def create_web_app(
             stats=current_stats,
             current_stats=current_stats,
             extended_stats=extended_stats,
+            section_analytics=section_analytics,
             active_tab=active_tab,
             selected_source=s_filter or "",
             free_only=1 if only_free_flag else 0,
@@ -2825,6 +3041,16 @@ def create_web_app(
 
         new_state = await repository.toggle_responded(order_id)
         return JSONResponse(content={"ok": True, "is_responded": new_state})
+
+    @app.post("/api/orders/{order_id}/toggle-skipped")
+    async def api_toggle_skipped(order_id: int):
+        """Переключить статус пропуска (скипа) заказа или вакансии."""
+        order_data = await repository.get_by_id(order_id)
+        if not order_data:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "Заказ или вакансия не найдена"})
+
+        new_state = await repository.toggle_skipped(order_id)
+        return JSONResponse(content={"ok": True, "is_skipped": new_state})
 
     @app.post("/api/orders/{order_id}/generate-proposal")
     async def api_generate_proposal(order_id: int):

@@ -101,7 +101,25 @@ async def test_web_dashboard_endpoints(tmp_path):
         # 5. HTML Tabs (analytics, rules, health, settings)
         resp_analytics = await client.get("/?tab=analytics")
         assert resp_analytics.status_code == 200
-        assert "Сводная статистика по биржам" in resp_analytics.text
+        assert "Аналитика воронки фриланс-бирж" in resp_analytics.text
+
+        resp_analytics_hh = await client.get("/?section=hh_ru&tab=analytics")
+        assert resp_analytics_hh.status_code == 200
+        assert "Аналитика воронки вакансий" in resp_analytics_hh.text
+
+        resp_responded = await client.get("/?tab=responded")
+        assert resp_responded.status_code == 200
+
+        # Toggle skipped API test
+        resp_skip = await client.post(f"/api/orders/{order_id}/toggle-skipped")
+        assert resp_skip.status_code == 200
+        assert resp_skip.json()["ok"] is True
+        assert resp_skip.json()["is_skipped"] is True
+
+        # Unskip back so it remains visible in default active feed
+        resp_unskip = await client.post(f"/api/orders/{order_id}/toggle-skipped")
+        assert resp_unskip.status_code == 200
+        assert resp_unskip.json()["is_skipped"] is False
 
         # 5b. HTML Target order loading via order_id param
         resp_target = await client.get(f"/?order_id={order_id}")

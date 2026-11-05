@@ -121,7 +121,7 @@ class OrderRepository:
             await db.commit()
 
     async def toggle_responded(self, order_id: int, is_responded: Optional[bool] = None) -> bool:
-        """Переключить или установить статус отклика по заказу."""
+        """Переключить или установить статус отклика по заказу с фиксацией времени отклика."""
         async with self._get_conn() as db:
             if is_responded is None:
                 async with db.execute("SELECT is_responded FROM orders WHERE id = ?", (order_id,)) as cursor:
@@ -131,10 +131,40 @@ class OrderRepository:
             else:
                 new_state = is_responded
 
-            await db.execute(
-                "UPDATE orders SET is_responded = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                (1 if new_state else 0, order_id),
-            )
+            if new_state:
+                await db.execute(
+                    "UPDATE orders SET is_responded = 1, responded_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (order_id,),
+                )
+            else:
+                await db.execute(
+                    "UPDATE orders SET is_responded = 0, responded_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (order_id,),
+                )
+            await db.commit()
+            return new_state
+
+    async def toggle_skipped(self, order_id: int, is_skipped: Optional[bool] = None) -> bool:
+        """Переключить или установить статус пропуска (скипа) заказа или вакансии."""
+        async with self._get_conn() as db:
+            if is_skipped is None:
+                async with db.execute("SELECT is_skipped FROM orders WHERE id = ?", (order_id,)) as cursor:
+                    row = await cursor.fetchone()
+                    current = bool(row[0]) if row and row[0] is not None else False
+                new_state = not current
+            else:
+                new_state = is_skipped
+
+            if new_state:
+                await db.execute(
+                    "UPDATE orders SET is_skipped = 1, skipped_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (order_id,),
+                )
+            else:
+                await db.execute(
+                    "UPDATE orders SET is_skipped = 0, skipped_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                    (order_id,),
+                )
             await db.commit()
             return new_state
 
@@ -344,8 +374,11 @@ class OrderRepository:
         only_free: bool = False,
         section: Optional[str] = None,
         hide_responded: bool = False,
+        only_responded: bool = False,
+        hide_skipped: bool = True,
+        only_skipped: bool = False,
     ) -> List[Dict[str, Any]]:
-        """Получить список свежих заказов с возможностью фильтрации по секциям и биржам."""
+        """Получить список свежих заказов с возможностью фильтрации по секциям, откликам и скипам."""
         query = """
             SELECT orders.*,
                    (SELECT COUNT(*) FROM order_messages WHERE order_messages.order_id = orders.id) as messages_count
@@ -371,8 +404,16 @@ class OrderRepository:
             params.append(str(source).lower())
         if only_free:
             query += " AND is_pro_only = 0"
-        if hide_responded:
-            query += " AND is_responded = 0"
+
+        if only_responded:
+            query += " AND is_responded = 1"
+        elif hide_responded:
+            query += " AND (is_responded IS NULL OR is_responded = 0)"
+
+        if only_skipped:
+            query += " AND is_skipped = 1"
+        elif hide_skipped and not only_responded:
+            query += " AND (is_skipped IS NULL OR is_skipped = 0)"
 
         query += " ORDER BY id DESC LIMIT ?"
         params.append(limit)
@@ -420,7 +461,9 @@ class OrderRepository:
                     SUM(CASE WHEN priority='normal' THEN 1 ELSE 0 END) as normal,
                     SUM(CASE WHEN priority='trash' THEN 1 ELSE 0 END) as trash,
                     SUM(CASE WHEN status='sent_to_tg' THEN 1 ELSE 0 END) as sent_to_tg,
-                    AVG(CASE WHEN price IS NOT NULL AND price > 0 AND priority='hot' THEN price ELSE NULL END) as avg_price
+                    AVG(CASE WHEN price IS NOT NULL AND price > 0 AND priority='hot' THEN price ELSE NULL END) as avg_price,
+                    SUM(CASE WHEN is_responded=1 THEN 1 ELSE 0 END) as responded,
+                    SUM(CASE WHEN is_skipped=1 THEN 1 ELSE 0 END) as skipped
                 FROM orders WHERE source NOT IN ('hh_ru', 'habr_career')
                 """
             ) as cursor:
@@ -432,6 +475,8 @@ class OrderRepository:
                     "trash": r_fr[3] or 0,
                     "sent_to_tg": r_fr[4] or 0,
                     "avg_hot_price": round(r_fr[5], 0) if r_fr and r_fr[5] else 0,
+                    "responded": r_fr[6] or 0,
+                    "skipped": r_fr[7] or 0,
                 }
 
             # Вакансии (HH.ru + Хабр Карьера)
@@ -443,7 +488,9 @@ class OrderRepository:
                     SUM(CASE WHEN priority='normal' THEN 1 ELSE 0 END) as normal,
                     SUM(CASE WHEN priority='trash' THEN 1 ELSE 0 END) as trash,
                     SUM(CASE WHEN status='sent_to_tg' THEN 1 ELSE 0 END) as sent_to_tg,
-                    AVG(CASE WHEN price IS NOT NULL AND price > 0 AND priority='hot' THEN price ELSE NULL END) as avg_price
+                    AVG(CASE WHEN price IS NOT NULL AND price > 0 AND priority='hot' THEN price ELSE NULL END) as avg_price,
+                    SUM(CASE WHEN is_responded=1 THEN 1 ELSE 0 END) as responded,
+                    SUM(CASE WHEN is_skipped=1 THEN 1 ELSE 0 END) as skipped
                 FROM orders WHERE source IN ('hh_ru', 'habr_career')
                 """
             ) as cursor:
@@ -455,6 +502,8 @@ class OrderRepository:
                     "trash": r_hh[3] or 0,
                     "sent_to_tg": r_hh[4] or 0,
                     "avg_hot_price": round(r_hh[5], 0) if r_hh and r_hh[5] else 0,
+                    "responded": r_hh[6] or 0,
+                    "skipped": r_hh[7] or 0,
                 }
                 stats["hh_ru"] = vac_stats
                 stats["vacancies"] = vac_stats
@@ -465,21 +514,57 @@ class OrderRepository:
                        COUNT(*) as total,
                        SUM(CASE WHEN priority='hot' THEN 1 ELSE 0 END) as hot,
                        SUM(CASE WHEN priority='normal' THEN 1 ELSE 0 END) as normal,
-                       SUM(CASE WHEN priority='trash' THEN 1 ELSE 0 END) as trash
-                FROM orders GROUP BY source ORDER BY total DESC
+                       SUM(CASE WHEN priority='trash' THEN 1 ELSE 0 END) as trash,
+                       SUM(CASE WHEN is_responded=1 THEN 1 ELSE 0 END) as responded,
+                       SUM(CASE WHEN is_skipped=1 THEN 1 ELSE 0 END) as skipped
+                FROM orders
+                WHERE source NOT IN ('hh_ru', 'habr_career')
+                GROUP BY source ORDER BY total DESC
                 """
             ) as cursor:
                 rows = await cursor.fetchall()
-                stats["by_source"] = [
+                stats["by_source_freelance"] = [
                     {
                         "source": r[0],
                         "total": r[1],
                         "hot": r[2] or 0,
                         "normal": r[3] or 0,
                         "trash": r[4] or 0,
+                        "responded": r[5] or 0,
+                        "skipped": r[6] or 0,
                     }
                     for r in rows
                 ]
+
+            async with db.execute(
+                """
+                SELECT source,
+                       COUNT(*) as total,
+                       SUM(CASE WHEN priority='hot' THEN 1 ELSE 0 END) as hot,
+                       SUM(CASE WHEN priority='normal' THEN 1 ELSE 0 END) as normal,
+                       SUM(CASE WHEN priority='trash' THEN 1 ELSE 0 END) as trash,
+                       SUM(CASE WHEN is_responded=1 THEN 1 ELSE 0 END) as responded,
+                       SUM(CASE WHEN is_skipped=1 THEN 1 ELSE 0 END) as skipped
+                FROM orders
+                WHERE source IN ('hh_ru', 'habr_career')
+                GROUP BY source ORDER BY total DESC
+                """
+            ) as cursor:
+                rows = await cursor.fetchall()
+                stats["by_source_vacancies"] = [
+                    {
+                        "source": r[0],
+                        "total": r[1],
+                        "hot": r[2] or 0,
+                        "normal": r[3] or 0,
+                        "trash": r[4] or 0,
+                        "responded": r[5] or 0,
+                        "skipped": r[6] or 0,
+                    }
+                    for r in rows
+                ]
+
+            stats["by_source"] = stats["by_source_freelance"] + stats["by_source_vacancies"]
 
             async with db.execute(
                 "SELECT AVG(price) FROM orders WHERE price IS NOT NULL AND price > 0 AND priority='hot'"
@@ -488,6 +573,134 @@ class OrderRepository:
                 stats["avg_hot_price"] = round(r[0], 0) if r and r[0] else 0
 
             return stats
+
+    async def get_section_analytics(self, section: str = "freelance") -> Dict[str, Any]:
+        """Расширенная аналитика воронки, динамики откликов, скорости реакции и топ-навыков."""
+        is_vacancies = section in ["hh_ru", "vacancies", "hh"]
+        source_cond = "source IN ('hh_ru', 'habr_career')" if is_vacancies else "source NOT IN ('hh_ru', 'habr_career')"
+
+        async with self._get_conn() as db:
+            # 1. Отклики по временным периодам
+            async with db.execute(
+                f"""
+                SELECT
+                    SUM(CASE WHEN is_responded = 1 AND (datetime(responded_at, 'localtime') >= datetime('now', 'start of day', 'localtime') OR date(responded_at) = date('now')) THEN 1 ELSE 0 END) as resp_today,
+                    SUM(CASE WHEN is_responded = 1 AND datetime(responded_at) >= datetime('now', '-7 days') THEN 1 ELSE 0 END) as resp_7d,
+                    SUM(CASE WHEN is_responded = 1 AND datetime(responded_at) >= datetime('now', '-30 days') THEN 1 ELSE 0 END) as resp_30d,
+                    SUM(CASE WHEN is_responded = 1 THEN 1 ELSE 0 END) as resp_total,
+                    SUM(CASE WHEN priority = 'hot' THEN 1 ELSE 0 END) as hot_total,
+                    SUM(CASE WHEN priority = 'hot' AND is_responded = 1 THEN 1 ELSE 0 END) as hot_responded,
+                    SUM(CASE WHEN is_skipped = 1 THEN 1 ELSE 0 END) as skipped_total,
+                    SUM(CASE WHEN is_responded = 1 AND price IS NOT NULL THEN price ELSE 0 END) as total_pipeline_rub,
+                    AVG(CASE WHEN is_responded = 1 AND price IS NOT NULL AND price > 0 THEN price ELSE NULL END) as avg_resp_rub
+                FROM orders
+                WHERE {source_cond}
+                """
+            ) as cursor:
+                row = await cursor.fetchone()
+                resp_today = row[0] or 0
+                resp_7d = row[1] or 0
+                resp_30d = row[2] or 0
+                resp_total = row[3] or 0
+                hot_total = row[4] or 0
+                hot_responded = row[5] or 0
+                skipped_total = row[6] or 0
+                total_pipeline_rub = row[7] or 0
+                avg_resp_rub = round(row[8], 0) if row and row[8] else 0
+
+            # 2. Скорость реакции (Response Velocity)
+            async with db.execute(
+                f"""
+                SELECT AVG((julianday(responded_at) - julianday(created_at)) * 86400.0)
+                FROM orders
+                WHERE {source_cond} AND is_responded = 1 AND responded_at IS NOT NULL AND created_at IS NOT NULL
+                  AND julianday(responded_at) >= julianday(created_at)
+                """
+            ) as cursor:
+                avg_sec_row = await cursor.fetchone()
+                avg_seconds = avg_sec_row[0] if avg_sec_row and avg_sec_row[0] is not None else None
+
+            response_velocity_text = "Нет данных"
+            if avg_seconds is not None:
+                if avg_seconds < 60:
+                    response_velocity_text = f"{int(avg_seconds)} сек"
+                elif avg_seconds < 3600:
+                    response_velocity_text = f"{int(avg_seconds / 60)} мин"
+                elif avg_seconds < 86400:
+                    hours = int(avg_seconds / 3600)
+                    mins = int((avg_seconds % 3600) / 60)
+                    response_velocity_text = f"{hours} ч {mins} мин" if mins else f"{hours} ч"
+                else:
+                    days = round(avg_seconds / 86400.0, 1)
+                    response_velocity_text = f"{days} дн"
+
+            # 3. Конверсия Hot в отклики
+            hot_conversion = round((hot_responded / hot_total * 100), 1) if hot_total > 0 else 0.0
+
+            # 4. Топ востребованных технологий и навыков в Hot-лидах
+            async with db.execute(
+                f"""
+                SELECT tags, title, description, attachments_text
+                FROM orders
+                WHERE {source_cond} AND priority = 'hot'
+                ORDER BY id DESC LIMIT 200
+                """
+            ) as cursor:
+                hot_rows = await cursor.fetchall()
+
+            import re
+            tech_patterns = [
+                ("Python", r"\bpython\b"),
+                ("FastAPI", r"\bfastapi\b"),
+                ("Telegram Bot", r"\b(?:telegram|aiogram|telebot|тг[- ]?бот)\b"),
+                ("RAG / Vector DB", r"\b(?:rag|qdrant|chroma|pinecone|векторн)\b"),
+                ("LLM / GPT", r"\b(?:llm|gpt|openai|claude|gemini|mistral|llama)\b"),
+                ("Whisper / STT", r"\b(?:whisper|stt|speech|транскриб)\b"),
+                ("Docker", r"\bdocker\b"),
+                ("PostgreSQL", r"\b(?:postgres|postgresql)\b"),
+                ("Redis / Celery", r"\b(?:redis|celery)\b"),
+                ("CRM / Bitrix24", r"\b(?:bitrix|битрикс|amocrm|планфикс|planfix)\b"),
+                ("n8n / Automation", r"\b(?:n8n|zapier|make\.com)\b"),
+                ("Computer Vision", r"\b(?:yolo|opencv|cv|компьютерн[а-я]* зрени)\b"),
+                ("Парсинг / Scraping", r"\b(?:парс|scraping|crawler|playwright|selenium)\b"),
+                ("LangChain", r"\blangchain\b"),
+                ("SQLAlchemy", r"\bsqlalchemy\b"),
+                ("Linux / VPS", r"\b(?:linux|ubuntu|systemd|vps|vds)\b"),
+                ("REST API", r"\b(?:rest\s*api|fastapi|интеграци[а-я]* по api)\b"),
+            ]
+
+            tech_counts: Dict[str, int] = {name: 0 for name, _ in tech_patterns}
+            for h_row in hot_rows:
+                h_tags = h_row[0] or ""
+                h_title = h_row[1] or ""
+                h_desc = h_row[2] or ""
+                h_att = h_row[3] or ""
+                combined_text = f"{h_tags} {h_title} {h_desc} {h_att}".lower()
+                for name, pattern in tech_patterns:
+                    if re.search(pattern, combined_text, re.IGNORECASE):
+                        tech_counts[name] += 1
+
+            top_skills = [
+                {"name": name, "count": count}
+                for name, count in sorted(tech_counts.items(), key=lambda x: x[1], reverse=True)
+                if count > 0
+            ][:14]
+
+            return {
+                "section": section,
+                "resp_today": resp_today,
+                "resp_7d": resp_7d,
+                "resp_30d": resp_30d,
+                "resp_total": resp_total,
+                "hot_total": hot_total,
+                "hot_responded": hot_responded,
+                "hot_conversion": hot_conversion,
+                "skipped_total": skipped_total,
+                "total_pipeline_rub": int(total_pipeline_rub),
+                "avg_resp_rub": int(avg_resp_rub),
+                "response_velocity": response_velocity_text,
+                "top_skills": top_skills,
+            }
 
     async def add_chat_message(
         self,

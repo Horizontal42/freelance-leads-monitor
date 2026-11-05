@@ -151,3 +151,56 @@ async def test_order_repository_flow(tmp_path):
     updated = await repo.get_by_id(order_id)
     assert updated["proposal_text"] == "Отклик от agy"
     assert updated["recommended_price"] == 35000.0
+
+
+@pytest.mark.asyncio
+async def test_toggle_responded_and_skipped(tmp_path):
+    """Проверка переключения откликов, скипов, временных меток и расширенной аналитики."""
+    db_path = tmp_path / "test_resp_skip.db"
+    await init_db(db_path)
+    repo = OrderRepository(db_path=db_path)
+    order = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="resp_skip_test",
+        title="Тест отклика и скипа",
+        description="Разработка Telegram-бота на Python и FastAPI",
+        url="https://kwork.ru/test",
+        price=15000.0,
+    )
+    order_id = await repo.insert_raw_order(order, priority=OrderPriority.HOT)
+
+    # 1. Toggle responded
+    is_resp = await repo.toggle_responded(order_id)
+    assert is_resp is True
+    o = await repo.get_by_id(order_id)
+    assert o["is_responded"] == 1
+    assert o["responded_at"] is not None
+
+    # 2. Toggle skipped
+    is_skip = await repo.toggle_skipped(order_id)
+    assert is_skip is True
+    o = await repo.get_by_id(order_id)
+    assert o["is_skipped"] == 1
+    assert o["skipped_at"] is not None
+
+    # 3. get_recent_orders filtering
+    # Default hides skipped
+    recent_active = await repo.get_recent_orders(hide_skipped=True)
+    assert len(recent_active) == 0
+
+    # Only responded
+    recent_resp = await repo.get_recent_orders(only_responded=True)
+    assert len(recent_resp) == 1
+
+    # Only skipped
+    recent_skip = await repo.get_recent_orders(only_skipped=True)
+    assert len(recent_skip) == 1
+
+    # 4. Section analytics
+    analytics = await repo.get_section_analytics("freelance")
+    assert analytics["resp_total"] == 1
+    assert analytics["resp_today"] == 1
+    assert analytics["skipped_total"] == 1
+    assert analytics["hot_total"] == 1
+    assert analytics["hot_responded"] == 1
+    assert analytics["hot_conversion"] == 100.0

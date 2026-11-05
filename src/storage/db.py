@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS orders (
     is_negotiable INTEGER NOT NULL DEFAULT 0,
     is_pro_only INTEGER NOT NULL DEFAULT 0,
     is_responded INTEGER NOT NULL DEFAULT 0,
+    responded_at TIMESTAMP,
+    is_skipped INTEGER NOT NULL DEFAULT 0,
+    skipped_at TIMESTAMP,
     tags TEXT,
     status TEXT NOT NULL DEFAULT 'new',
     priority TEXT NOT NULL DEFAULT 'normal',
@@ -96,6 +99,22 @@ async def init_db(db_path: Path | str | None = None) -> None:
             await db.execute("ALTER TABLE orders ADD COLUMN is_responded INTEGER NOT NULL DEFAULT 0;")
         except Exception:
             pass  # колонка уже существует
+        try:
+            await db.execute("ALTER TABLE orders ADD COLUMN responded_at TIMESTAMP;")
+        except Exception:
+            pass  # колонка уже существует
+        try:
+            await db.execute("ALTER TABLE orders ADD COLUMN is_skipped INTEGER NOT NULL DEFAULT 0;")
+        except Exception:
+            pass  # колонка уже существует
+        try:
+            await db.execute("ALTER TABLE orders ADD COLUMN skipped_at TIMESTAMP;")
+        except Exception:
+            pass  # колонка уже существует
+        try:
+            await db.execute("UPDATE orders SET responded_at = updated_at WHERE is_responded = 1 AND responded_at IS NULL;")
+        except Exception:
+            pass
         await db.execute("""
             CREATE TABLE IF NOT EXISTS system_settings (
                 key TEXT PRIMARY KEY,
