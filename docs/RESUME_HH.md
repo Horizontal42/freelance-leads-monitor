@@ -37,7 +37,7 @@ AI-First подход к разработке:
 
 Код и открытые проекты:
 • GitHub: https://github.com/Horizontal42
-• Telegram: @horizontal42
+• Telegram: @Horizontal84
 ```
 
 ---

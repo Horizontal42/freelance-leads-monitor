@@ -197,7 +197,7 @@ class ProjectDossierItem(BaseModel):
 
 class DeveloperProfileConfig(BaseModel):
     name: str = "Андрей Пименов"
-    username: str = "@horizontal42"
+    username: str = "@Horizontal84"
     level: str = "Junior+ / Middle"
     specialization: str = "Python Backend, Telegram-боты, парсинг, CRM"
     min_budget: int = 10000

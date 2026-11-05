@@ -10,7 +10,7 @@ $ python -m src.main --once
 2026-10-26 23:59:02 [INFO] Collected: Kwork (14), FL.ru (22), Freelance.ru (18), Pchel.net (12), Remote-job (8)
 2026-10-26 23:59:03 [INFO] HardFilter: 71 rejected (diplomas, 1C, low budget), 3 passed to LLM
 2026-10-26 23:59:05 [INFO] Mistral: Evaluated 3 leads (1 Hot, 2 Normal). PERT & market price calculated.
-2026-10-26 23:59:06 [INFO] Telegram: Delivered 1 Hot lead to @horizontal42 with action keyboard.
+2026-10-26 23:59:06 [INFO] Telegram: Delivered 1 Hot lead to @Horizontal84 with action keyboard.
 2026-10-26 23:59:06 [INFO] Pipeline complete. New leads persisted in SQLite WAL.
 ```
 

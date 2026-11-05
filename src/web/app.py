@@ -942,12 +942,12 @@ DASHBOARD_HTML = """
                     <div>
                         <h3 class="text-lg font-bold text-white flex items-center gap-2">
                             <span>👤</span> Пименов Андрей Дмитриевич
-                            <span class="text-xs px-2 py-0.5 rounded-md bg-blue-950 text-blue-300 border border-blue-800 font-mono">@horizontal42</span>
+                            <span class="text-xs px-2 py-0.5 rounded-md bg-blue-950 text-blue-300 border border-blue-800 font-mono">@Horizontal84</span>
                         </h3>
                         <p class="text-xs text-slate-400 mt-1">Разработчик решений на базе AI / Специалист по автоматизации (AI), Python-разработчик</p>
                     </div>
                     <div class="text-xs font-mono text-slate-400">
-                        Контакты: pimenoffandrew@gmail.com | Telegram: @horizontal42
+                        Контакты: pimenoffandrew@gmail.com | Telegram: @Horizontal84
                     </div>
                 </div>
 
