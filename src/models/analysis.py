@@ -3,7 +3,7 @@
 import ast
 import re
 from typing import Any, List, Optional
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from src.models.order import OrderPriority
 
 
@@ -79,8 +79,23 @@ class PertEstimate(BaseModel):
     optimistic_days: float = Field(..., description="Оптимистичный сценарий (O)")
     most_likely_days: float = Field(..., description="Наиболее вероятный сценарий (M)")
     pessimistic_days: float = Field(..., description="Пессимистичный сценарий (P)")
-    expected_days: float = Field(..., description="Ожидаемый срок E = (O + 4M + P) / 6")
-    sigma: float = Field(..., description="Стандартное отклонение (P - O) / 6")
+    expected_days: float = Field(default=0.0, description="Ожидаемый срок E = (O + 4M + P) / 6")
+    sigma: float = Field(default=0.0, description="Стандартное отклонение (P - O) / 6")
+
+    @model_validator(mode="before")
+    @classmethod
+    def calculate_pert_fields(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            try:
+                o = float(data.get("optimistic_days", 1.0))
+                m = float(data.get("most_likely_days", 2.0))
+                p = float(data.get("pessimistic_days", 4.0))
+                # Автоматический точный расчет математики PERT на стороне Python
+                data["expected_days"] = round((o + 4.0 * m + p) / 6.0, 1)
+                data["sigma"] = round(abs(p - o) / 6.0, 1)
+            except Exception:
+                pass
+        return data
 
 
 class AnalysisResult(BaseModel):
