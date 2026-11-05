@@ -358,8 +358,16 @@ def extract_clean_proposal_payload(raw_text: str) -> dict:
             except Exception:
                 pass
 
-        # Регэксп-фоллбэк, если json.loads не справился (например, сложные кавычки или спецсимволы)
-        prop_m = re.search(r'"proposal_text"\s*:\s*"((?:\\.|[^"\\])*)"', text, flags=re.DOTALL)
+        # Регэксп-фоллбэк, если json.loads не справился (например, неэкранированные кавычки внутри текста)
+        # Используем lookahead до закрывающей кавычки перед следующим ключом или концом JSON-объекта
+        prop_m = re.search(
+            r'"proposal_text"\s*:\s*"((?:\\.|[\s\S])*?)(?="[ \t]*(?:,[ \t\r\n]*"[a-zA-Z0-9_]+"|\s*\}))',
+            text,
+        )
+        if not prop_m:
+            # Резервный поиск, если структура JSON нестандартная
+            prop_m = re.search(r'"proposal_text"\s*:\s*"((?:\\.|[^"\\])*)"', text, flags=re.DOTALL)
+
         if prop_m:
             raw_val = prop_m.group(1)
             try:
@@ -376,7 +384,13 @@ def extract_clean_proposal_payload(raw_text: str) -> dict:
             if mkt_m:
                 result["market_price"] = float(mkt_m.group(1))
 
-            just_m = re.search(r'"price_justification"\s*:\s*"((?:\\.|[^"\\])*)"', text, flags=re.DOTALL)
+            just_m = re.search(
+                r'"price_justification"\s*:\s*"((?:\\.|[\s\S])*?)(?="[ \t]*(?:,[ \t\r\n]*"[a-zA-Z0-9_]+"|\s*\}))',
+                text,
+            )
+            if not just_m:
+                just_m = re.search(r'"price_justification"\s*:\s*"((?:\\.|[^"\\])*)"', text, flags=re.DOTALL)
+
             if just_m:
                 raw_just = just_m.group(1)
                 try:

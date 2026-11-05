@@ -464,5 +464,34 @@ def test_sanitize_proposal_text_zdravstvuyte_comma():
     assert sanitize_proposal_text(raw_5) == "здравствуйте, разрабатываю парсеры на Scrapy."
 
 
+def test_extract_clean_proposal_payload_with_unescaped_quotes():
+    """Тест извлечения proposal_text и price_justification при наличии неэкранированных кавычек."""
+    from src.models.analysis import extract_clean_proposal_payload
+
+    raw_json = """{
+      "market_price": 50000,
+      "recommended_price": 25000,
+      "proposal_text": "Добрый день. По вашей задаче с AI-консультантом на n8n:
+
+  1. Структуризация промптов:
+     - Разбить текущие промпты на модули по сценариям (например, "квалификация", "сравнение устройств").
+  2. Внедрение слоя памяти на Redis.
+  3. Оптимизация токенов.",
+      "price_justification": "Рыночная стоимость (поиск на Kwork / FL.ru, например, "чат-боты e-commerce") ~45 000 руб.",
+      "estimated_days": "3-4 дня"
+    }"""
+
+    res = extract_clean_proposal_payload(raw_json)
+    assert res["recommended_price"] == 25000.0
+    assert res["market_price"] == 50000.0
+    assert res["estimated_days"] == "3-4 дня"
+    assert "квалификация" in res["proposal_text"]
+    assert "сравнение устройств" in res["proposal_text"]
+    assert "2. Внедрение слоя памяти на Redis." in res["proposal_text"]
+    assert "3. Оптимизация токенов." in res["proposal_text"]
+    assert "чат-боты e-commerce" in res["price_justification"]
+
+
+
 
 

@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import os
 import re
 from typing import Any, Dict, Optional
 from src.analyzer.base import BaseLLMClient
@@ -49,6 +50,16 @@ class AntigravityClient(BaseLLMClient):
         """Гарантированная очистка отклика: дефисы, удаление звездочек (**) и markdown-мусора."""
         return sanitize_proposal_text(text)
 
+    def _get_subprocess_env(self) -> Dict[str, str]:
+        """Гарантирует передачу прокси-переменных в обоих регистрах для вызова agy CLI."""
+        env = os.environ.copy()
+        for k in ["http_proxy", "https_proxy", "all_proxy", "no_proxy"]:
+            val = env.get(k) or env.get(k.upper())
+            if val:
+                env[k] = val
+                env[k.upper()] = val
+        return env
+
     async def analyze_order(self, order: RawOrder) -> AnalysisResult:
         """Запустить CLI agy и распарсить результат."""
         prompt = build_analysis_prompt(order)
@@ -77,6 +88,7 @@ class AntigravityClient(BaseLLMClient):
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=self._get_subprocess_env(),
         )
 
         try:
@@ -190,6 +202,7 @@ class AntigravityClient(BaseLLMClient):
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=self._get_subprocess_env(),
         )
 
         try:
@@ -286,6 +299,7 @@ class AntigravityClient(BaseLLMClient):
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=self._get_subprocess_env(),
         )
 
         try:
