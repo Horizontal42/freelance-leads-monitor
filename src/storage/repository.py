@@ -637,54 +637,72 @@ class OrderRepository:
             # 3. Конверсия Hot в отклики
             hot_conversion = round((hot_responded / hot_total * 100), 1) if hot_total > 0 else 0.0
 
-            # 4. Топ востребованных технологий и навыков в Hot-лидах
+            # 4. Топ технологий и навыков: целевые (в Hot-лидах) и общерыночные (все заказы)
             async with db.execute(
                 f"""
                 SELECT tags, title, description, attachments_text
                 FROM orders
                 WHERE {source_cond} AND priority = 'hot'
-                ORDER BY id DESC LIMIT 200
+                ORDER BY id DESC LIMIT 300
                 """
             ) as cursor:
                 hot_rows = await cursor.fetchall()
 
+            async with db.execute(
+                f"""
+                SELECT tags, title, description, attachments_text
+                FROM orders
+                WHERE {source_cond}
+                ORDER BY id DESC LIMIT 500
+                """
+            ) as cursor:
+                market_rows = await cursor.fetchall()
+
             import re
             tech_patterns = [
                 ("Python", r"\bpython\b"),
-                ("FastAPI", r"\bfastapi\b"),
+                ("FastAPI / Django", r"\b(?:fastapi|django|flask)\b"),
                 ("Telegram Bot", r"\b(?:telegram|aiogram|telebot|тг[- ]?бот)\b"),
+                ("LLM / GPT / Agents", r"\b(?:llm|gpt|openai|claude|gemini|mistral|llama|langchain|llamaindex|crewai|агент)\b"),
                 ("RAG / Vector DB", r"\b(?:rag|qdrant|chroma|pinecone|векторн)\b"),
-                ("LLM / GPT", r"\b(?:llm|gpt|openai|claude|gemini|mistral|llama)\b"),
-                ("Whisper / STT", r"\b(?:whisper|stt|speech|транскриб)\b"),
-                ("Docker", r"\bdocker\b"),
-                ("PostgreSQL", r"\b(?:postgres|postgresql)\b"),
-                ("Redis / Celery", r"\b(?:redis|celery)\b"),
-                ("CRM / Bitrix24", r"\b(?:bitrix|битрикс|amocrm|планфикс|planfix)\b"),
-                ("n8n / Automation", r"\b(?:n8n|zapier|make\.com)\b"),
+                ("Whisper / STT / TTS", r"\b(?:whisper|stt|tts|speech|транскриб)\b"),
                 ("Computer Vision", r"\b(?:yolo|opencv|cv|компьютерн[а-я]* зрени)\b"),
-                ("Парсинг / Scraping", r"\b(?:парс|scraping|crawler|playwright|selenium)\b"),
-                ("LangChain", r"\blangchain\b"),
-                ("SQLAlchemy", r"\bsqlalchemy\b"),
-                ("Linux / VPS", r"\b(?:linux|ubuntu|systemd|vps|vds)\b"),
-                ("REST API", r"\b(?:rest\s*api|fastapi|интеграци[а-я]* по api)\b"),
+                ("Парсинг / Scraping", r"\b(?:парс|scraping|crawler|playwright|selenium|beautifulsoup)\b"),
+                ("n8n / Automation", r"\b(?:n8n|zapier|make\.com)\b"),
+                ("Docker / K8s", r"\b(?:docker|kubernetes|k8s)\b"),
+                ("PostgreSQL / SQL", r"\b(?:postgres|postgresql|mysql|sqlite|sql)\b"),
+                ("Redis / Celery", r"\b(?:redis|celery|rabbitmq|kafka)\b"),
+                ("REST API / gRPC", r"\b(?:rest\s*api|fastapi|grpc|graphql|интеграци[а-я]* по api)\b"),
+                ("Linux / CI/CD / DevOps", r"\b(?:linux|ubuntu|systemd|vps|vds|ci[-/]cd|devops)\b"),
+                ("CRM / Bitrix24 / Amo", r"\b(?:bitrix|битрикс|amocrm|планфикс|planfix)\b"),
+                ("TypeScript / Frontend", r"\b(?:typescript|react|vue|next\.?js|javascript|frontend)\b"),
+                ("PyTorch / ML / AI", r"\b(?:pytorch|tensorflow|scikit|fine[- ]?tuning|lora|huggingface)\b"),
+                ("Go / Golang", r"\b(?:golang|go)\b"),
+                ("Data Engineering", r"\b(?:clickhouse|etl|dbt|airflow|data\s*engineer)\b"),
             ]
 
-            tech_counts: Dict[str, int] = {name: 0 for name, _ in tech_patterns}
-            for h_row in hot_rows:
-                h_tags = h_row[0] or ""
-                h_title = h_row[1] or ""
-                h_desc = h_row[2] or ""
-                h_att = h_row[3] or ""
-                combined_text = f"{h_tags} {h_title} {h_desc} {h_att}".lower()
-                for name, pattern in tech_patterns:
-                    if re.search(pattern, combined_text, re.IGNORECASE):
-                        tech_counts[name] += 1
+            def _calculate_skills(rows):
+                if not rows:
+                    return []
+                tech_counts = {name: 0 for name, _ in tech_patterns}
+                for r in rows:
+                    combined = f"{r[0] or ''} {r[1] or ''} {r[2] or ''} {r[3] or ''}".lower()
+                    for name, pat in tech_patterns:
+                        if re.search(pat, combined, re.IGNORECASE):
+                            tech_counts[name] += 1
+                total_cnt = len(rows)
+                return [
+                    {
+                        "name": name,
+                        "count": count,
+                        "pct": round(count / total_cnt * 100, 1),
+                    }
+                    for name, count in sorted(tech_counts.items(), key=lambda x: x[1], reverse=True)
+                    if count > 0
+                ][:16]
 
-            top_skills = [
-                {"name": name, "count": count}
-                for name, count in sorted(tech_counts.items(), key=lambda x: x[1], reverse=True)
-                if count > 0
-            ][:14]
+            top_skills = _calculate_skills(hot_rows)
+            market_skills = _calculate_skills(market_rows)
 
             return {
                 "section": section,
@@ -700,6 +718,7 @@ class OrderRepository:
                 "avg_resp_rub": int(avg_resp_rub),
                 "response_velocity": response_velocity_text,
                 "top_skills": top_skills,
+                "market_skills": market_skills,
             }
 
     async def add_chat_message(
@@ -778,3 +797,10 @@ class OrderRepository:
                     except Exception:
                         res[r[0]] = r[1]
                 return res
+
+    async def delete_setting(self, key: str) -> None:
+        """Удалить настройку из БД."""
+        async with self._get_conn() as db:
+            await db.execute("DELETE FROM system_settings WHERE key = ?", (key,))
+            await db.commit()
+

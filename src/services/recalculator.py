@@ -30,10 +30,12 @@ class DatabaseRecalculator:
         saved_settings = await self.repo.get_all_settings()
         filter_pro = saved_settings.get("filter_pro_only", settings.FILTER_PRO_ONLY)
         min_budget = saved_settings.get("min_budget", settings.MIN_BUDGET)
+        keywords = saved_settings.get("filter_keywords") or settings.KEYWORDS
+        stop_words = saved_settings.get("filter_stop_words") or settings.STOP_WORDS
 
         hard_filter = HardFilter(
-            keywords=settings.KEYWORDS,
-            stop_words=settings.STOP_WORDS,
+            keywords=keywords,
+            stop_words=stop_words,
             min_budget=min_budget,
             filter_pro_only=filter_pro,
         )

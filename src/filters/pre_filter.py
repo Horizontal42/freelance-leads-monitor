@@ -57,11 +57,22 @@ class HardFilter:
         # 1. Проверка стоп-слов
         matched_stopwords = self._match_terms(full_text, self.stop_words)
         if matched_stopwords:
-            return FilterResult(
-                passed=False,
-                reason=f"Обнаружены стоп-слова: {', '.join(sorted(matched_stopwords))}",
-                matched_stopwords=list(matched_stopwords),
-            )
+            if order.is_ai_first:
+                # Для приоритетных AI-First / Agentic лидов блокируем только академический спам и накрутки
+                hard_junk = {"диплом", "дипломная", "дипломный", "дипломн", "студент", "курсовая", "курсовой проект", "реферат", "лабораторная работа", "накрутка", "накрутк", "рукапча", "2captcha", "antigate"}
+                critical_matches = matched_stopwords.intersection(hard_junk)
+                if critical_matches:
+                    return FilterResult(
+                        passed=False,
+                        reason=f"Обнаружены критические стоп-слова: {', '.join(sorted(critical_matches))}",
+                        matched_stopwords=list(critical_matches),
+                    )
+            else:
+                return FilterResult(
+                    passed=False,
+                    reason=f"Обнаружены стоп-слова: {', '.join(sorted(matched_stopwords))}",
+                    matched_stopwords=list(matched_stopwords),
+                )
 
         # 2. Проверка платных откликов / PRO
         if self.filter_pro_only and order.is_pro_only:

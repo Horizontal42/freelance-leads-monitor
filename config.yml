@@ -53,17 +53,17 @@ collectors:
     per_page: 50
     queries:
       - 'NAME:(AI OR ИИ) AND NAME:(инженер OR engineer OR разработчик OR developer)'
-      - 'NAME:(junior OR джуниор OR стажер OR стажёр OR intern) AND NAME:(AI OR ИИ OR LLM OR ML OR нейросет*)'
-      - 'NAME:(ML OR "machine learning" OR "машинное обучение") AND NAME:(инженер OR engineer OR разработчик OR developer OR стажер OR стажёр)'
-      - 'NAME:(LLM OR RAG OR GPT)'
-      - 'NAME:Python AND NAME:(AI OR ИИ OR LLM OR нейросет* OR ML)'
-      - 'NAME:"computer vision" OR NAME:"компьютерное зрение"'
-      - 'NAME:(AI-агент* OR ИИ-агент* OR "AI agent")'
-      - 'NAME:(промпт-инженер OR "prompt engineer")'
-    drop_title: 'middle|мидл|senior|сеньор|\blead\b|тимлид|team lead|ведущ|старш|principal|head of|руководител|архитектор|architect'
+      - 'NAME:(junior OR джуниор OR стажер OR стажёр OR intern OR middle OR мидл) AND NAME:(AI OR ИИ OR LLM OR ML OR нейросет*)'
+      - 'NAME:(ML OR "machine learning" OR "машинное обучение") AND NAME:(инженер OR engineer OR разработчик OR developer OR стажер OR стажёр OR middle OR мидл)'
+      - 'NAME:(LLM OR RAG OR GPT OR "AI agent" OR "AI-агент")'
+      - 'NAME:(Python OR "AI engineer" OR "AI разработчик")'
+      - 'NAME:"computer vision" OR NAME:"компьютерное зрение" OR NAME:"CV"'
+      - 'NAME:(промпт-инженер OR "prompt engineer" OR "AI-ассистент")'
+      - 'Python AND (LLM OR RAG OR "AI-агент" OR "AI agent" OR Whisper)'
+      - 'Python AND (FastAPI OR aiogram OR "Telegram") AND (автоматизац* OR бот*)'
+    drop_title: 'senior|сеньор|\blead\b|тимлид|team lead|ведущ|старш|principal|head of|руководител|архитектор|architect'
     junior_title: 'junior|джуниор|\bджун\b|стаж[её]р|стажировк|\bintern\b|\binternship\b|\btrainee\b|начинающ|младш'
     drop_experience:
-      - 'От 3 до 6 лет'
       - 'Более 6 лет'
     stop_title_hard:
       - '\bsmm\b'
@@ -88,31 +88,39 @@ filter:
   # Черный список стоп-слов (отсев мусора и студенческих работ)
   stop_words:
     - "диплом"
-    - "курсов"
-    - "реферат"
-    - "контрольн"
+    - "дипломная"
+    - "дипломный"
     - "студент"
-    - "лабораторн"
-    - "1с"
-    - "1c"
+    - "курсовая"
+    - "курсовой проект"
+    - "реферат"
+    - "контрольная работа"
+    - "контрольные работы"
+    - "студенческая работа"
+    - "лабораторная работа"
+    - "1с-программист"
+    - "программист 1с"
     - "битрикс-сайт"
     - "tilda"
     - "тильда"
     - "wordpress"
     - "вордпресс"
-    - "верстка"
-    - "верстку"
-    - "дизайн"
-    - "дизайнер"
-    - "seo"
-    - "сео"
-    - "копирайт"
-    - "рерайт"
-    - "таргет"
-    - "smm"
+    - "верстка сайта"
+    - "верстку сайта"
+    - "дизайн логотип"
+    - "дизайн баннер"
+    - "дизайн карточек"
+    - "дизайн полиграфи"
+    - "seo-продвижение"
+    - "сео-продвижение"
+    - "копирайтинг"
+    - "рерайтинг"
+    - "таргетированная реклама"
+    - "накрутка"
     - "накрутк"
-    - "отзыв"
-    - "лайк"
+    - "написать отзыв"
+    - "купить отзывы"
+    - "накрутка лайков"
     - "antigate"
     - "2captcha"
     - "rucaptcha"
@@ -214,8 +222,22 @@ filter:
     - "tesseract"
     - "easyocr"
     - "компьютерное зрение"
+    - "computer vision"
+    - "cv"
     - "opencv"
     - "yolo"
+
+    # AI-Native, Vibe Coding и Автоматизация
+    - "vibe coding"
+    - "вайбкодинг"
+    - "вайб-кодинг"
+    - "ai-native"
+    - "ai-first"
+    - "prompt engineer"
+    - "промпт-инженер"
+    - "automation engineer"
+    - "инженер ии"
+    - "инженер ai"
 
     # Десктоп и GUI
     - "pyqt"

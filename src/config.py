@@ -85,9 +85,9 @@ class HhRuCollectorConfig(BaseModel):
             'NAME:(промпт-инженер OR "prompt engineer")',
         ]
     )
-    drop_title: str = r"middle|мидл|senior|сеньор|\blead\b|тимлид|team lead|ведущ|старш|principal|head of|руководител|архитектор|architect"
+    drop_title: str = r"senior|сеньор|\blead\b|тимлид|team lead|ведущ|старш|principal|head of|руководител|архитектор|architect"
     junior_title: str = r"junior|джуниор|\bджун\b|стаж[её]р|стажировк|\bintern\b|\binternship\b|\btrainee\b|начинающ|младш"
-    drop_experience: List[str] = Field(default_factory=lambda: ["От 3 до 6 лет", "Более 6 лет"])
+    drop_experience: List[str] = Field(default_factory=lambda: ["Более 6 лет"])
     stop_title_hard: List[str] = Field(
         default_factory=lambda: [
             r"\bsmm\b",

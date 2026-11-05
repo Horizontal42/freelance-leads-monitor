@@ -61,6 +61,12 @@ class LeadsPipeline:
             getattr(settings, "VACANCY_HOT_SCORE_THRESHOLD", 8),
         )
 
+        # Синхронизируем динамические списки ключевых и стоп-слов из настроек БД
+        if "filter_keywords" in dyn_settings and isinstance(dyn_settings["filter_keywords"], list):
+            self.hard_filter.keywords = [w.lower().strip() for w in dyn_settings["filter_keywords"] if w.strip()]
+        if "filter_stop_words" in dyn_settings and isinstance(dyn_settings["filter_stop_words"], list):
+            self.hard_filter.stop_words = [w.lower().strip() for w in dyn_settings["filter_stop_words"] if w.strip()]
+
         passed_orders: List[RawOrder] = []
 
         # 1. Первичная фильтрация и отсев дубликатов

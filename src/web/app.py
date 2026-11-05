@@ -978,26 +978,51 @@ DASHBOARD_HTML = """
                 </div>
             </div>
 
-            <!-- Top Technologies & Skills in Hot Leads -->
-            <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-base font-bold text-white flex items-center gap-2">
-                        <span>🧠</span> Топ востребованных технологий и навыков в Hot-лидах
-                    </h3>
-                    <span class="text-xs text-slate-400 font-mono">Частота упоминания</span>
-                </div>
-                {% if section_analytics and section_analytics.top_skills %}
-                    <div class="flex flex-wrap gap-2.5">
-                        {% for skill in section_analytics.top_skills %}
-                            <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-800 hover:border-blue-700/60 px-3 py-1.5 rounded-lg transition group">
-                                <span class="text-xs font-medium text-slate-200 group-hover:text-blue-300">{{ skill.name }}</span>
-                                <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-blue-950 text-blue-300 font-bold border border-blue-900/60">{{ skill.count }}</span>
-                            </div>
-                        {% endfor %}
+            <!-- Top Technologies & Skills Breakdown -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- User Target Skills in Hot Leads -->
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
+                            <span>🎯</span> Ваши целевые навыки (в Hot-лидах)
+                        </h3>
+                        <span class="text-xs text-slate-400 font-mono">Стек под профиль</span>
                     </div>
-                {% else %}
-                    <p class="text-xs text-slate-500 italic">Пока недостаточно Hot-лидов для выделения навыков.</p>
-                {% endif %}
+                    {% if section_analytics and section_analytics.top_skills %}
+                        <div class="flex flex-wrap gap-2">
+                            {% for skill in section_analytics.top_skills %}
+                                <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-800 hover:border-emerald-600/60 px-3 py-1.5 rounded-lg transition group">
+                                    <span class="text-xs font-medium text-slate-200 group-hover:text-emerald-300">{{ skill.name }}</span>
+                                    <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-emerald-950/80 text-emerald-300 font-bold border border-emerald-900/60">{{ skill.count }} ({{ skill.pct }}%)</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-xs text-slate-500 italic">Пока недостаточно Hot-лидов для выделения навыков.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Broad Market-wide Demand -->
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                            <span>🌐</span> Общерыночный спрос (все заказы и вакансии)
+                        </h3>
+                        <span class="text-xs text-slate-400 font-mono">Срез всего рынка</span>
+                    </div>
+                    {% if section_analytics and section_analytics.market_skills %}
+                        <div class="flex flex-wrap gap-2">
+                            {% for skill in section_analytics.market_skills %}
+                                <div class="flex items-center gap-1.5 bg-slate-950 border border-slate-800 hover:border-blue-600/60 px-3 py-1.5 rounded-lg transition group">
+                                    <span class="text-xs font-medium text-slate-200 group-hover:text-blue-300">{{ skill.name }}</span>
+                                    <span class="text-xs font-mono px-1.5 py-0.5 rounded bg-blue-950/80 text-blue-300 font-bold border border-blue-900/60">{{ skill.count }} ({{ skill.pct }}%)</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-xs text-slate-500 italic">Пока недостаточно данных для анализа рынка.</p>
+                    {% endif %}
+                </div>
             </div>
 
             <!-- Platform / Sources Table Breakdown -->
@@ -1047,40 +1072,132 @@ DASHBOARD_HTML = """
         {% endif %}
 
         {% if active_tab == 'rules' %}
-        <!-- Rules, Stop-Words & Config View -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Whitelist -->
+        <!-- Rules & Filters Interactive Manager -->
+        <div class="space-y-6">
+            <!-- Header Bar with Action Controls -->
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-5 rounded-xl shadow-sm">
+                <div>
+                    <h2 class="text-base font-bold text-white flex items-center gap-2">
+                        <span>🛠</span> Интерактивное управление правилами и фильтрами
+                    </h2>
+                    <p class="text-xs text-slate-400 mt-1">
+                        Добавляйте и удаляйте ключевые слова, стоп-слова и исключения должностей. Изменения сохраняются в базе и сразу применяются к воркерам.
+                    </p>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button type="button" onclick="saveCustomRules()" id="saveRulesBtn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 shadow-md shadow-emerald-950/40">
+                        <span>💾</span> Сохранить фильтры
+                    </button>
+                    <button type="button" onclick="resetRulesToDefault()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg transition border border-slate-700">
+                        <span>↺</span> Сбросить к config.yml
+                    </button>
+                    <a href="/?tab=settings" class="px-3 py-2 bg-blue-950/60 hover:bg-blue-900/60 text-blue-300 text-xs font-medium rounded-lg transition border border-blue-800/60">
+                        <span>⚙️</span> Другие настройки
+                    </a>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Whitelist Keywords -->
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4 flex flex-col">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <span>🎯</span> Белый список ключевых слов (<span id="kwCount">{{ keywords|length }}</span>)
+                        </h3>
+                        <span class="text-xs text-slate-400 font-mono">Мин. 1 совпадение</span>
+                    </div>
+
+                    <!-- Add Keyword Input -->
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="newKeywordInput" onkeydown="if(event.key==='Enter') addKeyword()" placeholder="Добавить ключевое слово..." class="flex-1 bg-slate-950 border border-slate-800 text-slate-100 text-xs rounded-lg px-3 py-2 outline-none focus:border-emerald-500 font-mono">
+                        <button type="button" onclick="addKeyword()" class="px-3 py-2 bg-emerald-600/80 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition shrink-0">
+                            + Добавить
+                        </button>
+                    </div>
+
+                    <!-- Keywords Tag Container -->
+                    <div id="keywordsContainer" class="flex flex-wrap gap-1.5 max-h-96 overflow-y-auto custom-scroll pr-1 flex-1">
+                        {% for kw in keywords %}
+                            <span class="rule-chip group inline-flex items-center gap-1 text-xs font-mono bg-emerald-950/60 text-emerald-300 border border-emerald-800/50 px-2.5 py-1 rounded-md" data-term="{{ kw }}">
+                                <span>{{ kw }}</span>
+                                <button type="button" onclick="removeRuleTerm(this)" class="text-emerald-500 hover:text-white font-bold ml-1 focus:outline-none" title="Удалить">×</button>
+                            </span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Blacklist Stop-words -->
+                <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4 flex flex-col">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-bold text-red-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <span>🚫</span> Черный список стоп-слов (<span id="swCount">{{ stop_words|length }}</span>)
+                        </h3>
+                        <span class="text-xs text-slate-400 font-mono">Мгновенный отсев</span>
+                    </div>
+
+                    <!-- Add Stopword Input -->
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="newStopwordInput" onkeydown="if(event.key==='Enter') addStopword()" placeholder="Добавить стоп-слово..." class="flex-1 bg-slate-950 border border-slate-800 text-slate-100 text-xs rounded-lg px-3 py-2 outline-none focus:border-red-500 font-mono">
+                        <button type="button" onclick="addStopword()" class="px-3 py-2 bg-red-600/80 hover:bg-red-500 text-white text-xs font-bold rounded-lg transition shrink-0">
+                            + Добавить
+                        </button>
+                    </div>
+
+                    <!-- Stopwords Tag Container -->
+                    <div id="stopwordsContainer" class="flex flex-wrap gap-1.5 max-h-96 overflow-y-auto custom-scroll pr-1 flex-1">
+                        {% for sw in stop_words %}
+                            <span class="rule-chip group inline-flex items-center gap-1 text-xs font-mono bg-red-950/40 text-red-300 border border-red-900/40 px-2.5 py-1 rounded-md" data-term="{{ sw }}">
+                                <span>{{ sw }}</span>
+                                <button type="button" onclick="removeRuleTerm(this)" class="text-red-500 hover:text-white font-bold ml-1 focus:outline-none" title="Удалить">×</button>
+                            </span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Title Exclusions Block (Drop Titles) -->
             <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
                 <div class="flex items-center justify-between">
-                    <h3 class="text-sm font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <span>🎯</span> Белый список ключевых слов ({{ keywords|length }})
-                    </h3>
-                    <span class="text-xs text-slate-400 font-mono">Мин. 1 совпадение</span>
+                    <div>
+                        <h3 class="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <span>🛑</span> Исключаемые должности и грейды вакансий (<span id="dtCount">{{ drop_titles|length if drop_titles else 0 }}</span>)
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-1">
+                            Вакансии, содержащие эти слова в названии (например, Senior, Lead), отсеиваются сборщиком. Middle и мидл разрешены.
+                        </p>
+                    </div>
                 </div>
-                <div class="flex flex-wrap gap-1.5">
-                    {% for kw in keywords %}
-                        <span class="text-xs font-mono bg-emerald-950/60 text-emerald-300 border border-emerald-800/50 px-2.5 py-1 rounded-md">
-                            {{ kw }}
+
+                <div class="flex items-center gap-2">
+                    <input type="text" id="newDropTitleInput" onkeydown="if(event.key==='Enter') addDropTitle()" placeholder="Добавить исключаемую должность..." class="flex-1 bg-slate-950 border border-slate-800 text-slate-100 text-xs rounded-lg px-3 py-2 outline-none focus:border-amber-500 font-mono">
+                    <button type="button" onclick="addDropTitle()" class="px-3 py-2 bg-amber-600/80 hover:bg-amber-500 text-white text-xs font-bold rounded-lg transition shrink-0">
+                        + Добавить
+                    </button>
+                </div>
+
+                <div id="dropTitlesContainer" class="flex flex-wrap gap-1.5">
+                    {% for dt in drop_titles %}
+                        <span class="rule-chip group inline-flex items-center gap-1 text-xs font-mono bg-amber-950/40 text-amber-300 border border-amber-900/40 px-2.5 py-1 rounded-md" data-term="{{ dt }}">
+                            <span>{{ dt }}</span>
+                            <button type="button" onclick="removeRuleTerm(this)" class="text-amber-500 hover:text-white font-bold ml-1 focus:outline-none" title="Удалить">×</button>
                         </span>
                     {% endfor %}
                 </div>
             </div>
 
-            <!-- Blacklist -->
-            <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-4">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-sm font-bold text-red-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <span>🚫</span> Черный список стоп-слов ({{ stop_words|length }})
-                    </h3>
-                    <span class="text-xs text-slate-400 font-mono">Мгновенный отсев</span>
+            <!-- Recalculate Trigger Panel -->
+            <div class="bg-gradient-to-r from-blue-950/30 via-slate-900 to-indigo-950/30 border border-blue-900/40 p-5 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="space-y-1">
+                    <h4 class="text-sm font-bold text-white flex items-center gap-2">
+                        <span>🔄</span> Пересчитать отсеянные заказы и вакансии
+                    </h4>
+                    <p class="text-xs text-slate-400">
+                        После изменения ключевиков или стоп-слов запустите локальный пересчет: отсеянные ранее заказы будут перепроверены по новым правилам и восстановлены в ленту Hot / Normal.
+                    </p>
                 </div>
-                <div class="flex flex-wrap gap-1.5 max-h-96 overflow-y-auto custom-scroll pr-1">
-                    {% for sw in stop_words %}
-                        <span class="text-xs font-mono bg-red-950/40 text-red-300 border border-red-900/40 px-2.5 py-1 rounded-md">
-                            {{ sw }}
-                        </span>
-                    {% endfor %}
-                </div>
+                <button type="button" onclick="runRecalculateFromRules()" id="rulesRecalcBtn" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-bold rounded-lg transition flex items-center gap-2 shadow-md shadow-blue-900/40 shrink-0">
+                    <span>🚀</span> Запустить пересчет базы
+                </button>
             </div>
         </div>
         {% endif %}
@@ -2040,6 +2157,152 @@ DASHBOARD_HTML = """
             } finally {
                 if (btn) btn.disabled = false;
                 if (btnText) btnText.innerText = origText;
+            }
+        }
+
+        function removeRuleTerm(btn) {
+            const chip = btn.closest('.rule-chip');
+            if (chip) {
+                chip.remove();
+                updateRuleCounters();
+            }
+        }
+
+        function addTermToContainer(containerId, term, bgClass, textClass, borderClass, btnClass) {
+            const cleanTerm = term.trim().toLowerCase();
+            if (!cleanTerm) return;
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            const existing = Array.from(container.querySelectorAll('.rule-chip')).some(c => c.getAttribute('data-term') === cleanTerm);
+            if (existing) {
+                showToast('Этот термин уже добавлен!');
+                return;
+            }
+
+            const span = document.createElement('span');
+            span.className = `rule-chip group inline-flex items-center gap-1 text-xs font-mono ${bgClass} ${textClass} border ${borderClass} px-2.5 py-1 rounded-md`;
+            span.setAttribute('data-term', cleanTerm);
+            span.innerHTML = `<span>${cleanTerm}</span><button type="button" onclick="removeRuleTerm(this)" class="${btnClass} hover:text-white font-bold ml-1 focus:outline-none" title="Удалить">×</button>`;
+            container.appendChild(span);
+            updateRuleCounters();
+        }
+
+        function addKeyword() {
+            const input = document.getElementById('newKeywordInput');
+            if (input && input.value) {
+                addTermToContainer('keywordsContainer', input.value, 'bg-emerald-950/60', 'text-emerald-300', 'border-emerald-800/50', 'text-emerald-500');
+                input.value = '';
+            }
+        }
+
+        function addStopword() {
+            const input = document.getElementById('newStopwordInput');
+            if (input && input.value) {
+                addTermToContainer('stopwordsContainer', input.value, 'bg-red-950/40', 'text-red-300', 'border-red-900/40', 'text-red-500');
+                input.value = '';
+            }
+        }
+
+        function addDropTitle() {
+            const input = document.getElementById('newDropTitleInput');
+            if (input && input.value) {
+                addTermToContainer('dropTitlesContainer', input.value, 'bg-amber-950/40', 'text-amber-300', 'border-amber-900/40', 'text-amber-500');
+                input.value = '';
+            }
+        }
+
+        function updateRuleCounters() {
+            const getCount = id => document.querySelectorAll(`#${id} .rule-chip`).length;
+            const kwEl = document.getElementById('kwCount');
+            if (kwEl) kwEl.innerText = getCount('keywordsContainer');
+            const swEl = document.getElementById('swCount');
+            if (swEl) swEl.innerText = getCount('stopwordsContainer');
+            const dtEl = document.getElementById('dtCount');
+            if (dtEl) dtEl.innerText = getCount('dropTitlesContainer');
+        }
+
+        async function saveCustomRules() {
+            const getTerms = id => Array.from(document.querySelectorAll(`#${id} .rule-chip`)).map(c => c.getAttribute('data-term')).filter(Boolean);
+            const keywords = getTerms('keywordsContainer');
+            const stop_words = getTerms('stopwordsContainer');
+            const drop_titles = getTerms('dropTitlesContainer');
+
+            const payload = {
+                filter_keywords: keywords,
+                filter_stop_words: stop_words,
+                filter_drop_titles: drop_titles,
+            };
+
+            const btn = document.getElementById('saveRulesBtn');
+            if (btn) btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/settings', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    showToast('Правила фильтрации успешно сохранены в базе!');
+                } else {
+                    alert('Ошибка сохранения: ' + (data.error || 'неизвестная ошибка'));
+                }
+            } catch (e) {
+                alert('Сетевая ошибка: ' + e);
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        async function resetRulesToDefault() {
+            if (!confirm('Сбросить все ключевые слова, стоп-слова и исключения к значениям по умолчанию из config.yml?')) return;
+            try {
+                const res = await fetch('/api/settings/reset-rules', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    showToast('Правила сброшены к значениям по умолчанию!');
+                    setTimeout(() => window.location.reload(), 500);
+                } else {
+                    alert('Ошибка сброса: ' + (data.error || 'неизвестная ошибка'));
+                }
+            } catch (e) {
+                alert('Сетевая ошибка: ' + e);
+            }
+        }
+
+        async function runRecalculateFromRules() {
+            const btn = document.getElementById('rulesRecalcBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span>⏳</span> Пересчет...';
+            }
+            try {
+                const res = await fetch('/api/orders/recalculate', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scope: 'trash', limit: 400, analyze_llm: false })
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    const rec = data.stats.recovered || 0;
+                    showToast(`Пересчет завершен! Восстановлено лидов: ${rec}`);
+                } else {
+                    alert('Ошибка пересчета: ' + (data.error || 'неизвестная ошибка'));
+                }
+            } catch(e) {
+                alert('Сетевая ошибка пересчета: ' + e);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>🚀</span> Запустить пересчет базы';
+                }
             }
         }
 
@@ -3007,6 +3270,11 @@ def create_web_app(
         if active_tab == "analytics":
             section_analytics = await repository.get_section_analytics(section=active_section)
 
+        effective_keywords = current_settings.get("filter_keywords", settings.KEYWORDS)
+        effective_stop_words = current_settings.get("filter_stop_words", settings.STOP_WORDS)
+        default_drop_titles = [t.strip() for t in settings.COLLECTORS_HH_RU.drop_title.split("|") if t.strip()]
+        effective_drop_titles = current_settings.get("filter_drop_titles", default_drop_titles)
+
         template = Template(DASHBOARD_HTML, autoescape=True)
         html_content = template.render(
             orders=formatted_orders,
@@ -3018,8 +3286,9 @@ def create_web_app(
             active_tab=active_tab,
             selected_source=s_filter or "",
             free_only=1 if only_free_flag else 0,
-            keywords=settings.KEYWORDS,
-            stop_words=settings.STOP_WORDS,
+            keywords=effective_keywords,
+            stop_words=effective_stop_words,
+            drop_titles=effective_drop_titles,
             llm_provider=settings.LLM_PROVIDER,
             hh_config=settings.COLLECTORS_HH_RU,
             dossier_items=settings.PROMPTS_CONFIG.projects_dossier,
@@ -3331,6 +3600,9 @@ def create_web_app(
             "vacancy_work_format",
             "vacancy_min_salary",
             "vacancy_allow_negotiable",
+            "filter_keywords",
+            "filter_stop_words",
+            "filter_drop_titles",
         }
 
         for key, val in body.items():
@@ -3339,6 +3611,13 @@ def create_web_app(
 
         all_settings = await repository.get_all_settings()
         return {"ok": True, "settings": all_settings}
+
+    @app.post("/api/settings/reset-rules", response_class=JSONResponse)
+    async def api_reset_rules():
+        """Сбросить кастомные правила фильтрации к значениям по умолчанию из config.yml."""
+        for key in ["filter_keywords", "filter_stop_words", "filter_drop_titles"]:
+            await repository.delete_setting(key)
+        return {"ok": True}
 
     @app.get("/api/config", response_class=JSONResponse)
     async def api_get_config():

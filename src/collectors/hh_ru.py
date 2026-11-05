@@ -171,6 +171,14 @@ class HhRuCollector(BaseCollector):
 
                 allow_neg = await self.repo.get_setting("vacancy_allow_negotiable", getattr(settings, "VACANCY_ALLOW_NEGOTIABLE", True))
                 only_with_salary_param = not allow_neg
+
+                custom_drop = await self.repo.get_setting("filter_drop_titles", None)
+                if custom_drop and isinstance(custom_drop, list):
+                    pattern_str = "|".join(t.strip() for t in custom_drop if t.strip())
+                    if pattern_str:
+                        self.drop_title_rx = re.compile(pattern_str, re.IGNORECASE)
+                else:
+                    self.drop_title_rx = re.compile(self.config.drop_title, re.IGNORECASE)
             except Exception as e:
                 logger.debug("Не удалось получить динамические настройки вакансий hh.ru: %s", e)
                 salary_param = None
