@@ -1604,9 +1604,16 @@ DASHBOARD_HTML = """
     </main>
 
     <!-- Toast Notification for Copy -->
-    <div id="copyToast" class="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-semibold flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-200">
+    <div id="copyToast" class="fixed bottom-20 right-6 z-50 bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-semibold flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-200">
         <span>✅</span> Текст успешно скопирован в буфер обмена!
     </div>
+
+    <!-- Scroll To Top Button -->
+    <button id="scrollToTopBtn" onclick="scrollToTop()" type="button" aria-label="Вернуться наверх" class="fixed bottom-6 right-6 z-40 bg-blue-600/90 hover:bg-blue-500 active:bg-blue-700 text-white p-3.5 rounded-full shadow-xl shadow-blue-900/40 border border-blue-400/40 backdrop-blur transition-all duration-300 opacity-0 translate-y-10 pointer-events-none flex items-center justify-center group focus:outline-none" title="Вернуться наверх">
+        <svg class="w-5 h-5 transform group-hover:-translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
+        </svg>
+    </button>
 
     <script>
         function copyProposalText(boxEl) {
@@ -2572,6 +2579,25 @@ DASHBOARD_HTML = """
                 }
             } catch(e) {}
         });
+
+        function scrollToTop() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+        }
+
+        window.addEventListener('scroll', () => {
+            const btn = document.getElementById('scrollToTopBtn');
+            if (!btn) return;
+            if (window.scrollY > 350) {
+                btn.classList.remove('opacity-0', 'translate-y-10', 'pointer-events-none');
+                btn.classList.add('opacity-100', 'translate-y-0');
+            } else {
+                btn.classList.add('opacity-0', 'translate-y-10', 'pointer-events-none');
+                btn.classList.remove('opacity-100', 'translate-y-0');
+            }
+        }, { passive: true });
     </script>
 </body>
 </html>

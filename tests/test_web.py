@@ -95,6 +95,8 @@ async def test_web_dashboard_endpoints(tmp_path):
         assert "35 000 ₽" in html
         assert "Финансовая оценка и стратегия ставок" in html
         assert "Бюджет клиента 30к, рыночная цена 38к" in html
+        assert 'id="scrollToTopBtn"' in html
+        assert "scrollToTop()" in html
 
         # 5. HTML Tabs (analytics, rules, health, settings)
         resp_analytics = await client.get("/?tab=analytics")
