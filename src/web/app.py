@@ -86,7 +86,7 @@ DASHBOARD_HTML = """
         }
     </style>
     <script>
-        window.APP_BUILD_VERSION = "2.4.3";
+        window.APP_BUILD_VERSION = "2.4.4";
         function logClient(action, data) {
             try {
                 const payload = Object.assign({ action: action }, data || {});
@@ -123,7 +123,7 @@ DASHBOARD_HTML = """
                     <h1 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
                         Freelance Leads Monitor
                         <span class="text-xs font-mono font-normal px-2.5 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800/60">jobs.3dvex.ru</span>
-                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/80 select-none" title="Версия интерфейса">v2.4.3</span>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/80 select-none" title="Версия интерфейса">v2.4.4</span>
                     </h1>
                     <p class="text-xs text-slate-400">
                         {% if active_section == 'hh_ru' %}
@@ -2791,7 +2791,12 @@ DASHBOARD_HTML = """
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'}
                 });
-                const data = await resp.json();
+                let data;
+                try {
+                    data = await resp.json();
+                } catch (parseErr) {
+                    throw new Error(`Ошибка сервера (${resp.status}): ${resp.statusText || 'Internal Server Error'}`);
+                }
                 if (timerInterval) clearInterval(timerInterval);
                 if (progressEl) progressEl.remove();
 
@@ -3794,27 +3799,34 @@ def create_web_app(
                 pass
 
         if not cover_letter:
-            analysis_data = None
-            if order_data.get("analysis_json"):
-                try:
-                    analysis_data = AnalysisResult.model_validate_json(order_data["analysis_json"])
-                except Exception:
-                    pass
-            raw_order = RawOrder(
-                id=order_data.get("external_id", str(order_id)),
-                title=order_data.get("title", ""),
-                description=order_data.get("description", ""),
-                url=order_data.get("url", ""),
-                source=SourcePlatform.HH_RU,
-                price=order_data.get("price"),
-                currency=order_data.get("currency") or "RUB",
-                skills=[],
-                raw_data=order_data,
-            )
-            llm = get_llm_client()
-            prop_res = await llm.generate_proposal(raw_order, analysis_data)
-            cover_letter = str(prop_res)
-            await repository.update_proposal(order_id=order_id, proposal_text=cover_letter)
+            try:
+                analysis_data = None
+                if order_data.get("analysis_json"):
+                    try:
+                        analysis_data = AnalysisResult.model_validate_json(order_data["analysis_json"])
+                    except Exception:
+                        pass
+                raw_order = RawOrder(
+                    source=SourcePlatform.HH_RU,
+                    external_id=str(vac_id),
+                    title=order_data.get("title", ""),
+                    description=order_data.get("description", ""),
+                    url=order_data.get("url", ""),
+                    price=order_data.get("price"),
+                    currency=order_data.get("currency") or "RUB",
+                    skills=[],
+                    raw_data=order_data,
+                )
+                llm = get_llm_client()
+                prop_res = await llm.generate_proposal(raw_order, analysis_data)
+                cover_letter = str(prop_res)
+                await repository.update_proposal(order_id=order_id, proposal_text=cover_letter)
+            except Exception as e:
+                logger.error("Ошибка автогенерации письма для вакансии HH #%s: %s", order_id, e, exc_info=True)
+                return JSONResponse(
+                    status_code=500,
+                    content={"ok": False, "error": f"Ошибка генерации сопроводительного письма: {e}"},
+                )
 
         result = await hh_svc.apply_to_vacancy(str(vac_id), cover_letter)
         if result.get("ok"):

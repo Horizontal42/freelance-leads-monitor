@@ -197,6 +197,46 @@ async def test_web_hh_apply_and_oauth_routes(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_web_hh_apply_auto_generate_letter(tmp_path, monkeypatch):
+    db_path = tmp_path / "test_web_hh_auto.db"
+    await init_db(db_path)
+    repo = OrderRepository(db_path=db_path)
+    app = create_web_app(repo=repo, enable_auth=False)
+
+    await repo.set_setting("hh_user_token", "test_user_tok")
+    await repo.set_setting("hh_resume_id", "resume_999")
+
+    order = RawOrder(
+        source=SourcePlatform.HH_RU,
+        external_id="88887777",
+        title="ML / LLM Engineer",
+        description="Разработка рекомендательных систем",
+        url="https://hh.ru/vacancy/88887777",
+        price=300000,
+    )
+    order_id = await repo.insert_raw_order(
+        order=order,
+        status=OrderStatus.ANALYZED,
+        priority=OrderPriority.HOT,
+    )
+    # Notice: do NOT set proposal_text, to test on-the-fly letter generation
+
+    mock_llm = AsyncMock()
+    mock_llm.generate_proposal = AsyncMock(return_value="Сгенерированное письмо от ИИ")
+
+    with patch("src.analyzer.factory.get_llm_client", return_value=mock_llm), \
+         patch.object(HhApplicantService, "apply_to_vacancy", new_callable=AsyncMock) as mock_apply:
+        mock_apply.return_value = {"ok": True, "status": "applied", "message": "Отклик успешно отправлен на HeadHunter!"}
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as ac:
+            apply_resp = await ac.post(f"/api/vacancies/{order_id}/apply")
+
+    assert apply_resp.status_code == 200
+    assert apply_resp.json()["ok"] is True
+    assert bool(apply_resp.json()["proposal_text"])
+    mock_apply.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_hh_applicant_apply_closed_vacancy(tmp_path, monkeypatch):
     db_path = tmp_path / "test_hh_closed.db"
     await init_db(db_path)
