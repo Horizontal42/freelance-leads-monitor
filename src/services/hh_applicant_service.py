@@ -247,14 +247,44 @@ class HhApplicantService:
                     "message": "Вы уже откликались на эту вакансию ранее.",
                 }
 
-            # Вакансия закрыта или в архиве
+            # Проверка 403 Forbidden: выясняем, закрыта ли вакансия или это ограничение прав API
             if resp.status_code == 403 or "forbidden" in err_text.lower():
-                logger.warning("Вакансия HH #%s недоступна для отклика (403): %s", vacancy_id, err_text)
+                is_archived = False
+                try:
+                    check_token = settings.HH_APP_TOKEN or user_token
+                    check_headers = {"User-Agent": settings.HH_USER_AGENT}
+                    if check_token:
+                        check_headers["Authorization"] = f"Bearer {check_token}"
+
+                    v_resp = await client.get(
+                        f"https://api.hh.ru/vacancies/{vacancy_id}",
+                        headers=check_headers,
+                    )
+                    if v_resp.status_code == 404:
+                        is_archived = True
+                    elif v_resp.status_code == 200:
+                        v_data = v_resp.json()
+                        if v_data.get("archived") is True:
+                            is_archived = True
+                except Exception as e:
+                    logger.debug("Не удалось проверить статус вакансии HH #%s: %s", vacancy_id, e)
+
+                if is_archived:
+                    logger.info("Вакансия HH #%s в архиве или закрыта работодателем", vacancy_id)
+                    return {
+                        "ok": False,
+                        "status": "closed",
+                        "message": "Вакансия закрыта работодателем или находится в архиве на hh.ru.",
+                        "url": f"https://hh.ru/vacancy/{vacancy_id}",
+                    }
+
+                logger.warning("HH API вернул 403 на отклик для активной вакансии #%s: %s", vacancy_id, err_text)
                 return {
                     "ok": False,
-                    "status": "closed",
-                    "message": "Вакансия закрыта работодателем или находится в архиве на hh.ru.",
+                    "status": "api_forbidden",
+                    "message": "Прямой API-отклик ограничен HeadHunter для сторонних приложений. Письмо скопировано в буфер - отправьте отклик на hh.ru.",
                     "url": f"https://hh.ru/vacancy/{vacancy_id}",
+                    "copy_letter": clean_letter,
                 }
 
             # Вакансия удалена

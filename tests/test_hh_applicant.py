@@ -261,6 +261,33 @@ async def test_hh_applicant_apply_closed_vacancy(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_hh_applicant_apply_active_vacancy_api_forbidden(tmp_path, monkeypatch):
+    db_path = tmp_path / "test_hh_forbidden.db"
+    await init_db(db_path)
+    repo = OrderRepository(db_path=db_path)
+    svc = HhApplicantService(repo)
+
+    await repo.set_setting("hh_user_token", "user_tok_valid")
+    await repo.set_setting("hh_resume_id", "resume_target")
+
+    def mock_transport(request: httpx.Request):
+        if request.url.path == "/negotiations":
+            return httpx.Response(403, json={"errors": [{"type": "forbidden"}]})
+        elif "/vacancies/" in request.url.path:
+            return httpx.Response(200, json={"id": "55555", "archived": False})
+        return httpx.Response(404)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(mock_transport))
+    with patch("httpx.AsyncClient", return_value=client):
+        res = await svc.apply_to_vacancy("55555", "Письмо")
+
+    assert res["ok"] is False
+    assert res["status"] == "api_forbidden"
+    assert "ограничен" in res["message"]
+    assert res["copy_letter"] == "Письмо"
+
+
+@pytest.mark.asyncio
 async def test_web_client_log_and_no_cache_middleware(tmp_path):
     db_path = tmp_path / "test_client_log.db"
     await init_db(db_path)

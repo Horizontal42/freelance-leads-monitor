@@ -86,7 +86,7 @@ DASHBOARD_HTML = """
         }
     </style>
     <script>
-        window.APP_BUILD_VERSION = "2.4.4";
+        window.APP_BUILD_VERSION = "2.4.5";
         function logClient(action, data) {
             try {
                 const payload = Object.assign({ action: action }, data || {});
@@ -123,7 +123,7 @@ DASHBOARD_HTML = """
                     <h1 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
                         Freelance Leads Monitor
                         <span class="text-xs font-mono font-normal px-2.5 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800/60">jobs.3dvex.ru</span>
-                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/80 select-none" title="Версия интерфейса">v2.4.4</span>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/80 select-none" title="Версия интерфейса">v2.4.5</span>
                     </h1>
                     <p class="text-xs text-slate-400">
                         {% if active_section == 'hh_ru' %}
@@ -2848,6 +2848,42 @@ DASHBOARD_HTML = """
                     logClient('apply_hh_success', { order_id: orderId });
                     showToast(data.message || 'Отклик успешно отправлен на HeadHunter!');
                     applyClientFilters();
+                } else if (data.status === 'api_forbidden') {
+                    logClient('apply_hh_api_forbidden', { order_id: orderId });
+                    btn.innerHTML = origHtml;
+                    btn.disabled = false;
+
+                    const letterToCopy = data.copy_letter || data.proposal_text;
+                    if (letterToCopy) {
+                        await copyToClipboard(letterToCopy);
+                    }
+
+                    if (data.proposal_text && box && !document.getElementById(`proposal-text-${orderId}`)) {
+                        box.className = "mt-3 pt-3 border-t border-slate-800 space-y-2";
+                        box.innerHTML = `
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="text-xs font-semibold text-rose-400 uppercase tracking-wider flex items-center gap-1">
+                                    <span>✉️</span> Сгенерированное Cover Letter (agy):
+                                </span>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <button type="button" onclick="generateProposal('${orderId}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition active:scale-95 cursor-pointer">
+                                        🔄 Перегенерировать
+                                    </button>
+                                    <button type="button" onclick="copyProposal('proposal-text-${orderId}', this)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium px-3 py-1 rounded-md transition flex items-center gap-1 border border-slate-700 active:scale-95 cursor-pointer select-none">
+                                        <span>📋</span> Скопировать Cover Letter
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="proposal-text-${orderId}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-text cursor-pointer transition">${escapeHtml(data.proposal_text)}</div>
+                        `;
+                    }
+
+                    showToast('Письмо скопировано в буфер! Открываем hh.ru...');
+                    if (data.url) {
+                        setTimeout(() => {
+                            window.open(data.url, '_blank');
+                        }, 400);
+                    }
                 } else if (data.status === 'closed' || data.status === 'not_found') {
                     logClient('apply_hh_closed', { order_id: orderId, msg: data.message });
                     btn.outerHTML = `<span class="text-xs px-2.5 py-1 rounded-md font-medium bg-slate-900/80 text-amber-400 border border-amber-900/40 flex items-center gap-1 cursor-default" title="${escapeHtml(data.message || 'Вакансия закрыта')}">
@@ -3840,6 +3876,7 @@ def create_web_app(
                 }
             )
 
+        result["proposal_text"] = cover_letter
         return JSONResponse(status_code=400, content=result)
 
     @app.post("/api/orders/{order_id}/toggle-responded")
