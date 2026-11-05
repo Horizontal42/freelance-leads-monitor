@@ -30,6 +30,8 @@ class DatabaseRecalculator:
         saved_settings = await self.repo.get_all_settings()
         filter_pro = saved_settings.get("filter_pro_only", settings.FILTER_PRO_ONLY)
         min_budget = saved_settings.get("min_budget", settings.MIN_BUDGET)
+        allow_quick = saved_settings.get("allow_quick_orders", getattr(settings, "ALLOW_QUICK_ORDERS", True))
+        quick_min = saved_settings.get("quick_min_budget", getattr(settings, "QUICK_MIN_BUDGET", 2000))
         keywords = saved_settings.get("filter_keywords") or settings.KEYWORDS
         stop_words = saved_settings.get("filter_stop_words") or settings.STOP_WORDS
 
@@ -38,6 +40,8 @@ class DatabaseRecalculator:
             stop_words=stop_words,
             min_budget=min_budget,
             filter_pro_only=filter_pro,
+            allow_quick_orders=allow_quick,
+            quick_min_budget=quick_min,
         )
 
         query = "SELECT * FROM orders WHERE 1=1"

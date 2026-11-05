@@ -454,6 +454,12 @@ DASHBOARD_HTML = """
                                 </span>
                             {% endif %}
 
+                            {% if order.price and order.price >= 1500 and order.price <= 9000 and order.source not in ['hh_ru', 'habr_career'] %}
+                                <span class="text-xs font-bold uppercase px-2.5 py-0.5 rounded-md bg-amber-950/70 text-amber-300 border border-amber-600/60 flex items-center gap-1 font-mono tracking-wide" title="Быстрый микро-заказ (Quick Win)">
+                                    <span>⚡</span> QUICK WIN
+                                </span>
+                            {% endif %}
+
                             <span class="text-xs text-slate-400 font-mono bg-slate-950/80 border border-slate-800 px-2 py-0.5 rounded-md flex items-center gap-1" title="Дата и время">
                                 🕒 {{ order.created_at[:16].replace('T', ' ') if order.created_at else 'Только что' }}
                             </span>
@@ -1589,6 +1595,31 @@ DASHBOARD_HTML = """
                             <p class="text-[11px] text-slate-400">Заказы с указанным бюджетом ниже этой суммы отсеиваются в Tier 3 (произвольное число).</p>
                             <div class="relative">
                                 <input type="number" id="setting_min_budget" min="0" step="500" value="{{ settings_map.min_budget if settings_map.min_budget is not none else 10000 }}" onchange="autoSaveSetting('min_budget', parseInt(this.value, 10) || 0)" placeholder="10000" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2.5 pr-8 focus:border-indigo-500 outline-none">
+                                <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-medium">₽</span>
+                            </div>
+                        </div>
+
+                        <!-- Quick Wins: Allow quick micro-orders -->
+                        <div class="flex items-center justify-between p-3.5 bg-slate-950/70 border border-slate-800 rounded-lg">
+                            <div class="space-y-0.5 pr-4">
+                                <span class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                                    <span>⚡</span> Пропускать быстрые заказы (Quick Wins)
+                                </span>
+                                <p class="text-[11px] text-slate-400">
+                                    Не отсекать точечные микро-задачи (скрипты, парсеры, вебхуки, доработки ботов) с бюджетом от 2 000 ₽.
+                                </p>
+                            </div>
+                            <input type="checkbox" id="setting_allow_quick_orders" class="w-4 h-4 accent-amber-500 rounded cursor-pointer" {% if settings_map.allow_quick_orders is not none and settings_map.allow_quick_orders %}checked{% endif %} onchange="autoSaveSetting('allow_quick_orders', this.checked)">
+                        </div>
+
+                        <!-- Quick min budget -->
+                        <div class="space-y-1.5 pt-1">
+                            <label for="setting_quick_min_budget" class="text-xs font-semibold text-slate-300 block">
+                                ⚡ Мин. бюджет быстрых задач (₽):
+                            </label>
+                            <p class="text-[11px] text-slate-400">Порог для точечных скриптов и задач автоматизации (по умолчанию 2 000 ₽).</p>
+                            <div class="relative">
+                                <input type="number" id="setting_quick_min_budget" min="500" step="500" value="{{ settings_map.quick_min_budget if settings_map.quick_min_budget is not none else 2000 }}" onchange="autoSaveSetting('quick_min_budget', parseInt(this.value, 10) || 2000)" placeholder="2000" class="w-full bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2.5 pr-8 focus:border-indigo-500 outline-none">
                                 <span class="absolute right-3 top-2.5 text-xs text-slate-500 font-medium">₽</span>
                             </div>
                         </div>
@@ -3232,6 +3263,8 @@ def create_web_app(
             "platform_habr_career": True,
             "filter_pro_only": False,
             "min_budget": 10000,
+            "quick_min_budget": 2000,
+            "allow_quick_orders": True,
             "hot_score_threshold": 7,
             "vacancy_city": "all",
             "vacancy_work_format": "all",
@@ -3567,6 +3600,8 @@ def create_web_app(
             "platform_habr_career": True,
             "filter_pro_only": False,
             "min_budget": 10000,
+            "quick_min_budget": 2000,
+            "allow_quick_orders": True,
             "hot_score_threshold": 7,
             "vacancy_city": "all",
             "vacancy_work_format": "all",
@@ -3595,6 +3630,8 @@ def create_web_app(
             "platform_habr_career",
             "filter_pro_only",
             "min_budget",
+            "quick_min_budget",
+            "allow_quick_orders",
             "hot_score_threshold",
             "vacancy_city",
             "vacancy_work_format",

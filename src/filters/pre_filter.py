@@ -24,12 +24,24 @@ class HardFilter:
         stop_words: Optional[List[str]] = None,
         keywords: Optional[List[str]] = None,
         filter_pro_only: Optional[bool] = None,
+        allow_quick_orders: Optional[bool] = None,
+        quick_min_budget: Optional[int] = None,
     ) -> None:
         self.min_budget = min_budget or settings.MIN_BUDGET
         self.stop_words = [w.lower().strip() for w in (stop_words or settings.STOP_WORDS)]
         self.keywords = [w.lower().strip() for w in (keywords or settings.KEYWORDS)]
         self.filter_pro_only = (
             filter_pro_only if filter_pro_only is not None else settings.FILTER_PRO_ONLY
+        )
+        self.allow_quick_orders = (
+            allow_quick_orders
+            if allow_quick_orders is not None
+            else getattr(settings, "ALLOW_QUICK_ORDERS", True)
+        )
+        self.quick_min_budget = (
+            quick_min_budget
+            if quick_min_budget is not None
+            else getattr(settings, "QUICK_MIN_BUDGET", 2000)
         )
 
     def _match_terms(self, text: str, terms: List[str]) -> Set[str]:
@@ -98,15 +110,28 @@ class HardFilter:
             )
 
         # 2. Проверка бюджета
+        is_quick_order = False
         if (
             order.price is not None
             and order.price < self.min_budget
             and not order.is_negotiable
         ):
-            return FilterResult(
-                passed=False,
-                reason=f"Бюджет {int(order.price)} ₽ ниже минимального порога {self.min_budget} ₽",
-            )
+            # Проверяем возможность пропустить как быстрый микро-заказ (Quick Win)
+            if self.allow_quick_orders and order.price >= self.quick_min_budget:
+                quick_patterns = r"\b(?:скрипт|парсер|парсинг|бот|aiogram|эндпоинт|endpoint|n8n|вебхук|webhook|конвертац|обработк|api|fastapi|pandas)\b"
+                heavy_patterns = r"\b(?:под\s*ключ|маркетплейс|интернет[- ]магазин|портал|crm.*нуля|платформ|saas|соцсет|сервис.*под\s*ключ)\b"
+                if re.search(quick_patterns, full_text, re.IGNORECASE) and not re.search(heavy_patterns, full_text, re.IGNORECASE):
+                    is_quick_order = True
+                else:
+                    return FilterResult(
+                        passed=False,
+                        reason=f"Бюджет {int(order.price)} ₽ ниже минимального порога {self.min_budget} ₽ (не является быстрым точечным заказом)",
+                    )
+            else:
+                return FilterResult(
+                    passed=False,
+                    reason=f"Бюджет {int(order.price)} ₽ ниже минимального порога {self.min_budget} ₽",
+                )
 
         # 3. Проверка белого списка ключевых слов
         matched_keywords = self._match_terms(full_text, self.keywords)
@@ -117,8 +142,13 @@ class HardFilter:
             )
 
         # Все проверки пройдены
+        reason_msg = (
+            f"Прошел фильтр как быстрый заказ ⚡ Quick Win (бюджет {int(order.price)} ₽)"
+            if is_quick_order
+            else f"Прошел фильтр (найдены ключевики: {', '.join(sorted(matched_keywords))})"
+        )
         return FilterResult(
             passed=True,
-            reason=f"Прошел фильтр (найдены ключевики: {', '.join(sorted(matched_keywords))})",
+            reason=reason_msg,
             matched_keywords=list(matched_keywords),
         )

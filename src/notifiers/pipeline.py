@@ -67,6 +67,14 @@ class LeadsPipeline:
         if "filter_stop_words" in dyn_settings and isinstance(dyn_settings["filter_stop_words"], list):
             self.hard_filter.stop_words = [w.lower().strip() for w in dyn_settings["filter_stop_words"] if w.strip()]
 
+        self.hard_filter.min_budget = min_budget
+        self.hard_filter.allow_quick_orders = dyn_settings.get(
+            "allow_quick_orders", getattr(settings, "ALLOW_QUICK_ORDERS", True)
+        )
+        self.hard_filter.quick_min_budget = dyn_settings.get(
+            "quick_min_budget", getattr(settings, "QUICK_MIN_BUDGET", 2000)
+        )
+
         passed_orders: List[RawOrder] = []
 
         # 1. Первичная фильтрация и отсев дубликатов

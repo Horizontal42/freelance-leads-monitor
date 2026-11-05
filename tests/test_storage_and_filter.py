@@ -52,7 +52,7 @@ def test_hard_filter_engineering_vs_visual_design():
 
 
 def test_hard_filter_budget_too_low():
-    filter_ = HardFilter(min_budget=10000)
+    filter_ = HardFilter(min_budget=10000, allow_quick_orders=False)
     order = RawOrder(
         source=SourcePlatform.KWORK,
         external_id="2",
@@ -65,6 +65,52 @@ def test_hard_filter_budget_too_low():
     result = filter_.evaluate(order)
     assert result.passed is False
     assert "ниже минимального порога" in result.reason
+
+
+def test_hard_filter_quick_orders():
+    filter_ = HardFilter(min_budget=10000, allow_quick_orders=True, quick_min_budget=2000)
+
+    # 1. Быстрый точечный скрипт (3 000 ₽) проходит как Quick Win
+    quick_order = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="q1",
+        title="Написать скрипт парсинга на Python для сбора цен",
+        description="Простой парсер с выгрузкой в CSV через pandas",
+        url="https://example.com/q1",
+        price=3000,
+        is_negotiable=False,
+    )
+    res_quick = filter_.evaluate(quick_order)
+    assert res_quick.passed is True
+    assert "quick win" in res_quick.reason.lower()
+
+    # 2. Комплексный комбайн / продукт за 3 000 ₽ отсекается
+    heavy_order = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="q2",
+        title="Разработка маркетплейса под ключ на Python",
+        description="Нужен маркетплейс под ключ с личным кабинетом и платежкой",
+        url="https://example.com/q2",
+        price=3000,
+        is_negotiable=False,
+    )
+    res_heavy = filter_.evaluate(heavy_order)
+    assert res_heavy.passed is False
+    assert "не является быстрым" in res_heavy.reason
+
+    # 3. Заказ ниже quick_min_budget (1 000 ₽) отсекается
+    cheap_order = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="q3",
+        title="Написать скрипт на Python",
+        description="Простой скрипт",
+        url="https://example.com/q3",
+        price=1000,
+        is_negotiable=False,
+    )
+    res_cheap = filter_.evaluate(cheap_order)
+    assert res_cheap.passed is False
+    assert "ниже минимального порога" in res_cheap.reason
 
 
 def test_hard_filter_negotiable_budget_passes():

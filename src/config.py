@@ -126,6 +126,8 @@ class CollectorsConfig(BaseModel):
 
 class FilterConfig(BaseModel):
     min_budget: int = 10000
+    quick_min_budget: int = 2000
+    allow_quick_orders: bool = True
     hot_score_threshold: int = 7
     vacancy_hot_score_threshold: int = 8
     vacancy_min_salary: int = 80000
