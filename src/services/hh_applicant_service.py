@@ -28,10 +28,25 @@ class HhApplicantService:
         user_token = await self.repo.get_setting("hh_user_token", None)
         resume_id = await self.repo.get_setting("hh_resume_id", None)
         resume_title = await self.repo.get_setting("hh_resume_title", None)
+        user_info = await self.repo.get_setting("hh_user_info", None)
 
-        is_connected = bool(user_token and resume_id)
+        user_name = None
+        if user_info:
+            try:
+                import json
+                u_data = json.loads(user_info) if isinstance(user_info, str) else user_info
+                first_name = u_data.get("first_name", "")
+                last_name = u_data.get("last_name", "")
+                user_name = f"{first_name} {last_name}".strip() or None
+            except Exception:
+                pass
+
+        is_authorized = bool(user_token)
+        is_ready = bool(user_token and resume_id)
         return {
-            "connected": is_connected,
+            "authorized": is_authorized,
+            "connected": is_ready,
+            "user_name": user_name,
             "resume_id": resume_id,
             "resume_title": resume_title,
             "auth_url": self.get_auth_url(),
@@ -84,7 +99,22 @@ class HhApplicantService:
             if expires_in:
                 await self.repo.set_setting("hh_token_expires_in", expires_in)
 
-            # 2. Получение списка резюме соискателя
+            # 2. Получение данных профиля соискателя
+            try:
+                me_resp = await client.get(
+                    "https://api.hh.ru/me",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "User-Agent": settings.HH_USER_AGENT,
+                        "HH-User-Agent": settings.HH_USER_AGENT,
+                    },
+                )
+                if me_resp.status_code == 200:
+                    await self.repo.set_setting("hh_user_info", me_resp.json())
+            except Exception as e:
+                logger.warning("Не удалось получить профиль /me: %s", e)
+
+            # 3. Получение списка резюме соискателя
             resume_resp = await client.get(
                 "https://api.hh.ru/resumes/mine",
                 headers={

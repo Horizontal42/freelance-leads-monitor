@@ -1718,10 +1718,10 @@ DASHBOARD_HTML = """
                                 </p>
                             </div>
                             <div>
-                                {% if hh_applicant_status and hh_applicant_status.connected %}
+                                {% if hh_applicant_status and hh_applicant_status.authorized %}
                                     <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-800">
                                         <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                                        Подключено к HH
+                                        {{ hh_applicant_status.user_name or 'Подключено к HH' }}
                                     </span>
                                 {% else %}
                                     <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-950/80 text-amber-300 border border-amber-800">
@@ -1733,21 +1733,41 @@ DASHBOARD_HTML = """
                         </div>
 
                         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-1">
-                            {% if hh_applicant_status and hh_applicant_status.connected %}
-                                <div class="space-y-1">
-                                    <div class="text-xs text-slate-300">
-                                        Активное резюме: <strong class="text-white">{{ hh_applicant_status.resume_title or 'Основное' }}</strong>
+                            {% if hh_applicant_status and hh_applicant_status.authorized %}
+                                <div class="space-y-3 w-full">
+                                    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                                        <div class="text-xs text-slate-300">
+                                            Активное резюме: <strong class="text-white">{{ hh_applicant_status.resume_title or 'Основное' }}</strong>
+                                            {% if hh_applicant_status.resume_id %}
+                                                <span class="text-[11px] text-slate-500 font-mono ml-2">(ID: {{ hh_applicant_status.resume_id }})</span>
+                                            {% else %}
+                                                <span class="text-[11px] text-amber-400 font-medium ml-2">⚠️ Укажите ID резюме ниже</span>
+                                            {% endif %}
+                                        </div>
+                                        <a href="/hh/auth" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+                                            <span>🔄</span> Переподключить OAuth
+                                        </a>
                                     </div>
-                                    <div class="text-[11px] text-slate-500 font-mono">
-                                        ID резюме: {{ hh_applicant_status.resume_id }}
+
+                                    <!-- Resume ID input -->
+                                    <div class="p-3 bg-slate-950/70 border border-slate-800/80 rounded-lg space-y-1.5">
+                                        <label for="setting_hh_resume_id" class="text-xs font-semibold text-slate-300 block">
+                                            📄 Выбор резюме для откликов (ID или ссылка из профиля hh.ru):
+                                        </label>
+                                        <div class="flex items-center gap-2">
+                                            <input type="text" id="setting_hh_resume_id" value="{{ hh_applicant_status.resume_id or '' }}" placeholder="Например: 1cb3f... или https://hh.ru/resume/1cb3f..." class="w-full bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-2 outline-none focus:border-rose-500 font-mono">
+                                            <button type="button" onclick="saveCustomResumeId()" class="text-xs bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2 rounded-lg transition whitespace-nowrap flex items-center gap-1">
+                                                <span>💾</span> Сохранить ID
+                                            </button>
+                                        </div>
+                                        <p class="text-[11px] text-slate-400">
+                                            Откройте ваше резюме на hh.ru, скопируйте ссылку или ID из адресной строки и сохраните. При отклике будет использоваться именно оно.
+                                        </p>
                                     </div>
                                 </div>
-                                <a href="/hh/auth" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-4 py-2 rounded-lg border border-slate-700 transition flex items-center gap-2">
-                                    <span>🔄</span> Переподключить аккаунт
-                                </a>
                             {% else %}
                                 <p class="text-xs text-slate-400 max-w-xl">
-                                    Нажмите кнопку справа, чтобы авторизоваться на hh.ru. Приложение получит защищенный токен и выберет ваше опубликованное резюме.
+                                    Нажмите кнопку справа, чтобы авторизоваться на hh.ru. Приложение получит защищенный токен соискателя.
                                 </p>
                                 <a href="/hh/auth" class="text-xs bg-rose-600 hover:bg-rose-500 text-white font-bold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-md shadow-rose-600/30 whitespace-nowrap">
                                     <span>🔑</span> Подключить аккаунт HeadHunter
@@ -2158,6 +2178,23 @@ DASHBOARD_HTML = """
             } catch (e) {
                 alert('Сетевая ошибка сохранения: ' + e);
             }
+        }
+
+        async function saveCustomResumeId() {
+            const input = document.getElementById('setting_hh_resume_id');
+            if (!input) return;
+            let val = input.value.trim();
+            if (val.includes('/resume/')) {
+                const match = val.match(/\\/resume\\/([a-zA-Z0-9_-]+)/);
+                if (match) val = match[1];
+            }
+            if (!val) {
+                alert('Пожалуйста, укажите ID резюме или ссылку на него с hh.ru');
+                return;
+            }
+            await autoSaveSetting('hh_resume_id', val);
+            showToast('ID резюме сохранен: ' + val);
+            setTimeout(() => window.location.reload(), 600);
         }
 
         async function saveAllSettingsForm() {
