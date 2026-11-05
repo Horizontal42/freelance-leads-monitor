@@ -416,14 +416,6 @@ DASHBOARD_HTML = """
                                 <span class="skip-text">{% if order.is_skipped %}Вернуть{% else %}Скип{% endif %}</span>
                             </button>
 
-                            {% if order.source == 'hh_ru' %}
-                                <!-- 1-Click Apply to HeadHunter Button -->
-                                <button type="button" onclick="applyVacancyHH('{{ order.id }}', this)" id="apply-hh-btn-{{ order.id }}" class="text-xs px-2.5 py-0.5 rounded-md transition flex items-center gap-1.5 border font-semibold {% if order.is_responded %}bg-slate-900/80 text-emerald-400 border-slate-800 cursor-default{% else %}bg-rose-950/90 text-rose-300 border-rose-700/80 hover:bg-rose-900/90 shadow-sm{% endif %}" title="Откликнуться на вакансию HeadHunter в 1 клик">
-                                    <span>🚀</span>
-                                    <span>{% if order.is_responded %}Отклик отправлен{% else %}Откликнуться на HH{% endif %}</span>
-                                </button>
-                            {% endif %}
-
                             {% if order.source not in ['hh_ru', 'habr_career'] %}
                                 <!-- Paid vs Free Response Badge (Freelance only) -->
                                 {% if order.is_pro_only %}
@@ -652,20 +644,29 @@ DASHBOARD_HTML = """
                                 {% endif %}
 
                                 <!-- Cover Letter Box (on demand) -->
+                                {% set is_hh = order.source == 'hh_ru' %}
                                 <div id="proposal-box-{{ order.id }}">
                                     {% if order.proposal_text or (order.analysis and order.analysis.proposal_text) %}
                                         <div class="mt-3 pt-3 border-t border-slate-800 space-y-2">
-                                            <div class="flex items-center justify-between">
+                                            <div class="flex flex-wrap items-center justify-between gap-2">
                                                 <span class="text-xs font-semibold text-rose-400 uppercase tracking-wider flex items-center gap-1">
                                                     <span>✉️</span> Сгенерированное Cover Letter (agy):
                                                 </span>
-                                                <div class="flex items-center space-x-2">
+                                                <div class="flex flex-wrap items-center gap-2">
                                                     <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
                                                         🔄 Перегенерировать
                                                     </button>
-                                                    <button onclick="applyVacancyHH('{{ order.id }}', this)" class="text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
-                                                        <span>🚀</span> Откликнуться на HH
-                                                    </button>
+                                                    {% if is_hh %}
+                                                        {% if order.is_responded %}
+                                                            <span class="text-xs px-2.5 py-1 rounded-md font-medium bg-slate-900/80 text-emerald-400 border border-slate-800 flex items-center gap-1 cursor-default">
+                                                                <span>✅</span> Отклик отправлен
+                                                            </span>
+                                                        {% else %}
+                                                            <button onclick="applyVacancyHH('{{ order.id }}', this)" class="apply-hh-btn text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                                                <span>🚀</span> Откликнуться на HH
+                                                            </button>
+                                                        {% endif %}
+                                                    {% endif %}
                                                     <button onclick="copyProposal('proposal-text-{{ order.id }}', this)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium px-3 py-1 rounded-md transition flex items-center gap-1 border border-slate-700">
                                                         <span>📋</span> Скопировать Cover Letter
                                                     </button>
@@ -675,11 +676,24 @@ DASHBOARD_HTML = """
 {{ order.proposal_text or order.analysis.proposal_text }}</div>
                                         </div>
                                     {% else %}
-                                        <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
+                                        <div class="mt-3 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
                                             <span class="text-xs text-slate-400">Сопроводительное письмо генерируется под конкретную вакансию.</span>
-                                            <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-semibold px-4 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md">
-                                                <span>✨</span> Сгенерировать Cover Letter (agy)
-                                            </button>
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                {% if is_hh %}
+                                                    {% if order.is_responded %}
+                                                        <span class="text-xs px-2.5 py-1 rounded-md font-medium bg-slate-900/80 text-emerald-400 border border-slate-800 flex items-center gap-1 cursor-default">
+                                                            <span>✅</span> Отклик отправлен
+                                                        </span>
+                                                    {% else %}
+                                                        <button onclick="applyVacancyHH('{{ order.id }}', this)" class="apply-hh-btn text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-3.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                                                            <span>🚀</span> Откликнуться на HH
+                                                        </button>
+                                                    {% endif %}
+                                                {% endif %}
+                                                <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-semibold px-4 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md">
+                                                    <span>✨</span> Сгенерировать Cover Letter (agy)
+                                                </button>
+                                            </div>
                                         </div>
                                     {% endif %}
                                 </div>
@@ -791,18 +805,30 @@ DASHBOARD_HTML = """
                     {% else %}
                         <!-- Order without initial analysis: proposal generation on demand -->
                         {% set is_vac = order.source in ['hh_ru', 'habr_career'] %}
+                        {% set is_hh = order.source == 'hh_ru' %}
                         <div id="proposal-box-{{ order.id }}">
                             {% if order.proposal_text %}
                                 <div class="mt-3 pt-3 border-t border-slate-800 space-y-2">
-                                    <div class="flex items-center justify-between">
+                                    <div class="flex flex-wrap items-center justify-between gap-2">
                                         <span class="text-xs font-semibold {% if is_vac %}text-rose-400{% else %}text-emerald-400{% endif %} uppercase tracking-wider flex items-center gap-1">
                                             <span>{% if is_vac %}✉️{% else %}✍️{% endif %}</span> {% if is_vac %}Сгенерированное Cover Letter (agy):{% else %}Сгенерированный отклик:{% endif %}
                                         </span>
-                                        <div class="flex items-center space-x-2">
+                                        <div class="flex flex-wrap items-center gap-2">
                                             <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
                                                 🔄 Перегенерировать
                                             </button>
-                                            <button onclick="copyProposal('proposal-text-{{ order.id }}', this)" class="text-xs {% if is_vac %}bg-rose-600 hover:bg-rose-500{% else %}bg-emerald-600 hover:bg-emerald-500{% endif %} text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                            {% if is_hh %}
+                                                {% if order.is_responded %}
+                                                    <span class="text-xs px-2.5 py-1 rounded-md font-medium bg-slate-900/80 text-emerald-400 border border-slate-800 flex items-center gap-1 cursor-default">
+                                                        <span>✅</span> Отклик отправлен
+                                                    </span>
+                                                {% else %}
+                                                    <button onclick="applyVacancyHH('{{ order.id }}', this)" class="apply-hh-btn text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                                        <span>🚀</span> Откликнуться на HH
+                                                    </button>
+                                                {% endif %}
+                                            {% endif %}
+                                            <button onclick="copyProposal('proposal-text-{{ order.id }}', this)" class="text-xs {% if is_vac %}bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700{% else %}bg-emerald-600 hover:bg-emerald-500 text-white{% endif %} font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
                                                 <span>📋</span> {% if is_vac %}Скопировать Cover Letter{% else %}Скопировать отклик{% endif %}
                                             </button>
                                         </div>
@@ -811,11 +837,24 @@ DASHBOARD_HTML = """
 {{ order.proposal_text }}</div>
                                 </div>
                             {% else %}
-                                <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
+                                <div class="mt-3 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
                                     <span class="text-xs text-slate-400">{% if is_vac %}Сопроводительное письмо генерируется под конкретную вакансию.{% else %}Отклик не генерировался для экономии квот.{% endif %}</span>
-                                    <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs {% if is_vac %}bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500{% else %}bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500{% endif %} text-white font-semibold px-4 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md">
-                                        <span>✨</span> {% if is_vac %}Сгенерировать Cover Letter (agy){% else %}Сгенерировать отклик (ИИ){% endif %}
-                                    </button>
+                                    <div class="flex flex-wrap items-center gap-2">
+                                        {% if is_hh %}
+                                            {% if order.is_responded %}
+                                                <span class="text-xs px-2.5 py-1 rounded-md font-medium bg-slate-900/80 text-emerald-400 border border-slate-800 flex items-center gap-1 cursor-default">
+                                                    <span>✅</span> Отклик отправлен
+                                                </span>
+                                            {% else %}
+                                                <button onclick="applyVacancyHH('{{ order.id }}', this)" class="apply-hh-btn text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-3.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                                                    <span>🚀</span> Откликнуться на HH
+                                                </button>
+                                            {% endif %}
+                                        {% endif %}
+                                        <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs {% if is_vac %}bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500{% else %}bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500{% endif %} text-white font-semibold px-4 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md">
+                                            <span>✨</span> {% if is_vac %}Сгенерировать Cover Letter (agy){% else %}Сгенерировать отклик (ИИ){% endif %}
+                                        </button>
+                                    </div>
                                 </div>
                             {% endif %}
                         </div>
@@ -2074,12 +2113,43 @@ DASHBOARD_HTML = """
             const origHtml = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<span>⏳</span> Генерация (agy)...';
+
+            const card = document.querySelector(`.order-card[data-id="${orderId}"]`);
+            const isResponded = card ? (card.getAttribute('data-responded') === '1') : false;
+            const box = document.getElementById(`proposal-box-${orderId}`);
+
+            let progressEl = null;
+            let seconds = 0;
+            let timerInterval = null;
+            if (box) {
+                progressEl = document.createElement('div');
+                progressEl.id = `gen-progress-${orderId}`;
+                progressEl.className = "mt-2 p-2.5 rounded-lg bg-rose-950/40 border border-rose-800/60 text-xs text-rose-200 flex items-center justify-between gap-3 animate-pulse";
+                progressEl.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="animate-spin text-sm">⚙️</span>
+                        <span><b>ИИ составляет персонализированное сопроводительное письмо...</b> (~20-30 сек)</span>
+                    </div>
+                    <span class="text-[11px] text-rose-300 font-mono" id="gen-timer-${orderId}">0с</span>
+                `;
+                box.appendChild(progressEl);
+
+                const timerSpan = progressEl.querySelector(`#gen-timer-${orderId}`);
+                timerInterval = setInterval(() => {
+                    seconds++;
+                    if (timerSpan) timerSpan.innerText = `${seconds}с`;
+                }, 1000);
+            }
+
             try {
                 const res = await fetch(`/api/orders/${orderId}/generate-proposal`, {
                     method: 'POST',
                     credentials: 'same-origin'
                 });
                 const data = await res.json();
+                if (timerInterval) clearInterval(timerInterval);
+                if (progressEl) progressEl.remove();
+
                 if (data.ok && data.proposal_text) {
                     if (data.recommended_price) {
                         const pill = document.getElementById(`rec-price-pill-${orderId}`);
@@ -2118,28 +2188,39 @@ DASHBOARD_HTML = """
                         `;
                     }
 
-                    const box = document.getElementById(`proposal-box-${orderId}`);
                     if (box) {
-                        const isHh = data.is_hh;
-                        const titleText = isHh ? 'Сгенерированное Cover Letter (agy):' : 'Сгенерированный отклик:';
-                        const icon = isHh ? '✉️' : '✍️';
-                        const btnClass = isHh ? 'bg-rose-600 hover:bg-rose-500' : 'bg-emerald-600 hover:bg-emerald-500';
-                        const btnCopyText = isHh ? 'Скопировать Cover Letter' : 'Скопировать отклик';
+                        const isHh = (data.is_hh || data.source === 'hh_ru');
+                        const isVac = isHh || (data.source === 'habr_career');
+                        const titleText = isVac ? 'Сгенерированное Cover Letter (agy):' : 'Сгенерированный отклик:';
+                        const icon = isVac ? '✉️' : '✍️';
+                        const btnClass = isVac ? 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700' : 'bg-emerald-600 hover:bg-emerald-500 text-white';
+                        const btnCopyText = isVac ? 'Скопировать Cover Letter' : 'Скопировать отклик';
+
+                        let hhApplyHtml = '';
+                        if (isHh) {
+                            if (isResponded) {
+                                hhApplyHtml = `<span class="text-xs px-2.5 py-1 rounded-md font-medium bg-slate-900/80 text-emerald-400 border border-slate-800 flex items-center gap-1 cursor-default">
+                                    <span>✅</span> Отклик отправлен
+                                </span>`;
+                            } else {
+                                hhApplyHtml = `<button onclick="applyVacancyHH('${orderId}', this)" class="apply-hh-btn text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                    <span>🚀</span> Откликнуться на HH
+                                </button>`;
+                            }
+                        }
 
                         box.className = "mt-3 pt-3 border-t border-slate-800 space-y-2";
                         box.innerHTML = `
-                            <div class="flex items-center justify-between">
-                                <span class="text-xs font-semibold ${isHh ? 'text-rose-400' : 'text-emerald-400'} uppercase tracking-wider flex items-center gap-1">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="text-xs font-semibold ${isVac ? 'text-rose-400' : 'text-emerald-400'} uppercase tracking-wider flex items-center gap-1">
                                     <span>${icon}</span> ${titleText}
                                 </span>
-                                <div class="flex items-center space-x-2">
+                                <div class="flex flex-wrap items-center gap-2">
                                     <button onclick="generateProposal('${orderId}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
                                         🔄 Перегенерировать
                                     </button>
-                                    ${isHh ? `<button onclick="applyVacancyHH('${orderId}', this)" class="text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
-                                        <span>🚀</span> Откликнуться на HH
-                                    </button>` : ''}
-                                    <button onclick="copyProposal('proposal-text-${orderId}', this)" class="text-xs ${btnClass} text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                    ${hhApplyHtml}
+                                    <button onclick="copyProposal('proposal-text-${orderId}', this)" class="text-xs ${btnClass} font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
                                         <span>📋</span> ${btnCopyText}
                                     </button>
                                 </div>
@@ -2155,6 +2236,8 @@ DASHBOARD_HTML = """
                     btn.innerHTML = origHtml;
                 }
             } catch (e) {
+                if (timerInterval) clearInterval(timerInterval);
+                if (progressEl) progressEl.remove();
                 alert('Сетевая ошибка: ' + e);
                 btn.disabled = false;
                 btn.innerHTML = origHtml;
@@ -2631,22 +2714,55 @@ DASHBOARD_HTML = """
             }
             const origHtml = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = '<span>⏳</span> Отправка...';
+            btn.innerHTML = '<span>⏳</span> Отправка на HH...';
+
+            const propTextEl = document.getElementById(`proposal-text-${orderId}`);
+            let progressEl = null;
+            let seconds = 0;
+            let timerInterval = null;
+            const box = document.getElementById(`proposal-box-${orderId}`);
+
+            if (!propTextEl && box) {
+                progressEl = document.createElement('div');
+                progressEl.id = `apply-progress-${orderId}`;
+                progressEl.className = "mt-2 p-2.5 rounded-lg bg-rose-950/40 border border-rose-800/60 text-xs text-rose-200 flex items-center justify-between gap-3 animate-pulse";
+                progressEl.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="animate-spin text-sm">⚙️</span>
+                        <span><b>ИИ составляет письмо и отправляет отклик на HH...</b> (~20-30 сек)</span>
+                    </div>
+                    <span class="text-[11px] text-rose-300 font-mono" id="apply-timer-${orderId}">0с</span>
+                `;
+                box.appendChild(progressEl);
+
+                const timerSpan = progressEl.querySelector(`#apply-timer-${orderId}`);
+                timerInterval = setInterval(() => {
+                    seconds++;
+                    if (timerSpan) timerSpan.innerText = `${seconds}с`;
+                }, 1000);
+            }
+
             try {
                 const resp = await fetch(`/api/vacancies/${orderId}/apply`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'}
                 });
                 const data = await resp.json();
+                if (timerInterval) clearInterval(timerInterval);
+                if (progressEl) progressEl.remove();
+
                 if (data.ok) {
                     btn.innerHTML = '<span>✅</span> Отклик отправлен';
                     btn.disabled = true;
-                    btn.className = "text-xs px-2.5 py-0.5 rounded-md transition flex items-center gap-1.5 border font-semibold bg-slate-900/80 text-emerald-400 border-slate-800 cursor-default";
+                    btn.className = "text-xs px-2.5 py-1 rounded-md transition flex items-center gap-1 border font-medium bg-slate-900/80 text-emerald-400 border-slate-800 cursor-default";
 
                     const card = document.querySelector(`.order-card[data-id="${orderId}"]`);
                     if (card) {
                         card.setAttribute('data-responded', '1');
                         card.classList.add('opacity-65', 'border-dashed');
+                        card.querySelectorAll('.apply-hh-btn').forEach(b => {
+                            b.outerHTML = '<span class="text-xs px-2.5 py-1 rounded-md font-medium bg-slate-900/80 text-emerald-400 border border-slate-800 flex items-center gap-1 cursor-default"><span>✅</span> Отклик отправлен</span>';
+                        });
                     }
                     const respBtn = document.getElementById(`responded-btn-${orderId}`);
                     if (respBtn) {
@@ -2656,6 +2772,30 @@ DASHBOARD_HTML = """
                         if (text) text.innerText = 'Откликнулся';
                         respBtn.className = "responded-toggle-btn text-xs px-2.5 py-0.5 rounded-md transition flex items-center gap-1.5 border font-medium bg-emerald-950/90 text-emerald-300 border-emerald-700/80 hover:bg-emerald-900/90";
                     }
+
+                    if (data.proposal_text && box && !document.getElementById(`proposal-text-${orderId}`)) {
+                        box.className = "mt-3 pt-3 border-t border-slate-800 space-y-2";
+                        box.innerHTML = `
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <span class="text-xs font-semibold text-rose-400 uppercase tracking-wider flex items-center gap-1">
+                                    <span>✉️</span> Сгенерированное Cover Letter (agy):
+                                </span>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <button onclick="generateProposal('${orderId}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
+                                        🔄 Перегенерировать
+                                    </button>
+                                    <span class="text-xs px-2.5 py-1 rounded-md font-medium bg-slate-900/80 text-emerald-400 border border-slate-800 flex items-center gap-1 cursor-default">
+                                        <span>✅</span> Отклик отправлен
+                                    </span>
+                                    <button onclick="copyProposal('proposal-text-${orderId}', this)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium px-3 py-1 rounded-md transition flex items-center gap-1 border border-slate-700">
+                                        <span>📋</span> Скопировать Cover Letter
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="proposal-text-${orderId}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-all cursor-pointer transition">${escapeHtml(data.proposal_text)}</div>
+                        `;
+                    }
+
                     showToast(data.message || 'Отклик успешно отправлен на HeadHunter!');
                     applyClientFilters();
                 } else if (data.need_auth) {
@@ -2677,6 +2817,8 @@ DASHBOARD_HTML = """
                     alert(data.error || data.message || 'Ошибка отправки отклика.');
                 }
             } catch (e) {
+                if (timerInterval) clearInterval(timerInterval);
+                if (progressEl) progressEl.remove();
                 btn.innerHTML = origHtml;
                 btn.disabled = false;
                 alert('Сетевая ошибка при отклике: ' + e);
@@ -3590,7 +3732,14 @@ def create_web_app(
         result = await hh_svc.apply_to_vacancy(str(vac_id), cover_letter)
         if result.get("ok"):
             await repository.toggle_responded(order_id, is_responded=True)
-            return JSONResponse(content={"ok": True, "status": "applied", "message": result.get("message", "Отклик успешно отправлен на HeadHunter!")})
+            return JSONResponse(
+                content={
+                    "ok": True,
+                    "status": "applied",
+                    "message": result.get("message", "Отклик успешно отправлен на HeadHunter!"),
+                    "proposal_text": cover_letter,
+                }
+            )
 
         return JSONResponse(status_code=400, content=result)
 
@@ -3664,10 +3813,11 @@ def create_web_app(
                 price_justification=price_just,
                 estimated_days=est_days,
             )
-            is_hh = raw_order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
+            is_hh = (raw_order.source == SourcePlatform.HH_RU)
             return {
                 "ok": True,
                 "is_hh": is_hh,
+                "source": raw_order.source.value,
                 "proposal_text": proposal_text,
                 "recommended_price": rec_price,
                 "market_price": mkt_price,
