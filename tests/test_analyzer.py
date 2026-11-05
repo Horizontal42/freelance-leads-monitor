@@ -425,7 +425,8 @@ def test_sanitize_proposal_text_markdown_and_emdash_removal():
         "По срокам: сделаем за **2-3 недели** (или *10-12 дней*).\n"
         "Опыт \u2014 коммерческая разработка B2B \u2013 речевая аналитика.\n\n"
         "Буду рад обсудить задачи ROOMGRAM, кейсы автоматизации и детали решений на звонке или личной встрече.\n\n"
-        "Telegram: @Horizontal84"
+        "Telegram: @Horizontal84\n\n"
+        "Спасибо за внимание. Готов обсудить задачи и проекты на звонке."
     )
     cleaned = sanitize_proposal_text(raw_proposal)
     assert "**" not in cleaned
@@ -434,6 +435,8 @@ def test_sanitize_proposal_text_markdown_and_emdash_removal():
     assert "\u2014" not in cleaned
     assert "\u2013" not in cleaned
     assert "Буду рад обсудить" not in cleaned
+    assert "Готов обсудить" not in cleaned
+    assert "Спасибо за внимание" not in cleaned
     assert "Битрикс24" in cleaned
     assert "2-3 недели" in cleaned
     assert "10-12 дней" in cleaned

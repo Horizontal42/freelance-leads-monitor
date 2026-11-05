@@ -35,9 +35,7 @@ class HhApplicantService:
             try:
                 import json
                 u_data = json.loads(user_info) if isinstance(user_info, str) else user_info
-                first_name = u_data.get("first_name", "")
-                last_name = u_data.get("last_name", "")
-                user_name = f"{first_name} {last_name}".strip() or None
+                user_name = u_data.get("name") or f"{u_data.get('first_name', '')} {u_data.get('last_name', '')}".strip() or None
             except Exception:
                 pass
 
