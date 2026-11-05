@@ -653,7 +653,7 @@ DASHBOARD_HTML = """
                                                     <span>✉️</span> Сгенерированное Cover Letter (agy):
                                                 </span>
                                                 <div class="flex flex-wrap items-center gap-2">
-                                                    <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
+                                                    <button type="button" onclick="generateProposal('{{ order.id }}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition active:scale-95 cursor-pointer">
                                                         🔄 Перегенерировать
                                                     </button>
                                                     {% if is_hh %}
@@ -662,17 +662,17 @@ DASHBOARD_HTML = """
                                                                 <span>✅</span> Отклик отправлен
                                                             </span>
                                                         {% else %}
-                                                            <button onclick="applyVacancyHH('{{ order.id }}', this)" class="apply-hh-btn text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                                            <button type="button" onclick="applyVacancyHH('{{ order.id }}', this)" class="apply-hh-btn text-xs bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm cursor-pointer select-none">
                                                                 <span>🚀</span> Откликнуться на HH
                                                             </button>
                                                         {% endif %}
                                                     {% endif %}
-                                                    <button onclick="copyProposal('proposal-text-{{ order.id }}', this)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium px-3 py-1 rounded-md transition flex items-center gap-1 border border-slate-700">
+                                                    <button type="button" onclick="copyProposal('proposal-text-{{ order.id }}', this)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium px-3 py-1 rounded-md transition flex items-center gap-1 border border-slate-700 active:scale-95 cursor-pointer select-none">
                                                         <span>📋</span> Скопировать Cover Letter
                                                     </button>
                                                 </div>
                                             </div>
-                                            <div id="proposal-text-{{ order.id }}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-all cursor-pointer transition">
+                                            <div id="proposal-text-{{ order.id }}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-text cursor-pointer transition">
 {{ order.proposal_text or order.analysis.proposal_text }}</div>
                                         </div>
                                     {% else %}
@@ -685,12 +685,12 @@ DASHBOARD_HTML = """
                                                             <span>✅</span> Отклик отправлен
                                                         </span>
                                                     {% else %}
-                                                        <button onclick="applyVacancyHH('{{ order.id }}', this)" class="apply-hh-btn text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-3.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                                                        <button type="button" onclick="applyVacancyHH('{{ order.id }}', this)" class="apply-hh-btn text-xs bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-medium px-3.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm cursor-pointer select-none">
                                                             <span>🚀</span> Откликнуться на HH
                                                         </button>
                                                     {% endif %}
                                                 {% endif %}
-                                                <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-semibold px-4 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md">
+                                                <button type="button" onclick="generateProposal('{{ order.id }}', this)" class="text-xs bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 active:scale-95 text-white font-semibold px-4 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md cursor-pointer select-none">
                                                     <span>✨</span> Сгенерировать Cover Letter (agy)
                                                 </button>
                                             </div>
@@ -780,21 +780,21 @@ DASHBOARD_HTML = """
                                                     <span>✍️</span> Сгенерированный отклик:
                                                 </span>
                                                 <div class="flex items-center space-x-2">
-                                                    <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
+                                                    <button type="button" onclick="generateProposal('{{ order.id }}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition active:scale-95 cursor-pointer">
                                                         🔄 Перегенерировать
                                                     </button>
-                                                    <button onclick="copyProposal('proposal-text-{{ order.id }}', this)" class="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                                    <button type="button" onclick="copyProposal('proposal-text-{{ order.id }}', this)" class="text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm cursor-pointer select-none">
                                                         <span>📋</span> Скопировать отклик
                                                     </button>
                                                 </div>
                                             </div>
-                                            <div id="proposal-text-{{ order.id }}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-all cursor-pointer transition">
+                                            <div id="proposal-text-{{ order.id }}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-text cursor-pointer transition">
 {{ order.proposal_text or order.analysis.proposal_text }}</div>
                                         </div>
                                     {% else %}
                                         <div class="mt-3 pt-3 border-t border-slate-800 flex items-center justify-between">
                                             <span class="text-xs text-slate-400">Отклик не генерировался для экономии квот.</span>
-                                            <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold px-4 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md">
+                                            <button type="button" onclick="generateProposal('{{ order.id }}', this)" class="text-xs bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 active:scale-95 text-white font-semibold px-4 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md cursor-pointer select-none">
                                                 <span>✨</span> Сгенерировать отклик (ИИ)
                                             </button>
                                         </div>
@@ -814,7 +814,7 @@ DASHBOARD_HTML = """
                                             <span>{% if is_vac %}✉️{% else %}✍️{% endif %}</span> {% if is_vac %}Сгенерированное Cover Letter (agy):{% else %}Сгенерированный отклик:{% endif %}
                                         </span>
                                         <div class="flex flex-wrap items-center gap-2">
-                                            <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
+                                            <button type="button" onclick="generateProposal('{{ order.id }}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition active:scale-95 cursor-pointer">
                                                 🔄 Перегенерировать
                                             </button>
                                             {% if is_hh %}
@@ -823,17 +823,17 @@ DASHBOARD_HTML = """
                                                         <span>✅</span> Отклик отправлен
                                                     </span>
                                                 {% else %}
-                                                    <button onclick="applyVacancyHH('{{ order.id }}', this)" class="apply-hh-btn text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                                    <button type="button" onclick="applyVacancyHH('{{ order.id }}', this)" class="apply-hh-btn text-xs bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm cursor-pointer select-none">
                                                         <span>🚀</span> Откликнуться на HH
                                                     </button>
                                                 {% endif %}
                                             {% endif %}
-                                            <button onclick="copyProposal('proposal-text-{{ order.id }}', this)" class="text-xs {% if is_vac %}bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700{% else %}bg-emerald-600 hover:bg-emerald-500 text-white{% endif %} font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                            <button type="button" onclick="copyProposal('proposal-text-{{ order.id }}', this)" class="text-xs {% if is_vac %}bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700{% else %}bg-emerald-600 hover:bg-emerald-500 text-white{% endif %} font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer select-none">
                                                 <span>📋</span> {% if is_vac %}Скопировать Cover Letter{% else %}Скопировать отклик{% endif %}
                                             </button>
                                         </div>
                                     </div>
-                                    <div id="proposal-text-{{ order.id }}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-all cursor-pointer transition">
+                                    <div id="proposal-text-{{ order.id }}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-text cursor-pointer transition">
 {{ order.proposal_text }}</div>
                                 </div>
                             {% else %}
@@ -846,12 +846,12 @@ DASHBOARD_HTML = """
                                                     <span>✅</span> Отклик отправлен
                                                 </span>
                                             {% else %}
-                                                <button onclick="applyVacancyHH('{{ order.id }}', this)" class="apply-hh-btn text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-3.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                                                <button type="button" onclick="applyVacancyHH('{{ order.id }}', this)" class="apply-hh-btn text-xs bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-medium px-3.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-sm cursor-pointer select-none">
                                                     <span>🚀</span> Откликнуться на HH
                                                 </button>
                                             {% endif %}
                                         {% endif %}
-                                        <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs {% if is_vac %}bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500{% else %}bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500{% endif %} text-white font-semibold px-4 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md">
+                                        <button type="button" onclick="generateProposal('{{ order.id }}', this)" class="text-xs {% if is_vac %}bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500{% else %}bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500{% endif %} text-white font-semibold px-4 py-1.5 rounded-lg transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer select-none">
                                             <span>✨</span> {% if is_vac %}Сгенерировать Cover Letter (agy){% else %}Сгенерировать отклик (ИИ){% endif %}
                                         </button>
                                     </div>
@@ -2026,87 +2026,94 @@ DASHBOARD_HTML = """
     </main>
 
     <!-- Toast Notification for Copy -->
-    <div id="copyToast" class="fixed bottom-20 right-6 z-50 bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-semibold flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-200">
+    <div id="copyToast" class="fixed bottom-20 right-6 z-50 pointer-events-none bg-emerald-600 text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-semibold flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-200 select-none">
         <span>✅</span> Текст успешно скопирован в буфер обмена!
     </div>
 
     <!-- Scroll To Top Button -->
-    <button id="scrollToTopBtn" onclick="scrollToTop()" type="button" aria-label="Вернуться наверх" class="fixed bottom-6 right-6 z-40 bg-blue-600/90 hover:bg-blue-500 active:bg-blue-700 text-white p-3.5 rounded-full shadow-xl shadow-blue-900/40 border border-blue-400/40 backdrop-blur transition-all duration-300 opacity-0 translate-y-10 pointer-events-none flex items-center justify-center group focus:outline-none" title="Вернуться наверх">
+    <button id="scrollToTopBtn" onclick="scrollToTop()" type="button" aria-label="Вернуться наверх" class="fixed bottom-6 right-6 z-40 bg-blue-600/90 hover:bg-blue-500 active:bg-blue-700 text-white p-3.5 rounded-full shadow-xl shadow-blue-900/40 border border-blue-400/40 backdrop-blur transition-all duration-300 opacity-0 translate-y-10 pointer-events-none flex items-center justify-center group focus:outline-none cursor-pointer" title="Вернуться наверх">
         <svg class="w-5 h-5 transform group-hover:-translate-y-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M5 10l7-7m0 0l7 7m-7-7v18" />
         </svg>
     </button>
 
     <script>
-        function copyProposalText(boxEl) {
-            if (!boxEl) return;
-            const text = boxEl.innerText;
-            const toast = document.getElementById('copyToast');
+        async function copyToClipboard(text) {
+            if (!text) return false;
+            // 1. Попытка через современный Clipboard API
+            if (navigator.clipboard && window.isSecureContext) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    return true;
+                } catch (e) {
+                    console.warn('navigator.clipboard fallback:', e);
+                }
+            }
 
-            // Find associated copy button in the same container if present
+            // 2. Синхронный фолбэк для Safari, iOS, мобильных WebView
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.top = '0';
+                ta.style.left = '-9999px';
+                ta.style.opacity = '0.01';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                ta.setSelectionRange(0, text.length);
+                const success = document.execCommand('copy');
+                document.body.removeChild(ta);
+                return !!success;
+            } catch (err) {
+                console.error('fallbackCopy error:', err);
+                return false;
+            }
+        }
+
+        async function copyProposalText(boxEl) {
+            if (!boxEl) return;
+            const text = (boxEl.innerText || boxEl.textContent || '').trim();
+            if (!text) return;
+
+            await copyToClipboard(text);
+
+            const toast = document.getElementById('copyToast');
+            if (toast) {
+                toast.innerHTML = '<span>✅</span> Текст успешно скопирован в буфер обмена!';
+                toast.classList.remove('translate-y-20', 'opacity-0');
+            }
+            const origBorder = boxEl.style.borderColor;
+            boxEl.style.borderColor = '#10b981';
+            boxEl.classList.add('ring-1', 'ring-emerald-500/50');
+
             const container = boxEl.closest('[id^="proposal-box-"]') || boxEl.parentElement;
             const btn = container ? container.querySelector('button[onclick*="copyProposal("]') : null;
 
-            const onSuccess = () => {
-                if (toast) {
-                    toast.classList.remove('translate-y-20', 'opacity-0');
-                }
-                const origBorder = boxEl.style.borderColor;
-                boxEl.style.borderColor = '#10b981';
-                boxEl.classList.add('ring-1', 'ring-emerald-500/50');
-
-                let origBtnText = '';
-                if (btn) {
-                    origBtnText = btn.innerHTML;
-                    btn.innerHTML = '<span>✅</span> Скопировано!';
-                    btn.classList.replace('bg-emerald-600', 'bg-emerald-700');
-                    btn.classList.replace('bg-rose-600', 'bg-rose-700');
-                }
-
-                setTimeout(() => {
-                    if (toast) {
-                        toast.classList.add('translate-y-20', 'opacity-0');
-                    }
-                    boxEl.style.borderColor = origBorder;
-                    boxEl.classList.remove('ring-1', 'ring-emerald-500/50');
-                    if (btn && origBtnText) {
-                        btn.innerHTML = origBtnText;
-                        btn.classList.replace('bg-emerald-700', 'bg-emerald-600');
-                        btn.classList.replace('bg-rose-700', 'bg-rose-600');
-                    }
-                }, 2000);
-            };
-
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(text).then(onSuccess).catch(() => {
-                    fallbackCopy(text, onSuccess);
-                });
-            } else {
-                fallbackCopy(text, onSuccess);
+            let origBtnText = '';
+            if (btn) {
+                origBtnText = btn.innerHTML;
+                btn.innerHTML = '<span>✅</span> Скопировано!';
+                btn.classList.add('bg-emerald-600', 'text-white');
             }
+
+            setTimeout(() => {
+                if (toast) {
+                    toast.classList.add('translate-y-20', 'opacity-0');
+                }
+                boxEl.style.borderColor = origBorder;
+                boxEl.classList.remove('ring-1', 'ring-emerald-500/50');
+                if (btn && origBtnText) {
+                    btn.innerHTML = origBtnText;
+                }
+            }, 2000);
         }
 
         function copyProposal(elementId, btn) {
             const el = document.getElementById(elementId);
             if (!el) return;
             copyProposalText(el);
-        }
-
-        function fallbackCopy(text, callback) {
-            try {
-                const ta = document.createElement('textarea');
-                ta.value = text;
-                ta.style.position = 'fixed';
-                ta.style.opacity = '0';
-                document.body.appendChild(ta);
-                ta.focus();
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
-                if (callback) callback();
-            } catch (err) {
-                alert('Не удалось скопировать текст в буфер: ' + err);
-            }
         }
 
         async function generateProposal(orderId, btn) {
@@ -2124,7 +2131,7 @@ DASHBOARD_HTML = """
             if (box) {
                 progressEl = document.createElement('div');
                 progressEl.id = `gen-progress-${orderId}`;
-                progressEl.className = "mt-2 p-2.5 rounded-lg bg-rose-950/40 border border-rose-800/60 text-xs text-rose-200 flex items-center justify-between gap-3 animate-pulse";
+                progressEl.className = "mt-2 p-2.5 rounded-lg bg-rose-950/40 border border-rose-800/60 text-xs text-rose-200 flex items-center justify-between gap-3 animate-pulse select-none";
                 progressEl.innerHTML = `
                     <div class="flex items-center gap-2">
                         <span class="animate-spin text-sm">⚙️</span>
@@ -2203,7 +2210,7 @@ DASHBOARD_HTML = """
                                     <span>✅</span> Отклик отправлен
                                 </span>`;
                             } else {
-                                hhApplyHtml = `<button onclick="applyVacancyHH('${orderId}', this)" class="apply-hh-btn text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                hhApplyHtml = `<button type="button" onclick="applyVacancyHH('${orderId}', this)" class="apply-hh-btn text-xs bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm cursor-pointer select-none">
                                     <span>🚀</span> Откликнуться на HH
                                 </button>`;
                             }
@@ -2216,19 +2223,33 @@ DASHBOARD_HTML = """
                                     <span>${icon}</span> ${titleText}
                                 </span>
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <button onclick="generateProposal('${orderId}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
+                                    <button type="button" onclick="generateProposal('${orderId}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition active:scale-95 cursor-pointer">
                                         🔄 Перегенерировать
                                     </button>
                                     ${hhApplyHtml}
-                                    <button onclick="copyProposal('proposal-text-${orderId}', this)" class="text-xs ${btnClass} font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                    <button type="button" onclick="copyProposal('proposal-text-${orderId}', this)" class="text-xs ${btnClass} font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm active:scale-95 cursor-pointer select-none">
                                         <span>📋</span> ${btnCopyText}
                                     </button>
                                 </div>
                             </div>
                             ${finBlock}
-                            <div id="proposal-text-${orderId}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-all cursor-pointer transition">${escapeHtml(data.proposal_text)}</div>
+                            <div id="proposal-text-${orderId}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-text cursor-pointer transition">${escapeHtml(data.proposal_text)}</div>
                         `;
                     }
+                    showToast('Отклик успешно сгенерирован!');
+                } else {
+                    alert('Ошибка генерации: ' + (data.error || 'не удалось составить отклик'));
+                    btn.disabled = false;
+                    btn.innerHTML = origHtml;
+                }
+            } catch (e) {
+                if (timerInterval) clearInterval(timerInterval);
+                if (progressEl) progressEl.remove();
+                alert('Сетевая ошибка: ' + e);
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+            }
+        }
                     showToast('Отклик успешно сгенерирован!');
                 } else {
                     alert('Ошибка генерации: ' + (data.error || 'не удалось составить отклик'));
@@ -2709,9 +2730,6 @@ DASHBOARD_HTML = """
 
         async function applyVacancyHH(orderId, btn) {
             if (!orderId) return;
-            if (!confirm('Отправить отклик на эту вакансию на HeadHunter?')) {
-                return;
-            }
             const origHtml = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<span>⏳</span> Отправка на HH...';
@@ -2725,7 +2743,7 @@ DASHBOARD_HTML = """
             if (!propTextEl && box) {
                 progressEl = document.createElement('div');
                 progressEl.id = `apply-progress-${orderId}`;
-                progressEl.className = "mt-2 p-2.5 rounded-lg bg-rose-950/40 border border-rose-800/60 text-xs text-rose-200 flex items-center justify-between gap-3 animate-pulse";
+                progressEl.className = "mt-2 p-2.5 rounded-lg bg-rose-950/40 border border-rose-800/60 text-xs text-rose-200 flex items-center justify-between gap-3 animate-pulse select-none";
                 progressEl.innerHTML = `
                     <div class="flex items-center gap-2">
                         <span class="animate-spin text-sm">⚙️</span>
@@ -2781,18 +2799,18 @@ DASHBOARD_HTML = """
                                     <span>✉️</span> Сгенерированное Cover Letter (agy):
                                 </span>
                                 <div class="flex flex-wrap items-center gap-2">
-                                    <button onclick="generateProposal('${orderId}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
+                                    <button type="button" onclick="generateProposal('${orderId}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition active:scale-95 cursor-pointer">
                                         🔄 Перегенерировать
                                     </button>
                                     <span class="text-xs px-2.5 py-1 rounded-md font-medium bg-slate-900/80 text-emerald-400 border border-slate-800 flex items-center gap-1 cursor-default">
                                         <span>✅</span> Отклик отправлен
                                     </span>
-                                    <button onclick="copyProposal('proposal-text-${orderId}', this)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium px-3 py-1 rounded-md transition flex items-center gap-1 border border-slate-700">
+                                    <button type="button" onclick="copyProposal('proposal-text-${orderId}', this)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium px-3 py-1 rounded-md transition flex items-center gap-1 border border-slate-700 active:scale-95 cursor-pointer select-none">
                                         <span>📋</span> Скопировать Cover Letter
                                     </button>
                                 </div>
                             </div>
-                            <div id="proposal-text-${orderId}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-all cursor-pointer transition">${escapeHtml(data.proposal_text)}</div>
+                            <div id="proposal-text-${orderId}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-text cursor-pointer transition">${escapeHtml(data.proposal_text)}</div>
                         `;
                     }
 
