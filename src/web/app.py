@@ -48,6 +48,9 @@ DASHBOARD_HTML = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Freelance Leads & HH Vacancies Monitor | jobs.3dvex.ru</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -77,9 +80,39 @@ DASHBOARD_HTML = """
         .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scroll::-webkit-scrollbar-track { background: #0f172a; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        button, [role="button"], a, .cursor-pointer {
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
     </style>
+    <script>
+        window.APP_BUILD_VERSION = "2.4.2";
+        function logClient(action, data) {
+            try {
+                const payload = Object.assign({ action: action }, data || {});
+                fetch('/api/client-log', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).catch(() => {});
+            } catch(e) {}
+        }
+        window.onerror = function(msg, url, line, col, err) {
+            logClient('client_js_error', {
+                type: 'error',
+                msg: String(msg) + ' at ' + String(url) + ':' + String(line) + ':' + String(col),
+                stack: err ? err.stack : null
+            });
+        };
+        window.onunhandledrejection = function(event) {
+            logClient('client_unhandled_rejection', {
+                type: 'error',
+                msg: String(event ? event.reason : 'unknown')
+            });
+        };
+    </script>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-blue-600 selection:text-white">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans antialiased selection:bg-blue-600 selection:text-white" ontouchstart="">
 
     <!-- Top Navigation Header -->
     <header class="bg-slate-900/95 border-b border-slate-800 sticky top-0 z-50 backdrop-blur">
@@ -90,6 +123,7 @@ DASHBOARD_HTML = """
                     <h1 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
                         Freelance Leads Monitor
                         <span class="text-xs font-mono font-normal px-2.5 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800/60">jobs.3dvex.ru</span>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/80 select-none" title="Версия интерфейса">v2.4.2</span>
                     </h1>
                     <p class="text-xs text-slate-400">
                         {% if active_section == 'hh_ru' %}
@@ -2040,36 +2074,36 @@ DASHBOARD_HTML = """
     <script>
         async function copyToClipboard(text) {
             if (!text) return false;
-            // 1. Попытка через современный Clipboard API
-            if (navigator.clipboard && window.isSecureContext) {
-                try {
-                    await navigator.clipboard.writeText(text);
-                    return true;
-                } catch (e) {
-                    console.warn('navigator.clipboard fallback:', e);
-                }
-            }
-
-            // 2. Синхронный фолбэк для Safari, iOS, мобильных WebView
+            // 1. Попытка через execCommand в текущем синхронном user-gesture стеке (iOS Safari надежность)
             try {
                 const ta = document.createElement('textarea');
                 ta.value = text;
                 ta.setAttribute('readonly', '');
                 ta.style.position = 'fixed';
-                ta.style.top = '0';
                 ta.style.left = '-9999px';
-                ta.style.opacity = '0.01';
+                ta.style.top = '0';
+                ta.style.fontSize = '16px';
                 document.body.appendChild(ta);
                 ta.focus();
                 ta.select();
                 ta.setSelectionRange(0, text.length);
                 const success = document.execCommand('copy');
                 document.body.removeChild(ta);
-                return !!success;
+                if (success) return true;
             } catch (err) {
-                console.error('fallbackCopy error:', err);
-                return false;
+                console.warn('execCommand copy fallback:', err);
             }
+
+            // 2. Современный Clipboard API
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                try {
+                    await navigator.clipboard.writeText(text);
+                    return true;
+                } catch (e) {
+                    console.warn('navigator.clipboard error:', e);
+                }
+            }
+            return false;
         }
 
         async function copyProposalText(boxEl) {
@@ -2077,6 +2111,7 @@ DASHBOARD_HTML = """
             const text = (boxEl.innerText || boxEl.textContent || '').trim();
             if (!text) return;
 
+            logClient('click_copy_text', { length: text.length });
             await copyToClipboard(text);
 
             const toast = document.getElementById('copyToast');
@@ -2117,6 +2152,7 @@ DASHBOARD_HTML = """
         }
 
         async function generateProposal(orderId, btn) {
+            logClient('click_generate_proposal', { order_id: orderId });
             const origHtml = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<span>⏳</span> Генерация (agy)...';
@@ -2236,13 +2272,16 @@ DASHBOARD_HTML = """
                             <div id="proposal-text-${orderId}" onclick="copyProposalText(this)" title="Нажмите, чтобы скопировать текст в буфер обмена" class="text-xs font-mono bg-slate-900/90 hover:bg-slate-900 text-slate-200 p-3.5 rounded-lg border border-slate-800 hover:border-slate-600 whitespace-pre-wrap leading-relaxed select-text cursor-pointer transition">${escapeHtml(data.proposal_text)}</div>
                         `;
                     }
+                    logClient('generate_proposal_success', { order_id: orderId });
                     showToast('Отклик успешно сгенерирован!');
                 } else {
+                    logClient('generate_proposal_failed', { type: 'error', order_id: orderId, msg: data.error });
                     alert('Ошибка генерации: ' + (data.error || 'не удалось составить отклик'));
                     btn.disabled = false;
                     btn.innerHTML = origHtml;
                 }
             } catch (e) {
+                logClient('generate_proposal_exception', { type: 'error', order_id: orderId, msg: String(e) });
                 if (timerInterval) clearInterval(timerInterval);
                 if (progressEl) progressEl.remove();
                 alert('Сетевая ошибка: ' + e);
@@ -2716,6 +2755,7 @@ DASHBOARD_HTML = """
 
         async function applyVacancyHH(orderId, btn) {
             if (!orderId) return;
+            logClient('click_apply_hh', { order_id: orderId });
             const origHtml = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<span>⏳</span> Отправка на HH...';
@@ -2800,15 +2840,28 @@ DASHBOARD_HTML = """
                         `;
                     }
 
+                    logClient('apply_hh_success', { order_id: orderId });
                     showToast(data.message || 'Отклик успешно отправлен на HeadHunter!');
                     applyClientFilters();
+                } else if (data.status === 'closed' || data.status === 'not_found') {
+                    logClient('apply_hh_closed', { order_id: orderId, msg: data.message });
+                    btn.outerHTML = `<span class="text-xs px-2.5 py-1 rounded-md font-medium bg-slate-900/80 text-amber-400 border border-amber-900/40 flex items-center gap-1 cursor-default" title="${escapeHtml(data.message || 'Вакансия закрыта')}">
+                        <span>⚠️</span> Вакансия закрыта на HH
+                    </span>`;
+                    const card = document.querySelector(`.order-card[data-id="${orderId}"]`);
+                    if (card) {
+                        card.classList.add('opacity-50');
+                    }
+                    showToast(data.message || 'Вакансия закрыта на hh.ru');
                 } else if (data.need_auth) {
+                    logClient('apply_hh_need_auth', { order_id: orderId });
                     btn.innerHTML = origHtml;
                     btn.disabled = false;
                     if (confirm((data.message || 'Требуется подключение HeadHunter.') + '\n\nПерейти к авторизации на hh.ru сейчас?')) {
                         window.location.href = data.auth_url || '/hh/auth';
                     }
                 } else if (data.requires_test) {
+                    logClient('apply_hh_requires_test', { order_id: orderId });
                     btn.innerHTML = origHtml;
                     btn.disabled = false;
                     alert((data.message || 'Работодатель требует прохождения опросника/теста.') + '\n\nОткройте вакансию на hh.ru и ответьте на вопросы работодателя.');
@@ -2816,11 +2869,13 @@ DASHBOARD_HTML = """
                         window.open(data.url, '_blank');
                     }
                 } else {
+                    logClient('apply_hh_failed', { type: 'error', order_id: orderId, msg: data.error || data.message });
                     btn.innerHTML = origHtml;
                     btn.disabled = false;
                     alert(data.error || data.message || 'Ошибка отправки отклика.');
                 }
             } catch (e) {
+                logClient('apply_hh_exception', { type: 'error', order_id: orderId, msg: String(e) });
                 if (timerInterval) clearInterval(timerInterval);
                 if (progressEl) progressEl.remove();
                 btn.innerHTML = origHtml;
@@ -3422,9 +3477,9 @@ def verify_basic_auth(
     credentials: Optional[HTTPBasicCredentials] = Depends(security),
 ) -> str:
     """Проверка HTTP Basic Auth учетных данных для защиты дашборда и API."""
-    # Публичный эндпоинт проверки здоровья для мониторинга
-    if request.url.path == "/health":
-        return "healthcheck"
+    # Публичный эндпоинт проверки здоровья и телеметрии
+    if request.url.path in ("/health", "/api/client-log"):
+        return "public"
 
     if not getattr(settings, "WEB_AUTH_ENABLED", True):
         return "anonymous"
@@ -3472,7 +3527,35 @@ def create_web_app(
         dependencies=auth_dep,
     )
 
+    @app.middleware("http")
+    async def add_no_cache_headers(request: Request, call_next):
+        response = await call_next(request)
+        if request.url.path == "/" or request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
     repository = repo or OrderRepository()
+
+    @app.post("/api/client-log")
+    async def api_client_log(request: Request):
+        """Логирование действий, кликов и ошибок с клиентской стороны (браузера)."""
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        log_type = body.get("type", "info")
+        action = body.get("action", "")
+        order_id = body.get("order_id") or ""
+        msg = body.get("msg") or ""
+        stack = body.get("stack") or ""
+        ua = request.headers.get("user-agent", "")[:120]
+        if log_type == "error":
+            logger.error("[CLIENT-ERROR] action=%s order=%s msg=%s stack=%s ua=%s", action, order_id, msg, stack, ua)
+        else:
+            logger.info("[CLIENT-LOG] action=%s order=%s msg=%s ua=%s", action, order_id, msg, ua)
+        return JSONResponse({"ok": True})
 
     @app.get("/", response_class=HTMLResponse)
     async def get_dashboard(

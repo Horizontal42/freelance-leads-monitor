@@ -158,8 +158,8 @@ async def main() -> None:
         app=web_app,
         host=settings.WEB_HOST,
         port=settings.WEB_PORT,
-        log_level="warning",
-        access_log=False,
+        log_level="info",
+        access_log=True,
     )
     server = uvicorn.Server(uvicorn_config)
 

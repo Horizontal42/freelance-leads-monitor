@@ -194,3 +194,50 @@ async def test_web_hh_apply_and_oauth_routes(tmp_path, monkeypatch):
         # Check database is_responded status toggled to True
         updated_order = await repo.get_by_id(order_id)
         assert updated_order["is_responded"] == 1
+
+
+@pytest.mark.asyncio
+async def test_hh_applicant_apply_closed_vacancy(tmp_path, monkeypatch):
+    db_path = tmp_path / "test_hh_closed.db"
+    await init_db(db_path)
+    repo = OrderRepository(db_path=db_path)
+    svc = HhApplicantService(repo)
+
+    await repo.set_setting("hh_user_token", "user_tok_valid")
+    await repo.set_setting("hh_resume_id", "resume_target")
+
+    def mock_transport(request: httpx.Request):
+        if request.url.path == "/negotiations":
+            return httpx.Response(403, json={"errors": [{"type": "forbidden"}]})
+        return httpx.Response(404)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(mock_transport))
+    with patch("httpx.AsyncClient", return_value=client):
+        res = await svc.apply_to_vacancy("139178355", "Письмо")
+
+    assert res["ok"] is False
+    assert res["status"] == "closed"
+    assert "закрыта работодателем" in res["message"]
+
+
+@pytest.mark.asyncio
+async def test_web_client_log_and_no_cache_middleware(tmp_path):
+    db_path = tmp_path / "test_client_log.db"
+    await init_db(db_path)
+    repo = OrderRepository(db_path=db_path)
+    app = create_web_app(repo=repo, enable_auth=False)
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as ac:
+        # Test client log endpoint
+        resp = await ac.post(
+            "/api/client-log",
+            json={"action": "click_apply_hh", "order_id": "123", "msg": "user clicked apply"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is True
+
+        # Test no-cache headers on GET /
+        get_resp = await ac.get("/")
+        assert get_resp.status_code == 200
+        assert "no-store" in get_resp.headers.get("cache-control", "").lower()
+        assert "no-cache" in get_resp.headers.get("cache-control", "").lower()

@@ -62,7 +62,7 @@ class HhApplicantService:
                 "error": "HH_CLIENT_ID или HH_CLIENT_SECRET не заданы в конфигурации .env",
             }
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=15.0, trust_env=False) as client:
             # 1. Запрос access_token
             token_resp = await client.post(
                 "https://api.hh.ru/token",
@@ -152,7 +152,7 @@ class HhApplicantService:
         if not refresh_token or not client_id or not client_secret:
             return None
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=15.0, trust_env=False) as client:
             token_resp = await client.post(
                 "https://api.hh.ru/token",
                 data={
@@ -192,7 +192,7 @@ class HhApplicantService:
         # Очистка сопроводительного письма (удаление дежурных фраз и контактов)
         clean_letter = sanitize_proposal_text(cover_letter)
 
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=15.0, trust_env=False) as client:
             headers = {
                 "Authorization": f"Bearer {user_token}",
                 "User-Agent": settings.HH_USER_AGENT,
@@ -210,8 +210,8 @@ class HhApplicantService:
                 headers=headers,
             )
 
-            # Если токен истек, пробуем обновить один раз
-            if resp.status_code in (401, 403):
+            # Если токен истек (401), пробуем обновить один раз
+            if resp.status_code == 401:
                 new_token = await self.refresh_user_token()
                 if new_token:
                     headers["Authorization"] = f"Bearer {new_token}"
@@ -245,6 +245,25 @@ class HhApplicantService:
                     "ok": True,
                     "status": "already_applied",
                     "message": "Вы уже откликались на эту вакансию ранее.",
+                }
+
+            # Вакансия закрыта или в архиве
+            if resp.status_code == 403 or "forbidden" in err_text.lower():
+                logger.warning("Вакансия HH #%s недоступна для отклика (403): %s", vacancy_id, err_text)
+                return {
+                    "ok": False,
+                    "status": "closed",
+                    "message": "Вакансия закрыта работодателем или находится в архиве на hh.ru.",
+                    "url": f"https://hh.ru/vacancy/{vacancy_id}",
+                }
+
+            # Вакансия удалена
+            if resp.status_code == 404:
+                return {
+                    "ok": False,
+                    "status": "not_found",
+                    "message": "Вакансия удалена или не найдена на hh.ru.",
+                    "url": f"https://hh.ru/vacancy/{vacancy_id}",
                 }
 
             logger.warning("Ошибка отклика на HH #%s: (%d) %s", vacancy_id, resp.status_code, err_text)
