@@ -64,6 +64,7 @@ collectors:
     drop_title: 'senior|сеньор|\blead\b|тимлид|team lead|ведущ|старш|principal|head of|руководител|архитектор|architect'
     junior_title: 'junior|джуниор|\bджун\b|стаж[её]р|стажировк|\bintern\b|\binternship\b|\btrainee\b|начинающ|младш'
     drop_experience:
+      - 'От 3 до 6 лет'
       - 'Более 6 лет'
     stop_title_hard:
       - '\bsmm\b'
@@ -107,6 +108,13 @@ filter:
     - "вордпресс"
     - "верстка сайта"
     - "верстку сайта"
+    - "дизайн"
+    - "дизайнер"
+    - "ui/ux"
+    - "ux/ui"
+    - "веб-дизайн"
+    - "figma"
+    - "фигма"
     - "дизайн логотип"
     - "дизайн баннер"
     - "дизайн карточек"

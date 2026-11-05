@@ -23,6 +23,34 @@ def test_hard_filter_stop_words():
     assert "диплом" in result.reason.lower() or "студент" in result.reason.lower()
 
 
+def test_hard_filter_engineering_vs_visual_design():
+    filter_ = HardFilter(min_budget=10000)
+    # 1. Инженерный дизайн (System Design) должен успешно проходить
+    tech_order = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="tech_1",
+        title="Python AI-разработчик микросервисов",
+        description="Требуется понимание System Design, построение архитектуры и интеграция LLM через FastAPI",
+        url="https://example.com/tech_1",
+        price=50000,
+    )
+    res_tech = filter_.evaluate(tech_order)
+    assert res_tech.passed is True
+
+    # 2. Визуальный дизайн (UI/UX, баннеры, логотипы, полиграфия) должен отсекаться
+    visual_order = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="vis_1",
+        title="UI/UX дизайнер для мобильного приложения",
+        description="Разработка дизайн-макетов в Figma и дизайн карточек товаров",
+        url="https://example.com/vis_1",
+        price=40000,
+    )
+    res_vis = filter_.evaluate(visual_order)
+    assert res_vis.passed is False
+    assert any(term in res_vis.reason.lower() for term in ["дизайн", "дизайнер", "ui/ux", "figma"])
+
+
 def test_hard_filter_budget_too_low():
     filter_ = HardFilter(min_budget=10000)
     order = RawOrder(

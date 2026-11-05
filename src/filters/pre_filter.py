@@ -57,6 +57,22 @@ class HardFilter:
         # 1. Проверка стоп-слов
         matched_stopwords = self._match_terms(full_text, self.stop_words)
         if matched_stopwords:
+            # Разграничение: инженерный дизайн (System Design, API Design) vs визуальный дизайн (UI/UX, графика)
+            design_stopwords = {"дизайн", "дизайнер", "дизайн сайта", "веб-дизайн"}
+            if matched_stopwords.intersection(design_stopwords):
+                engineering_design_rx = re.compile(
+                    r"\b(?:system\s*design|дизайн\s*систем|api\s*design|дизайн\s*api|database\s*design|дизайн\s*баз|design\s*pattern|паттерн[а-я]*\s*дизайн|prompt\s*design|дизайн\s*архитектур|архитектурн[а-я]*\s*дизайн)\b",
+                    re.IGNORECASE,
+                )
+                visual_design_rx = re.compile(
+                    r"\b(?:ui/ux|ux/ui|figma|фигм[а-я]*|баннер[а-я]*|логотип[а-я]*|полиграфи[а-я]*|интерьер[а-я]*|векторн[а-я]*\s*материал|карточ[а-я]*\s*(?:wb|ozon|вб|озон)|айдентик[а-я]*|фирменн[а-я]*\s*стил)\b",
+                    re.IGNORECASE,
+                )
+                if engineering_design_rx.search(full_text) and not visual_design_rx.search(full_text):
+                    # Инженерный системный дизайн сохраняем, снимаем триггер стоп-слова дизайна
+                    matched_stopwords = matched_stopwords - design_stopwords
+
+        if matched_stopwords:
             if order.is_ai_first:
                 # Для приоритетных AI-First / Agentic лидов блокируем только академический спам и накрутки
                 hard_junk = {"диплом", "дипломная", "дипломный", "дипломн", "студент", "курсовая", "курсовой проект", "реферат", "лабораторная работа", "накрутка", "накрутк", "рукапча", "2captcha", "antigate"}
