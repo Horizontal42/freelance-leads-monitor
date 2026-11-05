@@ -353,9 +353,13 @@ def build_vacancy_analysis_prompt(order: RawOrder) -> str:
 
 def build_cover_letter_prompt(
     order: RawOrder,
-    analysis_data: Optional[Dict[str, Any]] = None,
+    analysis_data: Optional[Any] = None,
 ) -> str:
     """Сформировать промпт для генерации сопроводительного письма (Cover Letter) для HH.ru."""
+    if hasattr(analysis_data, "model_dump"):
+        analysis_data = analysis_data.model_dump()
+    elif hasattr(analysis_data, "dict"):
+        analysis_data = analysis_data.dict()
     extra_context = ""
     if analysis_data:
         company = analysis_data.get("company_overview", "")
@@ -429,9 +433,13 @@ def build_analysis_prompt(order: RawOrder) -> str:
 
 def build_proposal_prompt(
     order: RawOrder,
-    analysis_data: Optional[Dict[str, Any]] = None,
+    analysis_data: Optional[Any] = None,
 ) -> str:
     """Сформировать промпт для генерации отклика или сопроводительного письма."""
+    if hasattr(analysis_data, "model_dump"):
+        analysis_data = analysis_data.model_dump()
+    elif hasattr(analysis_data, "dict"):
+        analysis_data = analysis_data.dict()
     from src.models.order import SourcePlatform
     if order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER):
         return build_cover_letter_prompt(order, analysis_data)
@@ -470,12 +478,16 @@ def build_proposal_prompt(
 
 def build_chat_prompt(
     order: RawOrder,
-    analysis_data: Optional[Dict[str, Any]] = None,
+    analysis_data: Optional[Any] = None,
     proposal_text: Optional[str] = None,
     history: Optional[list] = None,
     user_message: str = "",
 ) -> str:
     """Сформировать контекстный промпт для ответа на вопрос разработчика по конкретному заказу/вакансии."""
+    if hasattr(analysis_data, "model_dump"):
+        analysis_data = analysis_data.model_dump()
+    elif hasattr(analysis_data, "dict"):
+        analysis_data = analysis_data.dict()
     dossier_text = settings.DOSSIER_TEXT
     price_info = (
         f"{int(order.price)} ₽"

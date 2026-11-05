@@ -3803,7 +3803,7 @@ def create_web_app(
                 analysis_data = None
                 if order_data.get("analysis_json"):
                     try:
-                        analysis_data = AnalysisResult.model_validate_json(order_data["analysis_json"])
+                        analysis_data = json.loads(order_data["analysis_json"])
                     except Exception:
                         pass
                 raw_order = RawOrder(
