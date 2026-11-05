@@ -33,9 +33,12 @@ def get_order_inline_keyboard(
     order_url: str,
     has_proposal: bool = False,
     is_vacancy: bool = False,
+    is_hh: bool = False,
 ) -> InlineKeyboardMarkup:
     """Создать клавиатуру карточки заказа или вакансии."""
     if is_vacancy:
+        # Если ссылка на hh.ru или явно указано is_hh, добавляем 1-click apply
+        is_headhunter = is_hh or ("hh.ru" in order_url)
         action_btn = (
             InlineKeyboardButton(
                 text="📋 Скопировать Cover Letter",
@@ -48,7 +51,15 @@ def get_order_inline_keyboard(
             )
         )
         url_btn_text = "🔗 Открыть вакансию"
-        buttons = [
+        buttons = []
+        if is_headhunter:
+            buttons.append([
+                InlineKeyboardButton(
+                    text="🚀 Откликнуться на HH",
+                    callback_data=f"apply_hh:{order_id}",
+                )
+            ])
+        buttons.extend([
             [
                 action_btn,
                 InlineKeyboardButton(
@@ -66,7 +77,7 @@ def get_order_inline_keyboard(
                     callback_data=f"archive:{order_id}",
                 ),
             ],
-        ]
+        ])
         return InlineKeyboardMarkup(inline_keyboard=buttons)
     else:
         action_btn = (

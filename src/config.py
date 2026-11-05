@@ -271,6 +271,9 @@ class Secrets(BaseSettings):
     VACANCIES_ADMIN_CHAT_ID: Optional[int] = None
     MISTRAL_API_KEY: str = ""
     HH_APP_TOKEN: str = ""
+    HH_CLIENT_ID: str = ""
+    HH_CLIENT_SECRET: str = ""
+    HH_REDIRECT_URI: str = "https://jobs.3dvex.ru/callback"
     HH_USER_AGENT: str = "JobSearch/1.0 (pimenoffandrew@gmail.com)"
     WEB_AUTH_ENABLED: bool = True
     WEB_AUTH_USERNAME: str = "Horizontal42"
@@ -313,6 +316,18 @@ class Settings:
     @property
     def HH_USER_AGENT(self) -> str:
         return self.secrets.HH_USER_AGENT
+
+    @property
+    def HH_CLIENT_ID(self) -> str:
+        return self.secrets.HH_CLIENT_ID
+
+    @property
+    def HH_CLIENT_SECRET(self) -> str:
+        return self.secrets.HH_CLIENT_SECRET
+
+    @property
+    def HH_REDIRECT_URI(self) -> str:
+        return self.secrets.HH_REDIRECT_URI
 
     @property
     def WEB_AUTH_ENABLED(self) -> bool:

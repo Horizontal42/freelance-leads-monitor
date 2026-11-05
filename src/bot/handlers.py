@@ -6,7 +6,13 @@ from typing import Optional
 from aiogram import F, Router
 from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandStart, or_f
-from aiogram.types import CallbackQuery, LinkPreviewOptions, Message
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    LinkPreviewOptions,
+    Message,
+)
 from src.bot.keyboards import (
     get_main_reply_keyboard,
     get_order_inline_keyboard,
@@ -15,6 +21,7 @@ from src.bot.keyboards import (
 from src.config import settings
 from src.models.analysis import extract_clean_proposal_payload
 from src.models.order import OrderStatus, RawOrder, SourcePlatform
+from src.services.hh_applicant_service import HhApplicantService
 from src.services.uptime import get_system_status_info
 from src.storage.repository import OrderRepository
 
@@ -390,7 +397,11 @@ async def handle_generate_proposal(callback: CallbackQuery, repo: OrderRepositor
         if callback.message:
             try:
                 new_kb = get_order_inline_keyboard(
-                    order_id, raw_order.url, has_proposal=True, is_vacancy=is_vacancy
+                    order_id,
+                    raw_order.url,
+                    has_proposal=True,
+                    is_vacancy=is_vacancy,
+                    is_hh=(raw_order.source == SourcePlatform.HH_RU),
                 )
                 await callback.message.edit_reply_markup(reply_markup=new_kb)
             except Exception:
@@ -522,3 +533,140 @@ async def handle_archive_order(callback: CallbackQuery, repo: OrderRepository) -
             pass
 
     await callback.answer("Заказ перемещен в архив.")
+
+
+@router.callback_query(F.data.startswith("apply_hh:"))
+async def handle_apply_hh(callback: CallbackQuery, repo: OrderRepository) -> None:
+    """Откликнуться на вакансию HeadHunter в 1 клик с сопроводительным письмом."""
+    order_id_str = callback.data.split(":")[1]
+    order_id = int(order_id_str)
+
+    order_data = await repo.get_by_id(order_id)
+    if not order_data:
+        await callback.answer("Вакансия не найдена в базе данных.", show_alert=True)
+        return
+
+    source = order_data.get("source")
+    if source != SourcePlatform.HH_RU and source != "hh_ru":
+        await callback.answer("1-click отклик поддерживается только для вакансий HeadHunter.", show_alert=True)
+        return
+
+    vac_id = order_data.get("external_id")
+    if not vac_id:
+        import re
+        url = order_data.get("url") or ""
+        m = re.search(r"/vacancy/(\d+)", url)
+        if m:
+            vac_id = m.group(1)
+
+    if not vac_id:
+        await callback.answer("Не удалось определить ID вакансии на hh.ru.", show_alert=True)
+        return
+
+    hh_svc = HhApplicantService(repo)
+    status = await hh_svc.get_applicant_status()
+    if not status.get("connected"):
+        auth_url = status.get("auth_url")
+        auth_kb = InlineKeyboardMarkup(
+            inline_keyboard=[[
+                InlineKeyboardButton(text="🔑 Авторизоваться на HH", url=auth_url)
+            ]]
+        )
+        if callback.message:
+            await callback.message.reply(
+                "🔑 <b>Для отправки откликов в 1 клик подключите ваш аккаунт HeadHunter:</b>\n\n"
+                "Перейдите по ссылке ниже, подтвердите доступ и выберите резюме.",
+                parse_mode=ParseMode.HTML,
+                reply_markup=auth_kb,
+            )
+        await callback.answer("Требуется авторизация на hh.ru", show_alert=True)
+        return
+
+    await callback.answer("Отправка отклика на HeadHunter...")
+
+    # Получаем или генерируем сопроводительное письмо
+    cover_letter = order_data.get("proposal_text")
+    if not cover_letter and order_data.get("analysis_json"):
+        import json
+        try:
+            an = json.loads(order_data["analysis_json"])
+            cover_letter = an.get("proposal_text")
+        except Exception:
+            pass
+
+    if not cover_letter:
+        from src.analyzer.factory import get_llm_client
+        from src.models.analysis import AnalysisResult
+        analysis_data = None
+        if order_data.get("analysis_json"):
+            import json
+            try:
+                analysis_data = AnalysisResult.model_validate_json(order_data["analysis_json"])
+            except Exception:
+                pass
+        raw_order = RawOrder(
+            id=order_data.get("external_id", str(order_id)),
+            title=order_data.get("title", ""),
+            description=order_data.get("description", ""),
+            url=order_data.get("url", ""),
+            source=SourcePlatform.HH_RU,
+            price=order_data.get("price"),
+            currency=order_data.get("currency") or "RUB",
+            skills=[],
+            raw_data=order_data,
+        )
+        llm = get_llm_client()
+        prop_res = await llm.generate_proposal(raw_order, analysis_data)
+        cover_letter = str(prop_res)
+        await repo.update_proposal(order_id=order_id, proposal_text=cover_letter)
+
+    # Отправляем отклик
+    apply_res = await hh_svc.apply_to_vacancy(str(vac_id), cover_letter)
+
+    if apply_res.get("ok"):
+        await repo.toggle_responded(order_id, is_responded=True)
+        if callback.message:
+            vac_title = order_data.get("title") or "вакансию"
+            await safe_reply(
+                callback.message,
+                html_text=(
+                    f"🚀 <b>Отклик успешно отправлен на HeadHunter!</b>\n\n"
+                    f"💼 <b>Вакансия:</b> {html.escape(vac_title)}\n"
+                    f"✅ Статус обновлен на «Откликнулся»."
+                ),
+                plain_fallback=f"Отклик успешно отправлен на HeadHunter! Вакансия: {vac_title}",
+            )
+    elif apply_res.get("requires_test"):
+        vac_url = apply_res.get("url") or order_data.get("url")
+        test_kb = InlineKeyboardMarkup(
+            inline_keyboard=[[
+                InlineKeyboardButton(text="📝 Открыть тест на HH", url=vac_url)
+            ]]
+        )
+        if callback.message:
+            await callback.message.reply(
+                "⚠️ <b>Работодатель требует прохождения опросника/теста перед откликом!</b>\n\n"
+                "Откройте вакансию на hh.ru и ответьте на вопросы работодателя вручную.",
+                parse_mode=ParseMode.HTML,
+                reply_markup=test_kb,
+            )
+    else:
+        err_msg = apply_res.get("error") or apply_res.get("message") or "Неизвестная ошибка"
+        vac_url = apply_res.get("url") or order_data.get("url")
+        fallback_kb = (
+            InlineKeyboardMarkup(
+                inline_keyboard=[[
+                    InlineKeyboardButton(text="🔗 Открыть вакансию на HH", url=vac_url)
+                ]]
+            )
+            if vac_url
+            else None
+        )
+        if callback.message:
+            await callback.message.reply(
+                f"❌ <b>Не удалось отправить отклик на HeadHunter:</b>\n<code>{html.escape(str(err_msg))}</code>\n\n"
+                f"Вы можете откликнуться вручную по ссылке:",
+                parse_mode=ParseMode.HTML,
+                reply_markup=fallback_kb,
+            )
+

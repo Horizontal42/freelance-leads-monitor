@@ -8,12 +8,14 @@ import re
 import secrets
 from typing import Any, Dict, List, Optional
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from jinja2 import Template
+from src.analyzer.factory import get_llm_client
 from src.config import settings
-from src.models.analysis import extract_clean_text_items
+from src.models.analysis import AnalysisResult, extract_clean_text_items
 from src.models.order import OrderPriority, RawOrder, SourcePlatform
+from src.services.hh_applicant_service import HhApplicantService
 from src.storage.repository import OrderRepository
 
 logger = logging.getLogger(__name__)
@@ -414,6 +416,14 @@ DASHBOARD_HTML = """
                                 <span class="skip-text">{% if order.is_skipped %}Вернуть{% else %}Скип{% endif %}</span>
                             </button>
 
+                            {% if order.source == 'hh_ru' %}
+                                <!-- 1-Click Apply to HeadHunter Button -->
+                                <button type="button" onclick="applyVacancyHH('{{ order.id }}', this)" id="apply-hh-btn-{{ order.id }}" class="text-xs px-2.5 py-0.5 rounded-md transition flex items-center gap-1.5 border font-semibold {% if order.is_responded %}bg-slate-900/80 text-emerald-400 border-slate-800 cursor-default{% else %}bg-rose-950/90 text-rose-300 border-rose-700/80 hover:bg-rose-900/90 shadow-sm{% endif %}" title="Откликнуться на вакансию HeadHunter в 1 клик">
+                                    <span>🚀</span>
+                                    <span>{% if order.is_responded %}Отклик отправлен{% else %}Откликнуться на HH{% endif %}</span>
+                                </button>
+                            {% endif %}
+
                             {% if order.source not in ['hh_ru', 'habr_career'] %}
                                 <!-- Paid vs Free Response Badge (Freelance only) -->
                                 {% if order.is_pro_only %}
@@ -653,7 +663,10 @@ DASHBOARD_HTML = """
                                                     <button onclick="generateProposal('{{ order.id }}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
                                                         🔄 Перегенерировать
                                                     </button>
-                                                    <button onclick="copyProposal('proposal-text-{{ order.id }}', this)" class="text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                                    <button onclick="applyVacancyHH('{{ order.id }}', this)" class="text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                                        <span>🚀</span> Откликнуться на HH
+                                                    </button>
+                                                    <button onclick="copyProposal('proposal-text-{{ order.id }}', this)" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium px-3 py-1 rounded-md transition flex items-center gap-1 border border-slate-700">
                                                         <span>📋</span> Скопировать Cover Letter
                                                     </button>
                                                 </div>
@@ -1692,6 +1705,56 @@ DASHBOARD_HTML = """
                             </label>
                         </div>
                     </div>
+
+                    <!-- HeadHunter OAuth Applicant Account Card -->
+                    <div class="bg-gradient-to-r from-rose-950/40 via-slate-900 to-indigo-950/40 border border-rose-900/50 p-6 rounded-xl space-y-4 shadow-sm">
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                            <div>
+                                <h4 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                    <span>🚀</span> HeadHunter: Отклики в 1 клик (OAuth)
+                                </h4>
+                                <p class="text-xs text-slate-400 mt-1">
+                                    Подключение аккаунта соискателя HeadHunter для автоматической отправки сопроводительных писем и откликов в 1 клик без ручного перехода на сайт.
+                                </p>
+                            </div>
+                            <div>
+                                {% if hh_applicant_status and hh_applicant_status.connected %}
+                                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-800">
+                                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                        Подключено к HH
+                                    </span>
+                                {% else %}
+                                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-950/80 text-amber-300 border border-amber-800">
+                                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                                        Не подключено
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-1">
+                            {% if hh_applicant_status and hh_applicant_status.connected %}
+                                <div class="space-y-1">
+                                    <div class="text-xs text-slate-300">
+                                        Активное резюме: <strong class="text-white">{{ hh_applicant_status.resume_title or 'Основное' }}</strong>
+                                    </div>
+                                    <div class="text-[11px] text-slate-500 font-mono">
+                                        ID резюме: {{ hh_applicant_status.resume_id }}
+                                    </div>
+                                </div>
+                                <a href="/hh/auth" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold px-4 py-2 rounded-lg border border-slate-700 transition flex items-center gap-2">
+                                    <span>🔄</span> Переподключить аккаунт
+                                </a>
+                            {% else %}
+                                <p class="text-xs text-slate-400 max-w-xl">
+                                    Нажмите кнопку справа, чтобы авторизоваться на hh.ru. Приложение получит защищенный токен и выберет ваше опубликованное резюме.
+                                </p>
+                                <a href="/hh/auth" class="text-xs bg-rose-600 hover:bg-rose-500 text-white font-bold px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-md shadow-rose-600/30 whitespace-nowrap">
+                                    <span>🔑</span> Подключить аккаунт HeadHunter
+                                </a>
+                            {% endif %}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2053,6 +2116,9 @@ DASHBOARD_HTML = """
                                     <button onclick="generateProposal('${orderId}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition">
                                         🔄 Перегенерировать
                                     </button>
+                                    ${isHh ? `<button onclick="applyVacancyHH('${orderId}', this)" class="text-xs bg-rose-600 hover:bg-rose-500 text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
+                                        <span>🚀</span> Откликнуться на HH
+                                    </button>` : ''}
                                     <button onclick="copyProposal('proposal-text-${orderId}', this)" class="text-xs ${btnClass} text-white font-medium px-3 py-1 rounded-md transition flex items-center gap-1 shadow-sm">
                                         <span>📋</span> ${btnCopyText}
                                     </button>
@@ -2518,6 +2584,65 @@ DASHBOARD_HTML = """
                 }
             } catch (e) {
                 alert('Ошибка обновления статуса: ' + e);
+            }
+        }
+
+        async function applyVacancyHH(orderId, btn) {
+            if (!orderId) return;
+            if (!confirm('Отправить отклик на эту вакансию на HeadHunter?')) {
+                return;
+            }
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span>⏳</span> Отправка...';
+            try {
+                const resp = await fetch(`/api/vacancies/${orderId}/apply`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    btn.innerHTML = '<span>✅</span> Отклик отправлен';
+                    btn.disabled = true;
+                    btn.className = "text-xs px-2.5 py-0.5 rounded-md transition flex items-center gap-1.5 border font-semibold bg-slate-900/80 text-emerald-400 border-slate-800 cursor-default";
+
+                    const card = document.querySelector(`.order-card[data-id="${orderId}"]`);
+                    if (card) {
+                        card.setAttribute('data-responded', '1');
+                        card.classList.add('opacity-65', 'border-dashed');
+                    }
+                    const respBtn = document.getElementById(`responded-btn-${orderId}`);
+                    if (respBtn) {
+                        const icon = respBtn.querySelector('.responded-icon');
+                        const text = respBtn.querySelector('.responded-text');
+                        if (icon) icon.innerText = '✅';
+                        if (text) text.innerText = 'Откликнулся';
+                        respBtn.className = "responded-toggle-btn text-xs px-2.5 py-0.5 rounded-md transition flex items-center gap-1.5 border font-medium bg-emerald-950/90 text-emerald-300 border-emerald-700/80 hover:bg-emerald-900/90";
+                    }
+                    showToast(data.message || 'Отклик успешно отправлен на HeadHunter!');
+                    applyClientFilters();
+                } else if (data.need_auth) {
+                    btn.innerHTML = origHtml;
+                    btn.disabled = false;
+                    if (confirm((data.message || 'Требуется подключение HeadHunter.') + '\n\nПерейти к авторизации на hh.ru сейчас?')) {
+                        window.location.href = data.auth_url || '/hh/auth';
+                    }
+                } else if (data.requires_test) {
+                    btn.innerHTML = origHtml;
+                    btn.disabled = false;
+                    alert((data.message || 'Работодатель требует прохождения опросника/теста.') + '\n\nОткройте вакансию на hh.ru и ответьте на вопросы работодателя.');
+                    if (data.url) {
+                        window.open(data.url, '_blank');
+                    }
+                } else {
+                    btn.innerHTML = origHtml;
+                    btn.disabled = false;
+                    alert(data.error || data.message || 'Ошибка отправки отклика.');
+                }
+            } catch (e) {
+                btn.innerHTML = origHtml;
+                btn.disabled = false;
+                alert('Сетевая ошибка при отклике: ' + e);
             }
         }
 
@@ -3308,6 +3433,9 @@ def create_web_app(
         default_drop_titles = [t.strip() for t in settings.COLLECTORS_HH_RU.drop_title.split("|") if t.strip()]
         effective_drop_titles = current_settings.get("filter_drop_titles", default_drop_titles)
 
+        hh_svc = HhApplicantService(repository)
+        hh_applicant_status = await hh_svc.get_applicant_status()
+
         template = Template(DASHBOARD_HTML, autoescape=True)
         html_content = template.render(
             orders=formatted_orders,
@@ -3326,6 +3454,7 @@ def create_web_app(
             hh_config=settings.COLLECTORS_HH_RU,
             dossier_items=settings.PROMPTS_CONFIG.projects_dossier,
             settings_map=effective_settings,
+            hh_applicant_status=hh_applicant_status,
             health_data=health_data,
             uptime_info=uptime_info,
             raw_config_yaml=raw_config_yaml,
@@ -3333,6 +3462,100 @@ def create_web_app(
             format_bullet_html=format_bullet_html,
         )
         return HTMLResponse(content=html_content)
+
+    @app.get("/hh/auth")
+    async def hh_auth_redirect():
+        """Перенаправление на OAuth страницу авторизации HeadHunter."""
+        hh_svc = HhApplicantService(repository)
+        auth_url = hh_svc.get_auth_url()
+        return RedirectResponse(url=auth_url)
+
+    @app.get("/callback")
+    async def hh_oauth_callback(code: Optional[str] = None, error: Optional[str] = None):
+        """Callback для OAuth обмена авторизационного кода HeadHunter на токен."""
+        if error or not code:
+            err_param = error or "missing_code"
+            return RedirectResponse(url=f"/?section=hh_ru&tab=settings&hh_error={err_param}")
+        hh_svc = HhApplicantService(repository)
+        res = await hh_svc.exchange_code(code)
+        if res.get("ok"):
+            return RedirectResponse(url="/?section=hh_ru&tab=settings&hh_connected=1")
+        else:
+            import urllib.parse
+            err_msg = urllib.parse.quote(str(res.get("error", "auth_failed")))
+            return RedirectResponse(url=f"/?section=hh_ru&tab=settings&hh_error={err_msg}")
+
+    @app.post("/api/vacancies/{order_id}/apply")
+    async def api_apply_vacancy(order_id: int):
+        """Отправить отклик на вакансию HeadHunter в 1 клик через API соискателя."""
+        order_data = await repository.get_by_id(order_id)
+        if not order_data:
+            return JSONResponse(status_code=404, content={"ok": False, "error": "Вакансия не найдена в базе данных"})
+
+        source = order_data.get("source")
+        if source != "hh_ru" and source != SourcePlatform.HH_RU:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "1-click отклик доступен только для вакансий HeadHunter"})
+
+        vac_id = order_data.get("external_id")
+        if not vac_id:
+            url = order_data.get("url") or ""
+            m = re.search(r"/vacancy/(\d+)", url)
+            if m:
+                vac_id = m.group(1)
+
+        if not vac_id:
+            return JSONResponse(status_code=400, content={"ok": False, "error": "Не удалось определить ID вакансии на hh.ru"})
+
+        hh_svc = HhApplicantService(repository)
+        status_info = await hh_svc.get_applicant_status()
+        if not status_info.get("connected"):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "ok": False,
+                    "need_auth": True,
+                    "message": "Аккаунт HeadHunter не подключен. Авторизуйтесь для включения откликов в 1 клик.",
+                    "auth_url": status_info.get("auth_url"),
+                },
+            )
+
+        cover_letter = order_data.get("proposal_text")
+        if not cover_letter and order_data.get("analysis_json"):
+            try:
+                an = json.loads(order_data["analysis_json"])
+                cover_letter = an.get("proposal_text")
+            except Exception:
+                pass
+
+        if not cover_letter:
+            analysis_data = None
+            if order_data.get("analysis_json"):
+                try:
+                    analysis_data = AnalysisResult.model_validate_json(order_data["analysis_json"])
+                except Exception:
+                    pass
+            raw_order = RawOrder(
+                id=order_data.get("external_id", str(order_id)),
+                title=order_data.get("title", ""),
+                description=order_data.get("description", ""),
+                url=order_data.get("url", ""),
+                source=SourcePlatform.HH_RU,
+                price=order_data.get("price"),
+                currency=order_data.get("currency") or "RUB",
+                skills=[],
+                raw_data=order_data,
+            )
+            llm = get_llm_client()
+            prop_res = await llm.generate_proposal(raw_order, analysis_data)
+            cover_letter = str(prop_res)
+            await repository.update_proposal(order_id=order_id, proposal_text=cover_letter)
+
+        result = await hh_svc.apply_to_vacancy(str(vac_id), cover_letter)
+        if result.get("ok"):
+            await repository.toggle_responded(order_id, is_responded=True)
+            return JSONResponse(content={"ok": True, "status": "applied", "message": result.get("message", "Отклик успешно отправлен на HeadHunter!")})
+
+        return JSONResponse(status_code=400, content=result)
 
     @app.post("/api/orders/{order_id}/toggle-responded")
     async def api_toggle_responded(order_id: int):

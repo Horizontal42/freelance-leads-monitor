@@ -182,11 +182,13 @@ class TelegramNotifier:
         card_text = self.format_card(order, analysis)
         has_proposal = bool(analysis.proposal_text and analysis.proposal_text.strip())
         is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
+        is_hh = order.source == SourcePlatform.HH_RU
         keyboard = get_order_inline_keyboard(
             order_db_id,
             order.url,
             has_proposal=has_proposal,
             is_vacancy=is_vacancy,
+            is_hh=is_hh,
         )
 
         try:
