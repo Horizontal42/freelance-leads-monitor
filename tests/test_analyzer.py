@@ -444,4 +444,25 @@ def test_sanitize_proposal_text_markdown_and_emdash_removal():
     assert "Опыт - коммерческая разработка B2B - речевая аналитика." in cleaned
 
 
+def test_sanitize_proposal_text_zdravstvuyte_comma():
+    """Тест автоматической замены точки на запятую после 'Здравствуйте'."""
+    from src.models.analysis import sanitize_proposal_text
+
+    raw_1 = "Здравствуйте. Занимаюсь бэкенд-разработкой на Python: строю API и ботов."
+    assert sanitize_proposal_text(raw_1) == "Здравствуйте, занимаюсь бэкенд-разработкой на Python: строю API и ботов."
+
+    raw_2 = "Здравствуйте.\n\nЗанимаюсь прикладными AI-агентами."
+    assert sanitize_proposal_text(raw_2) == "Здравствуйте,\n\nЗанимаюсь прикладными AI-агентами."
+
+    raw_3 = "Здравствуйте. AI-инженер с опытом продакшена."
+    assert sanitize_proposal_text(raw_3) == "Здравствуйте, AI-инженер с опытом продакшена."
+
+    raw_4 = "Здравствуйте."
+    assert sanitize_proposal_text(raw_4) == "Здравствуйте,"
+
+    raw_5 = "здравствуйте. разрабатываю парсеры на Scrapy."
+    assert sanitize_proposal_text(raw_5) == "здравствуйте, разрабатываю парсеры на Scrapy."
+
+
+
 

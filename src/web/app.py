@@ -13,7 +13,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from jinja2 import Template
 from src.analyzer.factory import get_llm_client
 from src.config import settings
-from src.models.analysis import AnalysisResult, extract_clean_text_items
+from src.models.analysis import AnalysisResult, extract_clean_text_items, sanitize_proposal_text
 from src.models.order import OrderPriority, RawOrder, SourcePlatform
 from src.services.hh_applicant_service import HhApplicantService
 from src.storage.repository import OrderRepository
@@ -86,7 +86,7 @@ DASHBOARD_HTML = """
         }
     </style>
     <script>
-        window.APP_BUILD_VERSION = "2.4.5";
+        window.APP_BUILD_VERSION = "2.4.6";
         function logClient(action, data) {
             try {
                 const payload = Object.assign({ action: action }, data || {});
@@ -123,7 +123,7 @@ DASHBOARD_HTML = """
                     <h1 class="text-lg font-bold text-white tracking-tight flex items-center gap-2">
                         Freelance Leads Monitor
                         <span class="text-xs font-mono font-normal px-2.5 py-0.5 rounded-full bg-blue-950 text-blue-300 border border-blue-800/60">jobs.3dvex.ru</span>
-                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/80 select-none" title="Версия интерфейса">v2.4.5</span>
+                        <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/80 select-none" title="Версия интерфейса">v2.4.6</span>
                     </h1>
                     <p class="text-xs text-slate-400">
                         {% if active_section == 'hh_ru' %}
@@ -3644,9 +3644,13 @@ def create_web_app(
         formatted_orders: List[Dict[str, Any]] = []
         for o in raw_orders:
             item = dict(o)
+            if item.get("proposal_text"):
+                item["proposal_text"] = sanitize_proposal_text(item["proposal_text"])
             if item.get("analysis_json"):
                 try:
                     item["analysis"] = json.loads(item["analysis_json"])
+                    if item["analysis"] and item["analysis"].get("proposal_text"):
+                        item["analysis"]["proposal_text"] = sanitize_proposal_text(item["analysis"]["proposal_text"])
                 except Exception:
                     item["analysis"] = None
             else:
@@ -3666,9 +3670,13 @@ def create_web_app(
                 # Удаляем старое вхождение если есть и вставляем на самый верх
                 formatted_orders = [o for o in formatted_orders if o.get("id") != order_id]
                 item = dict(target_order)
+                if item.get("proposal_text"):
+                    item["proposal_text"] = sanitize_proposal_text(item["proposal_text"])
                 if item.get("analysis_json"):
                     try:
                         item["analysis"] = json.loads(item["analysis_json"])
+                        if item["analysis"] and item["analysis"].get("proposal_text"):
+                            item["analysis"]["proposal_text"] = sanitize_proposal_text(item["analysis"]["proposal_text"])
                     except Exception:
                         item["analysis"] = None
                 else:
@@ -3833,6 +3841,8 @@ def create_web_app(
                 cover_letter = an.get("proposal_text")
             except Exception:
                 pass
+        if cover_letter:
+            cover_letter = sanitize_proposal_text(cover_letter)
 
         if not cover_letter:
             try:
@@ -3855,7 +3865,7 @@ def create_web_app(
                 )
                 llm = get_llm_client()
                 prop_res = await llm.generate_proposal(raw_order, analysis_data)
-                cover_letter = str(prop_res)
+                cover_letter = sanitize_proposal_text(str(prop_res))
                 await repository.update_proposal(order_id=order_id, proposal_text=cover_letter)
             except Exception as e:
                 logger.error("Ошибка автогенерации письма для вакансии HH #%s: %s", order_id, e, exc_info=True)
@@ -3935,7 +3945,7 @@ def create_web_app(
                     analysis_data = None
 
             proposal_res = await llm_client.generate_proposal(raw_order, analysis_data)
-            proposal_text = str(proposal_res)
+            proposal_text = sanitize_proposal_text(str(proposal_res))
             rec_price = getattr(proposal_res, "recommended_price", None)
             mkt_price = getattr(proposal_res, "market_price", None)
             price_just = getattr(proposal_res, "price_justification", None)
