@@ -492,6 +492,32 @@ def test_extract_clean_proposal_payload_with_unescaped_quotes():
     assert "чат-боты e-commerce" in res["price_justification"]
 
 
+def test_sanitize_proposal_text_remove_meta_headers():
+    """Тест автоматического удаления шаблонных мета-заголовков вида 'Почему подхожу...' и лести компании."""
+    from src.models.analysis import sanitize_proposal_text
+
+    raw = (
+        "Здравствуйте, Алина.\n\n"
+        "Занимаюсь разработкой бэкенд-систем на Python.\n\n"
+        "Почему подхожу на роль Backend Engineer в Вашем инвесторе:\n\n"
+        "1. Стек и архитектура:\n"
+        "   - FastAPI и PostgreSQL.\n\n"
+        "Почему Ваш инвестор:\n"
+        "- Ценю прозрачность и культуру компании.\n"
+        "- Интересны финтех-проекты.\n\n"
+        "Telegram: @Horizontal84"
+    )
+
+    cleaned = sanitize_proposal_text(raw)
+    assert "Почему подхожу" not in cleaned
+    assert "Почему Ваш инвестор" not in cleaned
+    assert "Ценю прозрачность" not in cleaned
+    assert "1. Стек и архитектура:" in cleaned
+    assert "FastAPI и PostgreSQL." in cleaned
+    assert "Telegram: @Horizontal84" in cleaned
+
+
+
 
 
 
