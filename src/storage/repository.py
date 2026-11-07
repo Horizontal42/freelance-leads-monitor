@@ -804,3 +804,156 @@ class OrderRepository:
             await db.execute("DELETE FROM system_settings WHERE key = ?", (key,))
             await db.commit()
 
+    async def save_market_snapshot(self, snapshot: Dict[str, Any]) -> int:
+        """Сохранить или обновить снимок аналитики рынка за определенную дату."""
+        top_skills_str = json.dumps(snapshot.get("top_skills", {}), ensure_ascii=False)
+        sources_str = json.dumps(snapshot.get("sources_breakdown", {}), ensure_ascii=False)
+        async with self._get_conn() as db:
+            cursor = await db.execute(
+                """
+                INSERT INTO market_daily_snapshots (
+                    date, source_type, scope, total_count, responded_count, skipped_count,
+                    hot_count, avg_price, median_price, min_price, max_price,
+                    top_skills_json, sources_breakdown_json, ai_summary, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(date, source_type, scope) DO UPDATE SET
+                    total_count = excluded.total_count,
+                    responded_count = excluded.responded_count,
+                    skipped_count = excluded.skipped_count,
+                    hot_count = excluded.hot_count,
+                    avg_price = excluded.avg_price,
+                    median_price = excluded.median_price,
+                    min_price = excluded.min_price,
+                    max_price = excluded.max_price,
+                    top_skills_json = excluded.top_skills_json,
+                    sources_breakdown_json = excluded.sources_breakdown_json,
+                    ai_summary = COALESCE(excluded.ai_summary, market_daily_snapshots.ai_summary),
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    snapshot["date"],
+                    snapshot["source_type"],
+                    snapshot["scope"],
+                    snapshot.get("total_count", 0),
+                    snapshot.get("responded_count", 0),
+                    snapshot.get("skipped_count", 0),
+                    snapshot.get("hot_count", 0),
+                    snapshot.get("avg_price"),
+                    snapshot.get("median_price"),
+                    snapshot.get("min_price"),
+                    snapshot.get("max_price"),
+                    top_skills_str,
+                    sources_str,
+                    snapshot.get("ai_summary"),
+                ),
+            )
+            await db.commit()
+            return cursor.lastrowid  # type: ignore
+
+    async def get_market_snapshots(
+        self,
+        source_type: Optional[str] = None,
+        scope: Optional[str] = None,
+        limit: int = 60,
+    ) -> List[Dict[str, Any]]:
+        """Получить историю снимков рынка по фильтрам источника и охвата."""
+        conds = []
+        params: List[Any] = []
+        if source_type:
+            conds.append("source_type = ?")
+            params.append(source_type)
+        if scope:
+            conds.append("scope = ?")
+            params.append(scope)
+        where_clause = f"WHERE {' AND '.join(conds)}" if conds else ""
+        query = f"""
+            SELECT id, date, source_type, scope, total_count, responded_count, skipped_count,
+                   hot_count, avg_price, median_price, min_price, max_price,
+                   top_skills_json, sources_breakdown_json, ai_summary, created_at, updated_at
+            FROM market_daily_snapshots
+            {where_clause}
+            ORDER BY date DESC
+            LIMIT ?
+        """
+        params.append(limit)
+        async with self._get_conn() as db:
+            async with db.execute(query, tuple(params)) as cursor:
+                rows = await cursor.fetchall()
+                results = []
+                for r in rows:
+                    top_skills = {}
+                    if r[12]:
+                        try:
+                            top_skills = json.loads(r[12])
+                        except Exception:
+                            pass
+                    sources_breakdown = {}
+                    if r[13]:
+                        try:
+                            sources_breakdown = json.loads(r[13])
+                        except Exception:
+                            pass
+                    results.append({
+                        "id": r[0],
+                        "date": r[1],
+                        "source_type": r[2],
+                        "scope": r[3],
+                        "total_count": r[4],
+                        "responded_count": r[5],
+                        "skipped_count": r[6],
+                        "hot_count": r[7],
+                        "avg_price": r[8],
+                        "median_price": r[9],
+                        "min_price": r[10],
+                        "max_price": r[11],
+                        "top_skills": top_skills,
+                        "sources_breakdown": sources_breakdown,
+                        "ai_summary": r[14],
+                        "created_at": r[15],
+                        "updated_at": r[16],
+                    })
+                return results
+
+    async def get_latest_market_snapshot(
+        self,
+        source_type: str,
+        scope: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Получить самый свежий снимок рынка."""
+        res = await self.get_market_snapshots(source_type=source_type, scope=scope, limit=1)
+        return res[0] if res else None
+
+    async def save_market_ai_summary(
+        self,
+        date: str,
+        source_type: str,
+        scope: str,
+        ai_summary: str,
+    ) -> None:
+        """Сохранить сгенерированную AI-сводку в снимок за дату."""
+        async with self._get_conn() as db:
+            await db.execute(
+                """
+                UPDATE market_daily_snapshots
+                SET ai_summary = ?, updated_at = CURRENT_TIMESTAMP
+                WHERE date = ? AND source_type = ? AND scope = ?
+                """,
+                (ai_summary, date, source_type, scope),
+            )
+            await db.commit()
+
+    async def get_distinct_order_dates(self) -> List[str]:
+        """Получить все даты (YYYY-MM-DD), за которые есть записи в orders."""
+        async with self._get_conn() as db:
+            async with db.execute(
+                """
+                SELECT DISTINCT date(created_at) as order_date
+                FROM orders
+                WHERE created_at IS NOT NULL
+                ORDER BY order_date ASC
+                """
+            ) as cursor:
+                rows = await cursor.fetchall()
+                return [r[0] for r in rows if r[0]]
+
+

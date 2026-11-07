@@ -530,5 +530,22 @@ async def test_web_generate_proposal_fallback_and_api(tmp_path, monkeypatch):
         assert recalc_data["ok"] is True
         assert "Локальный пересчет завершен" in recalc_data["message"]
 
+        # 9. Проверяем вкладку аналитики трендов
+        analytics_html_resp = await client.get("/?tab=analytics&analytics_source=order&analytics_scope=all_it")
+        assert analytics_html_resp.status_code == 200
+        assert "Динамика рынка и тренды спроса" in analytics_html_resp.text
+
+        # 10. Проверяем API аналитики трендов
+        trends_api_resp = await client.get("/api/analytics/trends?source_type=order&scope=all_it&days=14")
+        assert trends_api_resp.status_code == 200
+        assert trends_api_resp.json()["ok"] is True
+        assert "snapshots" in trends_api_resp.json()["data"]
+
+        # 11. Проверяем API пересчета снимков рынка
+        recalc_snaps_resp = await client.post("/api/analytics/recalculate", json={"full_backfill": False})
+        assert recalc_snaps_resp.status_code == 200
+        assert recalc_snaps_resp.json()["ok"] is True
+
+
 
 

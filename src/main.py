@@ -20,6 +20,7 @@ from src.config import settings
 from src.filters.pre_filter import HardFilter
 from src.notifiers.pipeline import LeadsPipeline
 from src.notifiers.telegram_notifier import TelegramNotifier
+from src.services.market_analytics import MarketAnalyticsService
 from src.storage.db import init_db
 from src.storage.repository import OrderRepository
 from src.web.app import create_web_app
@@ -99,6 +100,38 @@ async def polling_worker(
         else:
             await asyncio.sleep(interval)
     logger.info("Фоновый воркер [%s] завершил работу.", name)
+
+
+async def market_analytics_worker(
+    repo: OrderRepository,
+    interval_seconds: int = 21600,
+    stop_event: Optional[asyncio.Event] = None,
+) -> None:
+    """Периодическое обновление ежедневных снимков аналитики рынка (чистый SQL, 0 токенов)."""
+    svc = MarketAnalyticsService(repo)
+    logger.info("Фоновый воркер аналитики рынка запущен (интервал: %d сек)", interval_seconds)
+    while stop_event is None or not stop_event.is_set():
+        try:
+            from datetime import date
+            today = date.today().isoformat()
+            for st in ["all", "order", "vacancy"]:
+                for sc in ["all_it", "specialized"]:
+                    await svc.calculate_daily_snapshot(today, source_type=st, scope=sc)
+            logger.info("Ежедневные срезы аналитики рынка за %s успешно обновлены.", today)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error("Ошибка при обновлении срезов аналитики рынка: %s", e)
+
+        if stop_event is not None:
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=interval_seconds)
+                break
+            except asyncio.TimeoutError:
+                pass
+        else:
+            await asyncio.sleep(interval_seconds)
+    logger.info("Фоновый воркер аналитики рынка завершил работу.")
 
 
 async def main() -> None:
@@ -264,6 +297,13 @@ async def main() -> None:
                 pipeline=pipeline,
                 interval_seconds=getattr(settings, "VACANCIES_POLL_INTERVAL", 1800),
                 name="Вакансии",
+                stop_event=stop_event,
+            )
+        ),
+        asyncio.create_task(
+            market_analytics_worker(
+                repo=repo,
+                interval_seconds=getattr(settings, "MARKET_ANALYTICS_INTERVAL", 21600),
                 stop_event=stop_event,
             )
         ),

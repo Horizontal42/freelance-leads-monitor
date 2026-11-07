@@ -16,6 +16,7 @@ from src.config import settings
 from src.models.analysis import AnalysisResult, extract_clean_text_items, sanitize_proposal_text
 from src.models.order import OrderPriority, RawOrder, SourcePlatform
 from src.services.hh_applicant_service import HhApplicantService
+from src.services.market_analytics import MarketAnalyticsService
 from src.storage.repository import OrderRepository
 
 logger = logging.getLogger(__name__)
@@ -1151,13 +1152,185 @@ DASHBOARD_HTML = """
                                     <td class="p-3 font-mono text-rose-400">{{ item.skipped or 0 }}</td>
                                     <td class="p-3 font-mono">
                                         {% if item.total > 0 %}
-                                            {{ "{:.1f}%".format((item.hot / item.total) * 100) }}
+                                             {{ "{:.1f}%".format((item.hot / item.total) * 100) }}
                                         {% else %}0%{% endif %}
                                     </td>
                                 </tr>
                             {% endfor %}
                         </tbody>
                     </table>
+                </div>
+            </div>
+
+            <!-- Market Trends & Daily Dynamics Section -->
+            <div class="bg-slate-900 border border-slate-800 p-6 rounded-xl space-y-6">
+                <!-- Section Header and Filters -->
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                    <div>
+                        <h3 class="text-base font-bold text-white flex items-center gap-2">
+                            <span>📈</span> Динамика рынка и тренды спроса (по датам)
+                        </h3>
+                        <p class="text-xs text-slate-400 mt-1">
+                            Раздельный учет заказов и вакансий, анализ по всему IT vs профильной специализации, срезы востребованности навыков
+                        </p>
+                    </div>
+
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <button type="button" id="ai-summary-btn" onclick="generateMarketSummary('{{ analytics_source }}', '{{ analytics_scope }}', {{ analytics_days }})" class="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-bold rounded-lg transition flex items-center gap-1.5 shadow-md shadow-indigo-950/40">
+                            <span>🤖</span> Сформировать AI-сводку (Mistral 14B)
+                        </button>
+                        <button type="button" id="btn-recalc-snapshots" onclick="recalculateMarketSnapshots(false)" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg transition border border-slate-700 flex items-center gap-1">
+                            <span>🔄</span> Пересчитать за сегодня
+                        </button>
+                        <button type="button" id="btn-backfill-snapshots" onclick="recalculateMarketSnapshots(true)" class="px-3 py-2 bg-slate-950 hover:bg-slate-800 text-slate-400 text-xs font-medium rounded-lg transition border border-slate-800 flex items-center gap-1" title="Пересчитать историю за все даты">
+                            <span>⚡</span> Бэкфилл истории
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Scope and Source Selectors -->
+                <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-950/70 p-3 rounded-lg border border-slate-800/80 text-xs">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-slate-400 font-semibold">Источник:</span>
+                        <a href="/?section={{ active_section }}&tab=analytics&analytics_source=vacancy&analytics_scope={{ analytics_scope }}&analytics_days={{ analytics_days }}" class="px-2.5 py-1 rounded-md transition font-medium {% if analytics_source == 'vacancy' %}bg-rose-950 text-rose-300 border border-rose-800/80 font-bold{% else %}text-slate-400 hover:text-white bg-slate-900 border border-slate-800{% endif %}">
+                            💼 Вакансии (HH / Хабр)
+                        </a>
+                        <a href="/?section={{ active_section }}&tab=analytics&analytics_source=order&analytics_scope={{ analytics_scope }}&analytics_days={{ analytics_days }}" class="px-2.5 py-1 rounded-md transition font-medium {% if analytics_source == 'order' %}bg-blue-950 text-blue-300 border border-blue-800/80 font-bold{% else %}text-slate-400 hover:text-white bg-slate-900 border border-slate-800{% endif %}">
+                            ⚡ Заказы (Фриланс)
+                        </a>
+                        <a href="/?section={{ active_section }}&tab=analytics&analytics_source=all&analytics_scope={{ analytics_scope }}&analytics_days={{ analytics_days }}" class="px-2.5 py-1 rounded-md transition font-medium {% if analytics_source == 'all' %}bg-purple-950 text-purple-300 border border-purple-800/80 font-bold{% else %}text-slate-400 hover:text-white bg-slate-900 border border-slate-800{% endif %}">
+                            🌐 Все источники
+                        </a>
+                    </div>
+
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-slate-400 font-semibold">Охват:</span>
+                        <a href="/?section={{ active_section }}&tab=analytics&analytics_source={{ analytics_source }}&analytics_scope=all_it&analytics_days={{ analytics_days }}" class="px-2.5 py-1 rounded-md transition font-medium {% if analytics_scope == 'all_it' %}bg-emerald-950 text-emerald-300 border border-emerald-800/80 font-bold{% else %}text-slate-400 hover:text-white bg-slate-900 border border-slate-800{% endif %}">
+                            🌍 Все IT (общерыночный)
+                        </a>
+                        <a href="/?section={{ active_section }}&tab=analytics&analytics_source={{ analytics_source }}&analytics_scope=specialized&analytics_days={{ analytics_days }}" class="px-2.5 py-1 rounded-md transition font-medium {% if analytics_scope == 'specialized' %}bg-amber-950 text-amber-300 border border-amber-800/80 font-bold{% else %}text-slate-400 hover:text-white bg-slate-900 border border-slate-800{% endif %}">
+                            🎯 Специализация (наш стек)
+                        </a>
+
+                        <span class="text-slate-600">|</span>
+                        <span class="text-slate-400 font-semibold">Период:</span>
+                        {% for d in [7, 14, 30, 60] %}
+                            <a href="/?section={{ active_section }}&tab=analytics&analytics_source={{ analytics_source }}&analytics_scope={{ analytics_scope }}&analytics_days={{ d }}" class="px-2 py-1 rounded-md font-mono text-xs transition {% if analytics_days == d %}bg-indigo-900 text-indigo-200 font-bold border border-indigo-700{% else %}text-slate-400 hover:text-white bg-slate-900 border border-slate-800{% endif %}">
+                                {{ d }} дн
+                            </a>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- AI Market Summary Box -->
+                <div id="ai-summary-container" class="{% if not (trends_data and trends_data.latest_snapshot and trends_data.latest_snapshot.ai_summary) %}hidden{% endif %} bg-gradient-to-r from-purple-950/40 to-indigo-950/30 border border-purple-800/50 p-5 rounded-xl space-y-3 shadow-lg">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-purple-300 uppercase tracking-wide flex items-center gap-2">
+                            <span>🧠</span> AI-выжимка рыночных трендов
+                        </span>
+                        <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-purple-900/60 text-purple-200 border border-purple-700/60">
+                            Mistral 14B • Ноябрь 2026
+                        </span>
+                    </div>
+                    <div id="ai-summary-content" class="text-sm text-slate-200 leading-relaxed whitespace-pre-line font-sans">
+                        {{ trends_data.latest_snapshot.ai_summary if (trends_data and trends_data.latest_snapshot and trends_data.latest_snapshot.ai_summary) else '' }}
+                    </div>
+                </div>
+
+                <!-- Aggregated Skills in Period -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                            <span>📊</span> Рейтинг технологий и навыков за выбранный период ({{ analytics_days }} дн.)
+                        </h4>
+                        <span class="text-xs font-mono text-slate-400">
+                            Всего упоминаний в выборке: <b class="text-white">{{ trends_data.aggregated_skills|sum(attribute='count') if (trends_data and trends_data.aggregated_skills) else 0 }}</b>
+                        </span>
+                    </div>
+
+                    {% if trends_data and trends_data.aggregated_skills %}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            {% for skill in trends_data.aggregated_skills[:20] %}
+                                <div class="bg-slate-950/90 border border-slate-800 p-3 rounded-lg space-y-2">
+                                    <div class="flex items-center justify-between text-xs">
+                                        <span class="font-bold text-slate-200">{{ skill.name }}</span>
+                                        <span class="font-mono text-indigo-400 font-semibold">{{ skill.count }} ({{ skill.pct }}%)</span>
+                                    </div>
+                                    <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
+                                        <div class="bg-indigo-500 h-1.5 rounded-full" style="width: {{ [skill.pct * 2, 100]|min }}%"></div>
+                                    </div>
+                                    <div class="text-[10px] text-slate-500 uppercase tracking-wider font-mono">
+                                        {{ skill.category }}
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-6 bg-slate-950/40 rounded-lg border border-slate-800/60 text-xs text-slate-500">
+                            Снимки за выбранный период пока не рассчитаны. Нажмите кнопку "Пересчитать за сегодня" или "Бэкфилл истории".
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Daily Breakdown Table -->
+                <div class="space-y-3">
+                    <h4 class="text-sm font-bold text-slate-200 flex items-center gap-2">
+                        <span>📅</span> Снимки по датам (ежедневная динамика)
+                    </h4>
+                    <div class="overflow-x-auto rounded-lg border border-slate-800">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-950 text-slate-400 uppercase font-mono border-b border-slate-800">
+                                <tr>
+                                    <th class="p-3">Дата</th>
+                                    <th class="p-3">Объявлений</th>
+                                    <th class="p-3">Ср. ставка / вилка</th>
+                                    <th class="p-3">Медиана</th>
+                                    <th class="p-3">🔥 Hot</th>
+                                    <th class="p-3">🎯 Откликов</th>
+                                    <th class="p-3">Лидирующие технологии дня</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800 bg-slate-950/40 font-mono">
+                                {% if trends_data and trends_data.snapshots %}
+                                    {% for snap in trends_data.snapshots|reverse %}
+                                        <tr class="hover:bg-slate-800/40 transition">
+                                            <td class="p-3 font-bold text-slate-200">{{ snap.date }}</td>
+                                            <td class="p-3 font-bold text-indigo-400">{{ snap.total_count }}</td>
+                                            <td class="p-3 text-emerald-400">
+                                                {{ "{:,}".format(snap.avg_price|int).replace(',', ' ') + ' ₽' if snap.avg_price else '-' }}
+                                            </td>
+                                            <td class="p-3 text-slate-300">
+                                                {{ "{:,}".format(snap.median_price|int).replace(',', ' ') + ' ₽' if snap.median_price else '-' }}
+                                            </td>
+                                            <td class="p-3 text-amber-400 font-bold">{{ snap.hot_count }}</td>
+                                            <td class="p-3 text-emerald-400">{{ snap.responded_count }}</td>
+                                            <td class="p-3 font-sans">
+                                                {% if snap.top_skills %}
+                                                    <div class="flex flex-wrap gap-1">
+                                                        {% for s_name, s_cnt in snap.top_skills.items() %}
+                                                            {% if loop.index <= 4 %}
+                                                                <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[11px] text-slate-300">
+                                                                    {{ s_name }} <b class="text-indigo-400">{{ s_cnt }}</b>
+                                                                </span>
+                                                            {% endif %}
+                                                        {% endfor %}
+                                                    </div>
+                                                {% else %}
+                                                    <span class="text-slate-600">-</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="7" class="p-4 text-center text-slate-500 font-sans">
+                                            Нет сохраненных срезов. Нажмите "Пересчитать за сегодня" или запустите бэкфилл.
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -2676,6 +2849,71 @@ DASHBOARD_HTML = """
             }, 2500);
         }
 
+        async function generateMarketSummary(sourceType, scope, days) {
+            const btn = document.getElementById('ai-summary-btn');
+            const summaryBox = document.getElementById('ai-summary-content');
+            const container = document.getElementById('ai-summary-container');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span>⏳</span> Анализирую тренды через Mistral 14B...';
+            }
+            try {
+                const res = await fetch('/api/analytics/ai-summary', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({source_type: sourceType, scope: scope, days: days}),
+                });
+                const data = await res.json();
+                if (data.ok && data.summary) {
+                    if (summaryBox) {
+                        summaryBox.innerText = data.summary;
+                    }
+                    if (container) {
+                        container.classList.remove('hidden');
+                    }
+                    showToast('AI-сводка рынка успешно сформирована!');
+                } else {
+                    alert('Не удалось сформировать сводку: ' + (data.error || 'неизвестная ошибка'));
+                }
+            } catch (err) {
+                alert('Ошибка сети при запросе к Mistral: ' + err);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>🤖</span> Сформировать AI-сводку (Mistral 14B)';
+                }
+            }
+        }
+
+        async function recalculateMarketSnapshots(fullBackfill) {
+            const btn = document.getElementById(fullBackfill ? 'btn-backfill-snapshots' : 'btn-recalc-snapshots');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span>⏳</span> ' + (fullBackfill ? 'Бэкфилл всей истории...' : 'Обновление...');
+            }
+            try {
+                const res = await fetch('/api/analytics/recalculate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({full_backfill: fullBackfill}),
+                });
+                const data = await res.json();
+                if (data.ok) {
+                    showToast(data.message || 'Снимки успешно пересчитаны!');
+                    setTimeout(() => { window.location.reload(); }, 1200);
+                } else {
+                    alert('Ошибка: ' + (data.error || 'сбой'));
+                }
+            } catch (err) {
+                alert('Сетевая ошибка: ' + err);
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = fullBackfill ? '<span>⚡</span> Полный бэкфилл всей истории' : '<span>🔄</span> Пересчитать за сегодня';
+                }
+            }
+        }
+
         let activeTopic = 'all';
 
         function isVacancySection() {
@@ -3740,8 +3978,24 @@ def create_web_app(
                 logger.error("Ошибка чтения %s: %s", CONFIG_YAML_PATH, e)
 
         section_analytics = None
+        trends_data = None
+        analytics_source = request.query_params.get(
+            "analytics_source", "vacancy" if active_section == "hh_ru" else "order"
+        )
+        analytics_scope = request.query_params.get("analytics_scope", "all_it")
+        try:
+            analytics_days = int(request.query_params.get("analytics_days", 30))
+        except (ValueError, TypeError):
+            analytics_days = 30
+
         if active_tab == "analytics":
             section_analytics = await repository.get_section_analytics(section=active_section)
+            analytics_svc = MarketAnalyticsService(repository)
+            trends_data = await analytics_svc.get_trends_data(
+                source_type=analytics_source,
+                scope=analytics_scope,
+                days=analytics_days,
+            )
 
         effective_keywords = current_settings.get("filter_keywords", settings.KEYWORDS)
         effective_stop_words = current_settings.get("filter_stop_words", settings.STOP_WORDS)
@@ -3759,6 +4013,10 @@ def create_web_app(
             current_stats=current_stats,
             extended_stats=extended_stats,
             section_analytics=section_analytics,
+            trends_data=trends_data,
+            analytics_source=analytics_source,
+            analytics_scope=analytics_scope,
+            analytics_days=analytics_days,
             active_tab=active_tab,
             selected_source=s_filter or "",
             free_only=1 if only_free_flag else 0,
@@ -4290,6 +4548,68 @@ def create_web_app(
         except Exception as e:
             logger.error("Ошибка записи config.yml: %s", e)
             return JSONResponse(status_code=500, content={"ok": False, "error": f"Ошибка записи файла: {e}"})
+
+    @app.get("/api/analytics/trends", response_class=JSONResponse)
+    async def api_get_analytics_trends(
+        source_type: str = Query("vacancy", description="Тип источника: vacancy, order, all"),
+        scope: str = Query("all_it", description="Охват: all_it, specialized"),
+        days: int = Query(30, ge=1, le=180),
+    ):
+        """Получить исторические срезы трендов и динамики навыков."""
+        analytics_svc = MarketAnalyticsService(repository)
+        data = await analytics_svc.get_trends_data(
+            source_type=source_type,
+            scope=scope,
+            days=days,
+        )
+        return {"ok": True, "data": data}
+
+    @app.post("/api/analytics/recalculate", response_class=JSONResponse)
+    async def api_recalculate_analytics(request: Request):
+        """Пересчитать ежедневные срезы рынка за всю историю или за текущий день."""
+        body = {}
+        try:
+            body = await request.json()
+        except Exception:
+            pass
+
+        analytics_svc = MarketAnalyticsService(repository)
+        full_backfill = body.get("full_backfill", False)
+        if full_backfill:
+            count = await analytics_svc.backfill_all_history()
+            return {"ok": True, "message": f"Бэкфилл завершен: пересчитано {count} срезов"}
+        else:
+            from datetime import date
+            today = date.today().isoformat()
+            recalc_count = 0
+            for st in ["all", "order", "vacancy"]:
+                for sc in ["all_it", "specialized"]:
+                    await analytics_svc.calculate_daily_snapshot(today, source_type=st, scope=sc)
+                    recalc_count += 1
+            return {"ok": True, "message": f"Снимки за сегодня ({today}) обновлены ({recalc_count} комбинаций)"}
+
+    @app.post("/api/analytics/ai-summary", response_class=JSONResponse)
+    async def api_generate_ai_market_summary(request: Request):
+        """Сформировать AI-сводку рыночных трендов через Mistral 14B."""
+        body = {}
+        try:
+            body = await request.json()
+        except Exception:
+            pass
+
+        source_type = body.get("source_type", "vacancy")
+        scope = body.get("scope", "all_it")
+        days = int(body.get("days", 14))
+
+        llm_client = get_llm_client()
+        analytics_svc = MarketAnalyticsService(repository)
+        summary = await analytics_svc.generate_ai_market_summary(
+            llm_client=llm_client,
+            source_type=source_type,
+            scope=scope,
+            days=days,
+        )
+        return {"ok": True, "summary": summary}
 
     @app.api_route("/health", methods=["GET", "HEAD"])
     async def health_check():

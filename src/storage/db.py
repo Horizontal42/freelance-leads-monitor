@@ -54,11 +54,34 @@ CREATE TABLE IF NOT EXISTS order_messages (
     FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS market_daily_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL,
+    source_type TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    total_count INTEGER NOT NULL DEFAULT 0,
+    responded_count INTEGER NOT NULL DEFAULT 0,
+    skipped_count INTEGER NOT NULL DEFAULT 0,
+    hot_count INTEGER NOT NULL DEFAULT 0,
+    avg_price REAL,
+    median_price REAL,
+    min_price REAL,
+    max_price REAL,
+    top_skills_json TEXT,
+    sources_breakdown_json TEXT,
+    ai_summary TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(date, source_type, scope)
+);
+
 CREATE INDEX IF NOT EXISTS idx_orders_source_ext ON orders(source, external_id);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_priority ON orders(priority);
 CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_order_messages_order_id ON order_messages(order_id);
+CREATE INDEX IF NOT EXISTS idx_market_snapshots_date ON market_daily_snapshots(date DESC);
+CREATE INDEX IF NOT EXISTS idx_market_snapshots_lookup ON market_daily_snapshots(source_type, scope, date DESC);
 """
 
 
@@ -134,5 +157,29 @@ async def init_db(db_path: Path | str | None = None) -> None:
             );
         """)
         await db.execute("CREATE INDEX IF NOT EXISTS idx_order_messages_order_id ON order_messages(order_id);")
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS market_daily_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                source_type TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                total_count INTEGER NOT NULL DEFAULT 0,
+                responded_count INTEGER NOT NULL DEFAULT 0,
+                skipped_count INTEGER NOT NULL DEFAULT 0,
+                hot_count INTEGER NOT NULL DEFAULT 0,
+                avg_price REAL,
+                median_price REAL,
+                min_price REAL,
+                max_price REAL,
+                top_skills_json TEXT,
+                sources_breakdown_json TEXT,
+                ai_summary TEXT,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(date, source_type, scope)
+            );
+        """)
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_market_snapshots_date ON market_daily_snapshots(date DESC);")
+        await db.execute("CREATE INDEX IF NOT EXISTS idx_market_snapshots_lookup ON market_daily_snapshots(source_type, scope, date DESC);")
         await db.commit()
 
