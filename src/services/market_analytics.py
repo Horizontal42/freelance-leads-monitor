@@ -130,24 +130,46 @@ class MarketAnalyticsService:
         min_price = min(prices) if prices else None
         max_price = max(prices) if prices else None
 
-        # Разделение по источникам
-        sources_breakdown: Dict[str, int] = {}
+        # Разделение по источникам (с учетом среднего чека)
+        source_counts: Dict[str, int] = {}
+        source_prices: Dict[str, List[float]] = {}
         for r in rows:
             src = r["source"]
-            sources_breakdown[src] = sources_breakdown.get(src, 0) + 1
+            source_counts[src] = source_counts.get(src, 0) + 1
+            if r["price"] and r["price"] > 0:
+                source_prices.setdefault(src, []).append(r["price"])
 
-        # Частотный анализ навыков по всей таксономии IT
+        sources_breakdown: Dict[str, Dict[str, Any]] = {}
+        for src, cnt in source_counts.items():
+            s_prices = source_prices.get(src, [])
+            sources_breakdown[src] = {
+                "count": cnt,
+                "avg_price": round(statistics.mean(s_prices), 0) if s_prices else None,
+                "median_price": round(statistics.median(s_prices), 0) if s_prices else None,
+            }
+
+        # Частотный и зарплатный анализ навыков по всей таксономии IT
         skill_counts: Dict[str, int] = {}
+        skill_prices: Dict[str, List[float]] = {}
         for r in rows:
             text = f"{r['title'] or ''} {r['description'] or ''} {r['tags'] or ''} {r['attachments_text'] or ''}".lower()
+            price_val = r["price"] if r["price"] and r["price"] > 0 else None
             for skill_name, _category, pattern in TECH_SKILLS_TAXONOMY:
                 if re.search(pattern, text, re.IGNORECASE):
                     skill_counts[skill_name] = skill_counts.get(skill_name, 0) + 1
+                    if price_val:
+                        skill_prices.setdefault(skill_name, []).append(price_val)
 
-        # Сортируем навыки по убыванию частотности
-        sorted_skills = dict(
-            sorted(skill_counts.items(), key=lambda item: item[1], reverse=True)
-        )
+        # Сортируем навыки по убыванию частотности и сохраняем цены
+        sorted_skills: Dict[str, Dict[str, Any]] = {}
+        for skill_name, cnt in sorted(skill_counts.items(), key=lambda item: item[1], reverse=True):
+            s_prices = skill_prices.get(skill_name, [])
+            sorted_skills[skill_name] = {
+                "count": cnt,
+                "avg_price": round(statistics.mean(s_prices), 0) if s_prices else None,
+                "median_price": round(statistics.median(s_prices), 0) if s_prices else None,
+                "samples": len(s_prices),
+            }
 
         snapshot = {
             "date": target_date,
@@ -207,39 +229,97 @@ class MarketAnalyticsService:
         # Сортируем по дате от старых к новым для построения графиков
         timeline = sorted(snapshots, key=lambda s: s["date"])
 
-        # Суммарная частотность навыков за весь выбранный период
+        # Суммарная частотность и средние цены навыков за весь выбранный период
         total_items_in_period = sum(s["total_count"] for s in timeline)
         all_skills: Dict[str, Dict[str, Any]] = {}
+        all_sources: Dict[str, Dict[str, Any]] = {}
+
         for s in timeline:
             top_skills = s.get("top_skills", {})
-            for skill_name, cnt in top_skills.items():
+            for skill_name, raw_data in top_skills.items():
+                if isinstance(raw_data, dict):
+                    cnt = raw_data.get("count", 0)
+                    avg_p = raw_data.get("avg_price")
+                    samples = raw_data.get("samples", 1 if avg_p else 0)
+                else:
+                    cnt = int(raw_data)
+                    avg_p = None
+                    samples = 0
+
                 if skill_name not in all_skills:
-                    # Находим категорию навыка
                     cat = "Other"
                     for sk, c, _ in TECH_SKILLS_TAXONOMY:
                         if sk == skill_name:
                             cat = c
                             break
-                    all_skills[skill_name] = {"count": 0, "category": cat}
+                    all_skills[skill_name] = {
+                        "count": 0,
+                        "category": cat,
+                        "price_sum": 0.0,
+                        "price_samples": 0,
+                    }
                 all_skills[skill_name]["count"] += cnt
+                if avg_p and samples:
+                    all_skills[skill_name]["price_sum"] += avg_p * samples
+                    all_skills[skill_name]["price_samples"] += samples
+
+            sources_bd = s.get("sources_breakdown", {})
+            for src, raw_s in sources_bd.items():
+                if isinstance(raw_s, dict):
+                    src_cnt = raw_s.get("count", 0)
+                    src_avg = raw_s.get("avg_price")
+                    src_samples = src_cnt if src_avg else 0
+                else:
+                    src_cnt = int(raw_s)
+                    src_avg = None
+                    src_samples = 0
+
+                if src not in all_sources:
+                    all_sources[src] = {"count": 0, "price_sum": 0.0, "price_samples": 0}
+                all_sources[src]["count"] += src_cnt
+                if src_avg and src_samples:
+                    all_sources[src]["price_sum"] += src_avg * src_samples
+                    all_sources[src]["price_samples"] += src_samples
 
         aggregated_skills = []
         for name, data in all_skills.items():
             pct = round(data["count"] / total_items_in_period * 100, 1) if total_items_in_period > 0 else 0.0
+            avg_p = round(data["price_sum"] / data["price_samples"], 0) if data["price_samples"] > 0 else None
             aggregated_skills.append({
                 "name": name,
                 "category": data["category"],
                 "count": data["count"],
                 "pct": pct,
+                "avg_price": avg_p,
+                "price_samples": data["price_samples"],
             })
-        aggregated_skills.sort(key=lambda x: x["count"], reverse=True)
+
+        # 1. По востребованности на рынке (по количеству публикаций)
+        volume_skills = sorted(aggregated_skills, key=lambda x: x["count"], reverse=True)
+
+        # 2. По уровню дохода / зарплаты (где средний чек выше)
+        top_paying_skills = [s for s in aggregated_skills if s["avg_price"] is not None]
+        top_paying_skills.sort(key=lambda x: x["avg_price"], reverse=True)
+
+        # 3. Сравнение площадок по среднему чеку
+        sources_ranking = []
+        for src, s_data in all_sources.items():
+            s_avg = round(s_data["price_sum"] / s_data["price_samples"], 0) if s_data["price_samples"] > 0 else None
+            sources_ranking.append({
+                "source": src,
+                "count": s_data["count"],
+                "avg_price": s_avg,
+            })
+        sources_ranking.sort(key=lambda x: (x["avg_price"] or 0), reverse=True)
 
         return {
             "source_type": source_type,
             "scope": scope,
             "days_count": len(timeline),
             "snapshots": timeline,
-            "aggregated_skills": aggregated_skills,
+            "aggregated_skills": volume_skills,
+            "top_paying_skills": top_paying_skills,
+            "sources_ranking": sources_ranking,
             "latest_snapshot": timeline[-1] if timeline else None,
         }
 
@@ -258,10 +338,30 @@ class MarketAnalyticsService:
         if not snapshots:
             return "Недостаточно данных для формирования рыночной сводки."
 
-        # Формируем компактную таблицу топ-15 навыков и динамики
+        # Формируем компактную таблицу топ-15 навыков по объему
         top_skills_summary = ", ".join(
-            [f"{s['name']}: {s['count']} ({s['pct']}%)" for s in trends["aggregated_skills"][:15]]
+            [
+                f"{s['name']}: {s['count']} ({s['pct']}%, ср. {int(s['avg_price']) if s['avg_price'] else '-'} ₽)"
+                for s in trends["aggregated_skills"][:15]
+            ]
         )
+
+        # Топ-7 высокооплачиваемых технологий
+        top_paying_summary = ", ".join(
+            [
+                f"{s['name']}: ср. {int(s['avg_price'])} ₽ ({s['count']} объявл.)"
+                for s in trends.get("top_paying_skills", [])[:7]
+            ]
+        ) or "данных по зарплатам недостаточно"
+
+        # Сравнение площадок по чеку
+        sources_summary = ", ".join(
+            [
+                f"{s['source']}: ср. {int(s['avg_price'])} ₽ (всего {s['count']})"
+                for s in trends.get("sources_ranking", [])
+                if s["avg_price"]
+            ]
+        ) or "данных по биржам недостаточно"
 
         avg_salaries = [
             f"{s['date']}: {int(s['avg_price'])} ₽ (всего {s['total_count']})"
@@ -273,12 +373,14 @@ class MarketAnalyticsService:
         prompt = (
             f"Ты - ведущий аналитик IT-рынка труда и технологических трендов (ноябрь 2026 года).\n"
             f"Проанализируй агрегированные данные по направлению '{source_type}' (охват: '{scope}') за последние {days} дней:\n\n"
-            f"1. Топ востребованных навыков и технологий:\n{top_skills_summary}\n\n"
-            f"2. Динамика публикаций и средних вилок/ставок:\n{salary_str}\n\n"
+            f"1. Топ навыков по востребованности (объем спроса):\n{top_skills_summary}\n\n"
+            f"2. Где средний чек и зарплата выше всего (самые дорогие навыки):\n{top_paying_summary}\n\n"
+            f"3. Сравнение среднего чека по площадкам:\n{sources_summary}\n\n"
+            f"4. Динамика ставок по дням:\n{salary_str}\n\n"
             f"Сформулируй четкую, плотную выжимку строго в 3-4 емких абзацах:\n"
-            f"- Главные технологические драйверы спроса (какие стеки лидируют и растут).\n"
-            f"- Уровень бюджетов/зарплат и динамика рынка.\n"
-            f"- Практические рекомендации разработчикам (куда смещается фокус: AI-агенты, RAG, бэкенд, автоматизация).\n"
+            f"- Главные технологические драйверы спроса (востребованность по объему).\n"
+            f"- Распределение ставок и где платят больше (востребованность по зарплате и различия между биржами).\n"
+            f"- Практические рекомендации разработчикам (куда выгоднее всего целиться для максимизации чека).\n"
             f"ПРАВИЛА: Никаких длинных тире (em-dash), только дефисы '-'. Без общих фраз, предельно конкретно и фактологично."
         )
 

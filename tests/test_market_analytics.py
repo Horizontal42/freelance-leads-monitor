@@ -155,6 +155,19 @@ async def test_calculate_daily_snapshot_separation(tmp_path, monkeypatch):
     top_skill_names = [s["name"] for s in trends["aggregated_skills"]]
     assert "Python" in top_skill_names or "PostgreSQL / SQL" in top_skill_names
 
+    # Д. Проверяем расчет рейтинга по зарплатам (где средний чек выше)
+    assert "top_paying_skills" in trends
+    assert len(trends["top_paying_skills"]) > 0
+    # Проверяем, что навыки отсортированы по убыванию avg_price
+    prices = [s["avg_price"] for s in trends["top_paying_skills"]]
+    assert prices == sorted(prices, reverse=True)
+
+    # Е. Проверяем сравнение площадок по среднему чеку
+    assert "sources_ranking" in trends
+    assert len(trends["sources_ranking"]) > 0
+    sources_in_ranking = [s["source"] for s in trends["sources_ranking"]]
+    assert "hh_ru" in sources_in_ranking or "habr_career" in sources_in_ranking
+
 
 @pytest.mark.asyncio
 async def test_generate_ai_market_summary_mock(tmp_path, monkeypatch):

@@ -1237,39 +1237,120 @@ DASHBOARD_HTML = """
                     </div>
                 </div>
 
-                <!-- Aggregated Skills in Period -->
-                <div class="space-y-3">
-                    <div class="flex items-center justify-between">
-                        <h4 class="text-sm font-bold text-slate-200 flex items-center gap-2">
-                            <span>📊</span> Рейтинг технологий и навыков за выбранный период ({{ analytics_days }} дн.)
-                        </h4>
+                <!-- Platform Rates Comparison: Where is Average Check Higher -->
+                {% if trends_data and trends_data.sources_ranking %}
+                <div class="space-y-2">
+                    <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>🏛️</span> Где средний чек выше (сравнение площадок за {{ analytics_days }} дн.)
+                    </h4>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+                        {% for src_info in trends_data.sources_ranking %}
+                        <div class="bg-slate-950/80 border border-slate-800/80 p-3 rounded-lg text-center space-y-1 hover:border-emerald-700/60 transition group">
+                            <div class="text-[11px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-slate-200">
+                                {{ 'Хабр Карьера' if src_info.source == 'habr_career' else ('HeadHunter' if src_info.source == 'hh_ru' else src_info.source|upper) }}
+                            </div>
+                            <div class="text-sm font-bold font-mono text-emerald-400">
+                                {{ "{:,}".format(src_info.avg_price|int).replace(',', ' ') + ' ₽' if src_info.avg_price else 'По догов.' }}
+                            </div>
+                            <div class="text-[10px] text-slate-500 font-mono">
+                                {{ src_info.count }} объявл.
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Dual View: Market Demand (Volume) vs High Compensation (Salary / Check) -->
+                <div class="space-y-4">
+                    <!-- Toggle Controls for Skills Rating -->
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+                        <div class="flex items-center gap-2">
+                            <button type="button" id="tab-btn-skills-volume" onclick="switchSkillsTab('volume')" class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-indigo-900 text-indigo-200 border border-indigo-700 shadow-sm">
+                                <span>📊</span> Востребованность по рынку (спрос / объем)
+                            </button>
+                            <button type="button" id="tab-btn-skills-salary" onclick="switchSkillsTab('salary')" class="px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 text-slate-400 hover:text-white bg-slate-950 border border-slate-800">
+                                <span>💰</span> Востребованность по зарплате (где чек выше)
+                            </button>
+                        </div>
                         <span class="text-xs font-mono text-slate-400">
                             Всего упоминаний в выборке: <b class="text-white">{{ trends_data.aggregated_skills|sum(attribute='count') if (trends_data and trends_data.aggregated_skills) else 0 }}</b>
                         </span>
                     </div>
 
-                    {% if trends_data and trends_data.aggregated_skills %}
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                            {% for skill in trends_data.aggregated_skills[:20] %}
-                                <div class="bg-slate-950/90 border border-slate-800 p-3 rounded-lg space-y-2">
-                                    <div class="flex items-center justify-between text-xs">
-                                        <span class="font-bold text-slate-200">{{ skill.name }}</span>
-                                        <span class="font-mono text-indigo-400 font-semibold">{{ skill.count }} ({{ skill.pct }}%)</span>
-                                    </div>
-                                    <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
-                                        <div class="bg-indigo-500 h-1.5 rounded-full" style="width: {{ [skill.pct * 2, 100]|min }}%"></div>
-                                    </div>
-                                    <div class="text-[10px] text-slate-500 uppercase tracking-wider font-mono">
-                                        {{ skill.category }}
-                                    </div>
-                                </div>
-                            {% endfor %}
+                    <!-- Panel 1: Market Demand (Sorted by Volume / Frequency) -->
+                    <div id="skills-panel-volume" class="space-y-3">
+                        <div class="flex items-center justify-between text-xs text-slate-400">
+                            <span>Топ технологий по доле упоминаний в вакансиях и заказах:</span>
+                            <span class="font-mono text-indigo-400">Сортировка: по популярности</span>
                         </div>
-                    {% else %}
-                        <div class="text-center py-6 bg-slate-950/40 rounded-lg border border-slate-800/60 text-xs text-slate-500">
-                            Снимки за выбранный период пока не рассчитаны. Нажмите кнопку "Пересчитать за сегодня" или "Бэкфилл истории".
+                        {% if trends_data and trends_data.aggregated_skills %}
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                {% for skill in trends_data.aggregated_skills[:20] %}
+                                    <div class="bg-slate-950/90 border border-slate-800 p-3 rounded-lg space-y-2 hover:border-indigo-600/50 transition">
+                                        <div class="flex items-center justify-between text-xs">
+                                            <span class="font-bold text-slate-200">{{ skill.name }}</span>
+                                            <span class="font-mono text-indigo-400 font-semibold">{{ skill.count }} ({{ skill.pct }}%)</span>
+                                        </div>
+                                        <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
+                                            <div class="bg-indigo-500 h-1.5 rounded-full" style="width: {{ [skill.pct * 2, 100]|min }}%"></div>
+                                        </div>
+                                        <div class="flex items-center justify-between text-[10px] font-mono text-slate-500">
+                                            <span class="uppercase tracking-wider">{{ skill.category }}</span>
+                                            {% if skill.avg_price %}
+                                                <span class="text-emerald-400 font-semibold" title="Средний чек/зарплата при наличии этого навыка">
+                                                    ср. {{ "{:,}".format(skill.avg_price|int).replace(',', ' ') }} ₽
+                                                </span>
+                                            {% else %}
+                                                <span class="text-slate-600">вилка не указана</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-6 bg-slate-950/40 rounded-lg border border-slate-800/60 text-xs text-slate-500">
+                                Снимки за выбранный период пока не рассчитаны. Нажмите "Пересчитать за сегодня".
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Panel 2: High Compensation (Sorted by Average Check / Salary) -->
+                    <div id="skills-panel-salary" class="space-y-3 hidden">
+                        <div class="flex items-center justify-between text-xs text-slate-400">
+                            <span>Топ технологий с наибольшей средней ставкой и чеком:</span>
+                            <span class="font-mono text-emerald-400 font-semibold">Сортировка: где платят больше всего</span>
                         </div>
-                    {% endif %}
+                        {% if trends_data and trends_data.top_paying_skills %}
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                {% for skill in trends_data.top_paying_skills[:20] %}
+                                    <div class="bg-slate-950/90 border border-slate-800 p-3 rounded-lg space-y-2 hover:border-emerald-600/50 transition">
+                                        <div class="flex items-center justify-between text-xs">
+                                            <span class="font-bold text-slate-200">{{ skill.name }}</span>
+                                            <span class="font-mono text-emerald-400 font-bold text-xs">
+                                                {{ "{:,}".format(skill.avg_price|int).replace(',', ' ') }} ₽
+                                            </span>
+                                        </div>
+                                        <div class="w-full bg-slate-900 rounded-full h-1.5 overflow-hidden">
+                                            {% set max_top_price = trends_data.top_paying_skills[0].avg_price if trends_data.top_paying_skills else 250000 %}
+                                            {% set p_pct = ((skill.avg_price / max_top_price) * 100)|round|int if max_top_price > 0 else 50 %}
+                                            <div class="bg-emerald-500 h-1.5 rounded-full" style="width: {{ [p_pct, 100]|min }}%"></div>
+                                        </div>
+                                        <div class="flex items-center justify-between text-[10px] font-mono text-slate-500">
+                                            <span class="uppercase tracking-wider">{{ skill.category }}</span>
+                                            <span class="text-slate-400 font-semibold">
+                                                {{ skill.count }} объявл. ({{ skill.pct }}%)
+                                            </span>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-6 bg-slate-950/40 rounded-lg border border-slate-800/60 text-xs text-slate-500">
+                                Недостаточно объявлений с указанием бюджета для расчета ставок.
+                            </div>
+                        {% endif %}
+                    </div>
                 </div>
 
                 <!-- Daily Breakdown Table -->
@@ -1287,7 +1368,7 @@ DASHBOARD_HTML = """
                                     <th class="p-3">Медиана</th>
                                     <th class="p-3">🔥 Hot</th>
                                     <th class="p-3">🎯 Откликов</th>
-                                    <th class="p-3">Лидирующие технологии дня</th>
+                                    <th class="p-3">Лидирующие технологии дня (с чеком)</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-800 bg-slate-950/40 font-mono">
@@ -1307,10 +1388,15 @@ DASHBOARD_HTML = """
                                             <td class="p-3 font-sans">
                                                 {% if snap.top_skills %}
                                                     <div class="flex flex-wrap gap-1">
-                                                        {% for s_name, s_cnt in snap.top_skills.items() %}
+                                                        {% for s_name, s_val in snap.top_skills.items() %}
                                                             {% if loop.index <= 4 %}
+                                                                {% set c_num = s_val.count if (s_val is mapping and s_val.count is defined) else s_val %}
+                                                                {% set p_num = s_val.avg_price if (s_val is mapping and s_val.avg_price is defined) else none %}
                                                                 <span class="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[11px] text-slate-300">
-                                                                    {{ s_name }} <b class="text-indigo-400">{{ s_cnt }}</b>
+                                                                    {{ s_name }} <b class="text-indigo-400">{{ c_num }}</b>
+                                                                    {% if p_num %}
+                                                                        <span class="text-emerald-400 font-mono text-[10px]">({{ "{:,}".format(p_num|int).replace(',', ' ') }} ₽)</span>
+                                                                    {% endif %}
                                                                 </span>
                                                             {% endif %}
                                                         {% endfor %}
@@ -2593,6 +2679,33 @@ DASHBOARD_HTML = """
             } finally {
                 if (btn) btn.disabled = false;
                 if (btnText) btnText.innerText = origText;
+            }
+        }
+
+        function switchSkillsTab(tab) {
+            const panelVol = document.getElementById('skills-panel-volume');
+            const panelSal = document.getElementById('skills-panel-salary');
+            const btnVol = document.getElementById('tab-btn-skills-volume');
+            const btnSal = document.getElementById('tab-btn-skills-salary');
+
+            if (tab === 'salary') {
+                if (panelVol) panelVol.classList.add('hidden');
+                if (panelSal) panelSal.classList.remove('hidden');
+                if (btnVol) {
+                    btnVol.className = 'px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 text-slate-400 hover:text-white bg-slate-950 border border-slate-800';
+                }
+                if (btnSal) {
+                    btnSal.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-emerald-950 text-emerald-300 border border-emerald-700 shadow-sm';
+                }
+            } else {
+                if (panelSal) panelSal.classList.add('hidden');
+                if (panelVol) panelVol.classList.remove('hidden');
+                if (btnVol) {
+                    btnVol.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-indigo-900 text-indigo-200 border border-indigo-700 shadow-sm';
+                }
+                if (btnSal) {
+                    btnSal.className = 'px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1.5 text-slate-400 hover:text-white bg-slate-950 border border-slate-800';
+                }
             }
         }
 
