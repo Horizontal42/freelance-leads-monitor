@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 import httpx
 
 from src.analyzer.base import BaseLLMClient
-from src.collectors.enricher import OrderEnricher
+from src.collectors.enricher import OrderEnricher, clean_html_to_text
 from src.config import settings
 from src.models.order import OrderPriority, OrderStatus, RawOrder, SourcePlatform
 from src.storage.repository import OrderRepository
@@ -130,7 +130,7 @@ class OrderImporterService:
                 data = json.loads(j)
                 if data.get("@type") == "JobPosting":
                     title = data.get("title", title)
-                    description = strip_html_tags(data.get("description", ""))
+                    description = clean_html_to_text(data.get("description", ""))
                     company = data.get("hiringOrganization", {}).get("name", "")
                     base_sal = data.get("baseSalary")
                     if isinstance(base_sal, dict):
@@ -244,7 +244,7 @@ class OrderImporterService:
             html_text,
             re.DOTALL,
         )
-        description = strip_html_tags(m_desc.group(1)) if m_desc else ""
+        description = clean_html_to_text(m_desc.group(1)) if m_desc else ""
 
         # Зарплата
         m_sal = re.search(r'<div class="[^"]*basic-salary[^"]*"[^>]*>(.*?)</div>', html_text, re.DOTALL)
@@ -290,7 +290,7 @@ class OrderImporterService:
         title = strip_html_tags(m_title.group(1)) if m_title else f"Проект #{ext_id}"
 
         m_desc = re.search(r'<div class="[^"]*b-layout__txt[^"]*"[^>]*>(.*?)</div>', html_text, re.DOTALL)
-        description = strip_html_tags(m_desc.group(1)) if m_desc else ""
+        description = clean_html_to_text(m_desc.group(1)) if m_desc else ""
 
         price = None
         is_negotiable = True
@@ -327,7 +327,7 @@ class OrderImporterService:
         title = strip_html_tags(m_title.group(1)) if m_title else f"Заказ #{ext_id}"
 
         m_desc = re.search(r'<div class="[^"]*description[^"]*"[^>]*>(.*?)</div>', html_text, re.DOTALL)
-        description = strip_html_tags(m_desc.group(1)) if m_desc else ""
+        description = clean_html_to_text(m_desc.group(1)) if m_desc else ""
 
         price = None
         is_negotiable = True
@@ -361,7 +361,7 @@ class OrderImporterService:
         title = strip_html_tags(m_title.group(1)) if m_title else f"Заказ #{ext_id}"
 
         m_desc = re.search(r'<div class="[^"]*project-description[^"]*"[^>]*>(.*?)</div>', html_text, re.DOTALL)
-        description = strip_html_tags(m_desc.group(1)) if m_desc else ""
+        description = clean_html_to_text(m_desc.group(1)) if m_desc else ""
 
         return RawOrder(
             source=SourcePlatform.PCHEL_NET,

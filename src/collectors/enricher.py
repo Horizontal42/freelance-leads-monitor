@@ -17,6 +17,34 @@ TEXT_EXTENSIONS = {
 MAX_FILE_BYTES = 50 * 1024  # 50 KB max per file content
 
 
+def clean_html_to_text(raw_html: str) -> str:
+    """Очищает HTML в читаемый plain text с сохранением структуры абзацев, заголовков и списков."""
+    if not raw_html:
+        return ""
+    # 1. Структурные теги заменяем на переносы строк
+    text = re.sub(r"<(?:br|hr)\s*/?>", "\n", raw_html, flags=re.IGNORECASE)
+    text = re.sub(
+        r"</?(?:p|div|section|article|header|footer|h[1-6]|tr|blockquote)[^>]*>",
+        "\n\n",
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(r"<li[^>]*>", "\n• ", text, flags=re.IGNORECASE)
+    text = re.sub(r"</li>", "\n", text, flags=re.IGNORECASE)
+    # 2. Удаляем все оставшиеся теги
+    text = re.sub(r"<[^>]+>", " ", text)
+    # 3. Декодируем HTML entities
+    text = html.unescape(text)
+    # 4. Нормализуем пробелы построчно
+    lines = []
+    for line in text.split("\n"):
+        cleaned = " ".join(line.split())
+        lines.append(cleaned)
+    result = "\n".join(lines)
+    # 5. Схлопываем 3+ пустых строк в две
+    return re.sub(r"\n{3,}", "\n\n", result).strip()
+
+
 class OrderEnricher:
     """Обогатитель заказов: выгружает полное ТЗ со страницы проекта и содержимое прикрепленных файлов."""
 
@@ -116,8 +144,7 @@ class OrderEnricher:
                 m_desc = re.search(r"class=\"b-layout__txt[^>]*\">(.*?)</div>", html_text, re.DOTALL)
 
             if m_desc:
-                clean = re.sub(r"<[^>]+>", " ", m_desc.group(1))
-                full_text = html.unescape(re.sub(r"\s+", " ", clean)).strip()
+                full_text = clean_html_to_text(m_desc.group(1))
                 if len(full_text) > len(order.description):
                     order.description = full_text
 
@@ -235,8 +262,7 @@ class OrderEnricher:
                 re.DOTALL,
             )
             if m_desc:
-                clean = re.sub(r"<[^>]+>", " ", m_desc.group(1))
-                full_text = html.unescape(re.sub(r"\s+", " ", clean)).strip()
+                full_text = clean_html_to_text(m_desc.group(1))
                 if len(full_text) > len(order.description):
                     order.description = full_text
 
@@ -262,8 +288,7 @@ class OrderEnricher:
             data = resp.json()
             desc_html = data.get("description", "")
             if desc_html:
-                clean = re.sub(r"<[^>]+>", " ", desc_html)
-                clean_desc = " ".join(html.unescape(clean).split())
+                clean_desc = clean_html_to_text(desc_html)
                 if len(clean_desc) > len(order.description):
                     order.description = clean_desc
 
