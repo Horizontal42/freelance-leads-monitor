@@ -74,6 +74,7 @@ class AntigravityClient(BaseLLMClient):
             self.effort,
             "--output-format",
             "text",
+            "--dangerously-skip-permissions",
         ]
 
         logger.info(
@@ -186,6 +187,7 @@ class AntigravityClient(BaseLLMClient):
             selected_model,
             "--output-format",
             "text",
+            "--dangerously-skip-permissions",
         ]
         if selected_effort:
             cmd.extend(["--effort", selected_effort])
@@ -285,6 +287,7 @@ class AntigravityClient(BaseLLMClient):
             selected_model,
             "--output-format",
             "text",
+            "--dangerously-skip-permissions",
         ]
         if selected_effort:
             cmd.extend(["--effort", selected_effort])
