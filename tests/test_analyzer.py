@@ -452,7 +452,10 @@ def test_sanitize_proposal_text_zdravstvuyte_comma():
     assert sanitize_proposal_text(raw_1) == "Здравствуйте, занимаюсь бэкенд-разработкой на Python: строю API и ботов."
 
     raw_2 = "Здравствуйте.\n\nЗанимаюсь прикладными AI-агентами."
-    assert sanitize_proposal_text(raw_2) == "Здравствуйте,\n\nЗанимаюсь прикладными AI-агентами."
+    assert sanitize_proposal_text(raw_2) == "Здравствуйте, занимаюсь прикладными AI-агентами."
+
+    raw_2b = "Здравствуйте,\n\nЗанимаюсь прикладными AI-агентами."
+    assert sanitize_proposal_text(raw_2b) == "Здравствуйте, занимаюсь прикладными AI-агентами."
 
     raw_3 = "Здравствуйте. AI-инженер с опытом продакшена."
     assert sanitize_proposal_text(raw_3) == "Здравствуйте, AI-инженер с опытом продакшена."
