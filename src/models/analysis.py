@@ -371,9 +371,9 @@ def extract_clean_proposal_payload(raw_text: str) -> dict:
                 pass
 
         # Регэксп-фоллбэк, если json.loads не справился (например, неэкранированные кавычки внутри текста)
-        # Используем lookahead до закрывающей кавычки перед следующим ключом или концом JSON-объекта
+        # Используем lookahead до закрывающей кавычки перед известными ключами корневой схемы или концом JSON
         prop_m = re.search(
-            r'"proposal_text"\s*:\s*"((?:\\.|[\s\S])*?)(?="[ \t]*(?:,[ \t\r\n]*"[a-zA-Z0-9_]+"|\s*\}))',
+            r'"proposal_text"\s*:\s*"((?:\\.|[\s\S])*?)(?="[ \t]*(?:,[ \t\r\n]*"(?:market_price|recommended_price|estimated_days|realistic_days|price_justification|pert|score|take_order|priority)"|\s*\}))',
             text,
         )
         if not prop_m:
@@ -397,7 +397,7 @@ def extract_clean_proposal_payload(raw_text: str) -> dict:
                 result["market_price"] = float(mkt_m.group(1))
 
             just_m = re.search(
-                r'"price_justification"\s*:\s*"((?:\\.|[\s\S])*?)(?="[ \t]*(?:,[ \t\r\n]*"[a-zA-Z0-9_]+"|\s*\}))',
+                r'"price_justification"\s*:\s*"((?:\\.|[\s\S])*?)(?="[ \t]*(?:,[ \t\r\n]*"(?:market_price|recommended_price|estimated_days|realistic_days|proposal_text|pert|score|take_order|priority)"|\s*\}))',
                 text,
             )
             if not just_m:
