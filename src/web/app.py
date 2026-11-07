@@ -811,9 +811,17 @@ DASHBOARD_HTML = """
                                     {% if order.proposal_text or (order.analysis and order.analysis.proposal_text) %}
                                         <div class="mt-3 pt-3 border-t border-slate-800 space-y-2">
                                             <div class="flex items-center justify-between">
-                                                <span class="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
-                                                    <span>✍️</span> Сгенерированный отклик:
-                                                </span>
+                                                <div class="flex items-center gap-2">
+                                                    <span class="text-xs font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                                                        <span>✍️</span> Сгенерированный отклик:
+                                                    </span>
+                                                    {% if order.source == 'kwork' %}
+                                                        {% set p_len = (order.proposal_text or (order.analysis and order.analysis.proposal_text))|length %}
+                                                        <span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-400" title="Лимит поля отклика на бирже Kwork - 2000 символов">
+                                                            Kwork: <b class="{% if p_len > 2000 %}text-rose-400{% else %}text-emerald-400{% endif %}">{{ p_len }}</b>/2000 знаков
+                                                        </span>
+                                                    {% endif %}
+                                                </div>
                                                 <div class="flex items-center space-x-2">
                                                     <button type="button" onclick="generateProposal('{{ order.id }}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition active:scale-95 cursor-pointer">
                                                         🔄 Перегенерировать
@@ -2511,12 +2519,19 @@ DASHBOARD_HTML = """
                             }
                         }
 
+                        const kworkBadge = (data.source && data.source.toLowerCase() === 'kwork')
+                            ? `<span class="text-[11px] font-mono px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-400">Kwork: <b class="${data.proposal_text.length > 2000 ? 'text-rose-400' : 'text-emerald-400'}">${data.proposal_text.length}</b>/2000 знаков</span>`
+                            : '';
+
                         box.className = "mt-3 pt-3 border-t border-slate-800 space-y-2";
                         box.innerHTML = `
                             <div class="flex flex-wrap items-center justify-between gap-2">
-                                <span class="text-xs font-semibold ${isVac ? 'text-rose-400' : 'text-emerald-400'} uppercase tracking-wider flex items-center gap-1">
-                                    <span>${icon}</span> ${titleText}
-                                </span>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-xs font-semibold ${isVac ? 'text-rose-400' : 'text-emerald-400'} uppercase tracking-wider flex items-center gap-1">
+                                        <span>${icon}</span> ${titleText}
+                                    </span>
+                                    ${kworkBadge}
+                                </div>
                                 <div class="flex flex-wrap items-center gap-2">
                                     <button type="button" onclick="generateProposal('${orderId}', this)" class="text-xs text-slate-400 hover:text-slate-200 transition active:scale-95 cursor-pointer">
                                         🔄 Перегенерировать
@@ -3995,13 +4010,15 @@ def create_web_app(
         formatted_orders: List[Dict[str, Any]] = []
         for o in raw_orders:
             item = dict(o)
+            order_src_val = (item.get("source") or "").lower()
+            max_c = 2000 if order_src_val == "kwork" else None
             if item.get("proposal_text"):
-                item["proposal_text"] = sanitize_proposal_text(item["proposal_text"])
+                item["proposal_text"] = sanitize_proposal_text(item["proposal_text"], max_len=max_c)
             if item.get("analysis_json"):
                 try:
                     item["analysis"] = json.loads(item["analysis_json"])
                     if item["analysis"] and item["analysis"].get("proposal_text"):
-                        item["analysis"]["proposal_text"] = sanitize_proposal_text(item["analysis"]["proposal_text"])
+                        item["analysis"]["proposal_text"] = sanitize_proposal_text(item["analysis"]["proposal_text"], max_len=max_c)
                 except Exception:
                     item["analysis"] = None
             else:
@@ -4021,13 +4038,15 @@ def create_web_app(
                 # Удаляем старое вхождение если есть и вставляем на самый верх
                 formatted_orders = [o for o in formatted_orders if o.get("id") != order_id]
                 item = dict(target_order)
+                order_src_val = (item.get("source") or "").lower()
+                max_c = 2000 if order_src_val == "kwork" else None
                 if item.get("proposal_text"):
-                    item["proposal_text"] = sanitize_proposal_text(item["proposal_text"])
+                    item["proposal_text"] = sanitize_proposal_text(item["proposal_text"], max_len=max_c)
                 if item.get("analysis_json"):
                     try:
                         item["analysis"] = json.loads(item["analysis_json"])
                         if item["analysis"] and item["analysis"].get("proposal_text"):
-                            item["analysis"]["proposal_text"] = sanitize_proposal_text(item["analysis"]["proposal_text"])
+                            item["analysis"]["proposal_text"] = sanitize_proposal_text(item["analysis"]["proposal_text"], max_len=max_c)
                     except Exception:
                         item["analysis"] = None
                 else:
@@ -4316,7 +4335,8 @@ def create_web_app(
                     analysis_data = None
 
             proposal_res = await llm_client.generate_proposal(raw_order, analysis_data)
-            proposal_text = sanitize_proposal_text(str(proposal_res))
+            is_kwork = (raw_order.source == SourcePlatform.KWORK)
+            proposal_text = sanitize_proposal_text(str(proposal_res), max_len=2000 if is_kwork else None)
             rec_price = getattr(proposal_res, "recommended_price", None)
             mkt_price = getattr(proposal_res, "market_price", None)
             price_just = getattr(proposal_res, "price_justification", None)

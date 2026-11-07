@@ -46,9 +46,9 @@ class AntigravityClient(BaseLLMClient):
             return cleaned[start_idx : end_idx + 1]
         return cleaned
 
-    def _sanitize_proposal(self, text: str) -> str:
+    def _sanitize_proposal(self, text: str, max_len: Optional[int] = None) -> str:
         """Гарантированная очистка отклика: дефисы, удаление звездочек (**) и markdown-мусора."""
-        return sanitize_proposal_text(text)
+        return sanitize_proposal_text(text, max_len=max_len)
 
     def _get_subprocess_env(self) -> Dict[str, str]:
         """Гарантирует передачу прокси-переменных в обоих регистрах для вызова agy CLI."""
@@ -250,7 +250,12 @@ class AntigravityClient(BaseLLMClient):
         if estimated_days:
             estimated_days = self._sanitize_proposal(str(estimated_days).strip())
 
-        prop_text = self._sanitize_proposal(str(payload.get("proposal_text") or "").strip())
+        is_kwork = getattr(order.source, "value", str(order.source)).lower() == "kwork"
+        kwork_max_len = 2000 if is_kwork else None
+        prop_text = self._sanitize_proposal(
+            str(payload.get("proposal_text") or "").strip(),
+            max_len=kwork_max_len,
+        )
 
         return ProposalResult(
             prop_text,

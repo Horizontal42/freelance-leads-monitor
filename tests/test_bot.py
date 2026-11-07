@@ -261,11 +261,11 @@ async def test_handle_generate_proposal_splits_long_message():
     mock_repo = AsyncMock()
     mock_repo.get_by_id.return_value = {
         "id": 42,
-        "source": "kwork",
+        "source": "fl_ru",
         "external_id": "ext_42",
         "title": "Сложная система с ИИ",
         "description": "Описание ТЗ",
-        "url": "https://kwork.ru/projects/42",
+        "url": "https://fl.ru/projects/42",
         "price": 50000,
         "is_negotiable": 0,
         "is_pro_only": 0,
@@ -298,6 +298,55 @@ async def test_handle_generate_proposal_splits_long_message():
             text = call.kwargs.get("text") or (call.args[0] if call.args else "")
             assert len(text) <= 4000
             assert "❌ Ошибка" not in text
+
+
+@pytest.mark.asyncio
+async def test_handle_generate_proposal_kwork_enforces_2000_limit():
+    """Проверка жесткого ограничения отклика на Kwork в 2000 символов в боте."""
+    from unittest.mock import patch
+    from src.bot.handlers import handle_generate_proposal
+    from src.models.analysis import ProposalResult
+
+    mock_callback = AsyncMock()
+    mock_callback.data = "gen_prop:101"
+    mock_callback.message = AsyncMock()
+
+    mock_repo = AsyncMock()
+    mock_repo.get_by_id.return_value = {
+        "id": 101,
+        "source": "kwork",
+        "external_id": "kw_101",
+        "title": "Бот для Kwork",
+        "description": "Описание ТЗ",
+        "url": "https://kwork.ru/projects/101",
+        "price": 30000,
+        "is_negotiable": 0,
+        "is_pro_only": 0,
+        "analysis_json": "{}",
+    }
+
+    # Имитируем длинный ответ от модели (2800 символов)
+    long_proposal_text = "\n\n".join([f"Раздел #{i}: " + ("архитектурное решение задачи " * 15) for i in range(10)])
+    assert len(long_proposal_text) > 2400
+
+    with patch("src.analyzer.factory.get_llm_client") as mock_get_llm:
+        mock_llm = AsyncMock()
+        mock_llm.generate_proposal.return_value = ProposalResult(
+            long_proposal_text,
+            recommended_price=30000,
+            market_price=35000,
+            price_justification="Бюджет адекватен",
+        )
+        mock_get_llm.return_value = mock_llm
+
+        await handle_generate_proposal(mock_callback, mock_repo)
+
+        # Проверяем аргументы вызова update_proposal
+        update_args = mock_repo.update_proposal.call_args
+        saved_text = update_args.kwargs.get("proposal_text")
+        assert saved_text is not None
+        assert len(saved_text) <= 2000
+
 
 
 @pytest.mark.asyncio

@@ -247,7 +247,36 @@ class ProposalResult(str):
         return obj
 
 
-def sanitize_proposal_text(text: str) -> str:
+def trim_text_to_char_limit(text: str, max_chars: int = 2000) -> str:
+    """Обрезает текст отклика до лимита символов по границе предложения или абзаца без обрыва на полуслове."""
+    if not text or len(text) <= max_chars:
+        return text
+
+    truncated = text[:max_chars]
+    # 1. Попытка обрезать по границе абзаца (если занимает хотя бы 70% лимита)
+    last_para = truncated.rfind("\n\n")
+    if last_para >= int(max_chars * 0.7):
+        return truncated[:last_para].strip()
+
+    # 2. Попытка обрезать по границе предложения (. ! ?)
+    best_sent_end = -1
+    for sep in [".\n", "!\n", "?\n", ". ", "! ", "? "]:
+        idx = truncated.rfind(sep)
+        if idx > best_sent_end:
+            best_sent_end = idx + (1 if sep.endswith(" ") else 0)
+
+    if best_sent_end >= int(max_chars * 0.7):
+        return truncated[:best_sent_end + 1].strip()
+
+    # 3. Попытка обрезать по последнему переносу строки или пробелу
+    last_space = max(truncated.rfind("\n"), truncated.rfind(" "))
+    if last_space >= int(max_chars * 0.8):
+        return truncated[:last_space].strip()
+
+    return truncated.strip()
+
+
+def sanitize_proposal_text(text: str, max_len: Optional[int] = None) -> str:
     """Гарантированная очистка отклика: замена длинных тире на дефисы, удаление звездочек (**) и markdown-разметки."""
     if not text:
         return ""
@@ -322,7 +351,10 @@ def sanitize_proposal_text(text: str) -> str:
     t = re.sub(r"(?i)\b(здравствуйте)\.", r"\1,", t)
     # 12. Схлопывание избыточных пустых строк
     t = re.sub(r"\n{3,}", "\n\n", t)
-    return t.strip()
+    t = t.strip()
+    if max_len is not None and max_len > 0:
+        t = trim_text_to_char_limit(t, max_chars=max_len)
+    return t
 
 
 def extract_clean_proposal_payload(raw_text: str) -> dict:

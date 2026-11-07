@@ -19,7 +19,7 @@ from src.bot.keyboards import (
     get_settings_inline_keyboard,
 )
 from src.config import settings
-from src.models.analysis import extract_clean_proposal_payload
+from src.models.analysis import extract_clean_proposal_payload, sanitize_proposal_text
 from src.models.order import OrderStatus, RawOrder, SourcePlatform
 from src.services.hh_applicant_service import HhApplicantService
 from src.services.uptime import get_system_status_info
@@ -376,7 +376,11 @@ async def handle_generate_proposal(callback: CallbackQuery, repo: OrderRepositor
 
     try:
         proposal_res = await llm_client.generate_proposal(raw_order, analysis_data)
-        proposal_text = str(proposal_res).strip()
+        is_kwork = raw_order.source == SourcePlatform.KWORK
+        proposal_text = sanitize_proposal_text(
+            str(proposal_res).strip(),
+            max_len=2000 if is_kwork else None,
+        )
         rec_price = getattr(proposal_res, "recommended_price", None)
         price_just = getattr(proposal_res, "price_justification", None)
         market_price = getattr(proposal_res, "market_price", None)

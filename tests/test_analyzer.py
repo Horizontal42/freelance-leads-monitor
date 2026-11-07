@@ -520,6 +520,86 @@ def test_sanitize_proposal_text_remove_meta_headers():
     assert "Telegram: @Horizontal84" in cleaned
 
 
+def test_trim_text_to_char_limit_and_kwork_sanitization():
+    from src.models.analysis import sanitize_proposal_text, trim_text_to_char_limit
+
+    # 1. Текст короче лимита не изменяется
+    short_text = "Добрый день. Разработаю бота на aiogram за 3 дня."
+    assert trim_text_to_char_limit(short_text, max_chars=2000) == short_text
+
+    # 2. Длинный текст (2500+ символов) аккуратно обрезается до <= 2000
+    paragraphs = [
+        f"Параграф {i}: Настройка микросервисной архитектуры на базе FastAPI, PostgreSQL и Celery с брокером сообщений Redis. " * 3
+        for i in range(1, 10)
+    ]
+    long_text = "\n\n".join(paragraphs)
+    assert len(long_text) > 2400
+
+    trimmed = trim_text_to_char_limit(long_text, max_chars=2000)
+    assert len(trimmed) <= 2000
+    assert len(trimmed) >= 1500
+    # Проверяем, что обрезка произошла аккуратно по границе (точка или перенос)
+    assert trimmed.endswith(".") or trimmed.endswith("\n")
+
+    # 3. Проверяем sanitize_proposal_text с max_len
+    sanitized = sanitize_proposal_text(long_text, max_len=2000)
+    assert len(sanitized) <= 2000
+
+
+@pytest.mark.asyncio
+async def test_kwork_proposal_prompt_and_client_limit(monkeypatch):
+    from src.analyzer.antigravity_client import AntigravityClient
+    from src.analyzer.prompts import build_proposal_prompt
+    from src.models.order import RawOrder, SourcePlatform
+
+    order_kwork = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="kw_test_99",
+        title="Разработка Telegram-бота",
+        description="Сложный бот с CRM",
+        url="https://kwork.ru/projects/99",
+        price=30000,
+    )
+
+    # 1. Проверяем наличие требования о 2000 символов в промпте Kwork
+    prompt = build_proposal_prompt(order_kwork)
+    assert "2 000 СИМВОЛОВ" in prompt or "2000" in prompt
+    assert "KWORK" in prompt
+
+    # 2. Мокаем вывод Antigravity с текстом длиннее 2000 символов
+    client = AntigravityClient()
+    overlong_proposal = "Здравствуйте, по вашей задаче на Kwork: представляю архитектурный план. " + ("Подробный пункт реализации архитектуры и интеграций. " * 70)
+    assert len(overlong_proposal) > 2300
+
+    import json
+    fake_payload = json.dumps({
+        "market_price": 35000,
+        "recommended_price": 30000,
+        "estimated_days": "3 дня",
+        "price_justification": "Адекватный бюджет",
+        "proposal_text": overlong_proposal,
+    }, ensure_ascii=False)
+
+    async def mock_communicate(*args, **kwargs):
+        return fake_payload.encode("utf-8"), b""
+
+    class DummyProc:
+        returncode = 0
+        communicate = mock_communicate
+        def kill(self): pass
+
+    async def mock_create_subprocess_exec(*args, **kwargs):
+        return DummyProc()
+
+    import asyncio
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", mock_create_subprocess_exec)
+
+    result = await client.generate_proposal(order_kwork)
+    assert len(result) <= 2000
+    assert len(result.proposal_text) <= 2000
+
+
+
 
 
 

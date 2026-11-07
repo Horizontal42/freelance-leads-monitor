@@ -104,9 +104,9 @@ class MistralClient(BaseLLMClient):
         self.semaphore = asyncio.Semaphore(self.max_concurrency)
         self.rate_limiter = AsyncRateLimiter(rpm=self.rpm_limit)
 
-    def _sanitize_proposal(self, text: str) -> str:
+    def _sanitize_proposal(self, text: str, max_len: Optional[int] = None) -> str:
         """Гарантированная очистка отклика: дефисы, удаление звездочек (**) и markdown-мусора."""
-        return sanitize_proposal_text(text)
+        return sanitize_proposal_text(text, max_len=max_len)
 
     async def _post_chat_completion(
         self,
@@ -316,7 +316,12 @@ class MistralClient(BaseLLMClient):
             if estimated_days:
                 estimated_days = self._sanitize_proposal(str(estimated_days).strip())
 
-            prop_text = self._sanitize_proposal(str(payload_data.get("proposal_text") or "").strip())
+            is_kwork = getattr(order.source, "value", str(order.source)).lower() == "kwork"
+            kwork_max_len = 2000 if is_kwork else None
+            prop_text = self._sanitize_proposal(
+                str(payload_data.get("proposal_text") or "").strip(),
+                max_len=kwork_max_len,
+            )
 
             return ProposalResult(
                 prop_text,
