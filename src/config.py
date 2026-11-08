@@ -584,7 +584,7 @@ class Settings:
         lines = []
         for i, p in enumerate(items, 1):
             lines.append(
-                f"{i}. {p.name}: {p.stack}. "
+                f"{i}. Проект '{p.name}' (внутренний код - ЗАПРЕЩЕНО писать название '{p.name}' в тексте для клиента!): {p.stack}. "
                 f"Ключевые решения: {p.highlights}. "
                 f"Для каких задач: {p.use_for}."
             )

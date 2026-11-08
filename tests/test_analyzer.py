@@ -599,6 +599,27 @@ async def test_kwork_proposal_prompt_and_client_limit(monkeypatch):
     assert len(result.proposal_text) <= 2000
 
 
+def test_sanitize_internal_project_codenames():
+    """Проверяем автоматическую замену внутренних кодовых имен репозиториев (Avia_Pars и др.) на человеческий текст."""
+    from src.models.analysis import sanitize_proposal_text
+
+    raw_text = (
+        "Добрый день. По вашей задаче обхода rate-limit предлагаю архитектуру (как в Avia_Pars) "
+        "на базе проверенного стека Avia_Pars с адаптацией под API. "
+        "Тестирование: 200+ тестов (как в Avia_Pars). "
+        "В проекте Speech Analytics делали скоринг. "
+        "Также утилита netsleuth и пайплайн leads-monitor."
+    )
+    clean = sanitize_proposal_text(raw_text)
+    assert "Avia_Pars" not in clean
+    assert "Speech Analytics" not in clean
+    assert "netsleuth" not in clean
+    assert "leads-monitor" not in clean
+    assert "в аналогичном проекте" in clean
+    assert "—" not in clean
+
+
+
 
 
 

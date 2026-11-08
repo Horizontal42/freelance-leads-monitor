@@ -276,6 +276,41 @@ def trim_text_to_char_limit(text: str, max_chars: int = 2000) -> str:
     return truncated.strip()
 
 
+def sanitize_internal_project_codenames(t: str) -> str:
+    """Удаляет и заменяет внутренние кодовые имена репозиториев на человеческие описания функционала."""
+    if not t:
+        return ""
+    import re
+    # 1. Конструкции сравнения '(как в X)', '(аналогично X)'
+    t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+Avia_Pars\)", "(в аналогичном проекте)", t)
+    t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+netsleuth\)", "(в аналогичной сетевой утилите)", t)
+    t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+leads-monitor\)", "(в аналогичном парсере)", t)
+    t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+Speech\s+Analytics\)", "(в аналогичной системе)", t)
+    t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+Sort_YM\)", "(в аналогичном скрипте)", t)
+    t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+LaptopTester\)", "(в аналогичном приложении)", t)
+
+    # 2. Обороты с 'аналогичную', 'стека', 'базе', 'например'
+    t = re.sub(r"(?i)аналогичн[а-я]+\s+Avia_Pars", "аналогичную ранее реализованному решению", t)
+    t = re.sub(r"(?i)стека\s+Avia_Pars", "стека ранее реализованного парсера", t)
+    t = re.sub(r"(?i)базе\s+(?:проверенного\s+)?стека\s+Avia_Pars", "базе проверенного стека для парсинга и ботов", t)
+    t = re.sub(r"(?i)базе\s+Avia_Pars", "базе проверенного решения", t)
+    t = re.sub(r"(?i)например,\s*Avia_Pars\s+для", "например, Telegram-бота для", t)
+    t = re.sub(r"(?i)проекте\s+Speech\s+Analytics", "проекте речевой аналитики", t)
+    t = re.sub(r"(?i)проекта\s+Speech\s+Analytics", "проекта речевой аналитики", t)
+    t = re.sub(r"(?i)системе\s+Speech\s+Analytics", "системе речевой аналитики", t)
+
+    # 3. Одиночные вхождения технических названий
+    t = re.sub(r"\bAvia_Pars\b", "Telegram-бота мониторинга", t)
+    t = re.sub(r"\bnetsleuth\b", "сетевой утилиты", t)
+    t = re.sub(r"\bleads-monitor\b", "пайплайна мониторинга", t)
+    t = re.sub(r"\bSort_YM\b", "скрипта автоматизации", t)
+    t = re.sub(r"\bLaptopTester\b", "диагностической утилиты", t)
+    t = re.sub(r"\bWarehouse Master\b", "складской системы", t)
+    t = re.sub(r"\bSpeech Analytics\b", "системы речевой аналитики", t)
+    t = re.sub(r"\bsummarum\b", "десктопного калькулятора", t)
+    return t
+
+
 def sanitize_proposal_text(text: str, max_len: Optional[int] = None) -> str:
     """Гарантированная очистка отклика: замена длинных тире на дефисы, удаление звездочек (**) и markdown-разметки."""
     if not text:
@@ -349,7 +384,9 @@ def sanitize_proposal_text(text: str, max_len: Optional[int] = None) -> str:
     )
     # в) Оставшиеся точки непосредственно после "Здравствуйте" -> запятая
     t = re.sub(r"(?i)\b(здравствуйте)\.", r"\1,", t)
-    # 12. Схлопывание избыточных пустых строк
+    # 12. Удаление и замена внутренних кодовых имен проектов (клиент не знает и не должен знать кодовые имена)
+    t = sanitize_internal_project_codenames(t)
+    # 13. Схлопывание избыточных пустых строк
     t = re.sub(r"\n{3,}", "\n\n", t)
     t = t.strip()
     if max_len is not None and max_len > 0:
