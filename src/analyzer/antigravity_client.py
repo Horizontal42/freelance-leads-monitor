@@ -9,7 +9,13 @@ from typing import Any, Dict, Optional
 from src.analyzer.base import BaseLLMClient
 from src.analyzer.prompts import build_analysis_prompt, build_proposal_prompt, build_chat_prompt
 from src.config import settings
-from src.models.analysis import AnalysisResult, ProposalResult, extract_clean_proposal_payload, sanitize_proposal_text
+from src.models.analysis import (
+    AnalysisResult,
+    ProposalResult,
+    extract_clean_proposal_payload,
+    sanitize_proposal_text,
+    normalize_extracted_price,
+)
 from src.models.order import OrderPriority, RawOrder
 
 logger = logging.getLogger(__name__)
@@ -227,18 +233,8 @@ class AntigravityClient(BaseLLMClient):
         output_text = stdout_bytes.decode("utf-8", errors="ignore").strip()
         payload = extract_clean_proposal_payload(output_text)
 
-        rec_price = None
-        if payload.get("recommended_price") is not None:
-            try:
-                rec_price = float(payload["recommended_price"])
-            except (ValueError, TypeError):
-                pass
-        market_price = None
-        if payload.get("market_price") is not None:
-            try:
-                market_price = float(payload["market_price"])
-            except (ValueError, TypeError):
-                pass
+        rec_price = normalize_extracted_price(payload.get("recommended_price"))
+        market_price = normalize_extracted_price(payload.get("market_price"))
         if market_price is None and rec_price is not None:
             market_price = round(rec_price * 1.2 / 500) * 500
 

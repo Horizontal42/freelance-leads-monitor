@@ -13,7 +13,12 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from jinja2 import Template
 from src.analyzer.factory import get_llm_client
 from src.config import settings
-from src.models.analysis import AnalysisResult, extract_clean_text_items, sanitize_proposal_text
+from src.models.analysis import (
+    AnalysisResult,
+    extract_clean_text_items,
+    sanitize_proposal_text,
+    format_matched_project,
+)
 from src.models.order import OrderPriority, RawOrder, SourcePlatform
 from src.services.hh_applicant_service import HhApplicantService
 from src.services.market_analytics import MarketAnalyticsService
@@ -4023,6 +4028,9 @@ def create_web_app(
                     item["analysis"] = None
             else:
                 item["analysis"] = None
+            item["matched_project"] = format_matched_project(
+                item.get("matched_project") or (item.get("analysis") or {}).get("matched_project")
+            )
             item["is_ai_first"] = check_is_ai_first(item)
             formatted_orders.append(item)
 
@@ -4051,6 +4059,9 @@ def create_web_app(
                         item["analysis"] = None
                 else:
                     item["analysis"] = None
+                item["matched_project"] = format_matched_project(
+                    item.get("matched_project") or (item.get("analysis") or {}).get("matched_project")
+                )
                 item["is_ai_first"] = check_is_ai_first(item)
                 formatted_orders.insert(0, item)
 

@@ -619,6 +619,54 @@ def test_sanitize_internal_project_codenames():
     assert "—" not in clean
 
 
+def test_sanitize_sycophantic_blocks_and_connectors():
+    """Проверяем вырезание шаблонных подводок и списков самосоответствия."""
+    from src.models.analysis import sanitize_proposal_text
+
+    raw_text = (
+        "Здравствуйте, разрабатываю AI-решения на Python.\n\n"
+        "Мой опыт тесно пересекается с задачами УАЗ / «Цифровые решения»:\n\n"
+        "1. LLM и ML\n- Опыт с WhisperX.\n\n"
+        "Почему подхожу для вашей команды\n"
+        "- Опыт работы с LLM в продакшене.\n"
+        "- Готовность быстро освоить Kubernetes.\n\n"
+        "Контакты:\nTelegram: @Horizontal84"
+    )
+    clean = sanitize_proposal_text(raw_text)
+    assert "Мой опыт тесно пересекается" not in clean
+    assert "Почему подхожу" not in clean
+    assert "быстро освоить Kubernetes" not in clean
+    assert "1. LLM и ML" in clean
+    assert "@Horizontal84" in clean
+
+
+def test_normalize_extracted_price():
+    """Проверяем нормализацию цен (пробелы, миллионы, тысячи)."""
+    from src.models.analysis import normalize_extracted_price, extract_clean_proposal_payload
+
+    assert normalize_extracted_price("1 000 000") == 1000000.0
+    assert normalize_extracted_price("950 000") == 950000.0
+    assert normalize_extracted_price(1.0) == 1000000.0
+    assert normalize_extracted_price(950.0) == 950000.0
+    assert normalize_extracted_price(280000) == 280000.0
+
+    raw_json = '{"proposal_text": "Отклик", "recommended_price": 950, "market_price": 1.0}'
+    payload = extract_clean_proposal_payload(raw_json)
+    assert payload["recommended_price"] == 950000.0
+    assert payload["market_price"] == 1000000.0
+
+
+def test_format_matched_project():
+    """Проверяем форматирование названий кейсов для UI и Telegram."""
+    from src.models.analysis import format_matched_project
+
+    assert format_matched_project("['RAG-ассистент', 'Avia_Pars']") == "Корпоративный RAG, Мониторинг цен (боты)"
+    assert format_matched_project("Avia_Pars") == "Мониторинг цен (боты)"
+    assert format_matched_project("Speech Analytics") == "Речевая аналитика"
+    assert format_matched_project(None) is None
+
+
+
 
 
 

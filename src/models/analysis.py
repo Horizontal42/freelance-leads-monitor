@@ -276,38 +276,133 @@ def trim_text_to_char_limit(text: str, max_chars: int = 2000) -> str:
     return truncated.strip()
 
 
+def normalize_extracted_price(val: Optional[Any]) -> Optional[float]:
+    """Нормализует распарсенную цену: очищает от пробелов, восстанавливает масштаб (млн/тыс руб)."""
+    if val is None:
+        return None
+    import re
+    try:
+        if isinstance(val, str):
+            clean_str = re.sub(r"[^\d.]", "", val.replace(" ", "").replace("\xa0", ""))
+            val = float(clean_str) if clean_str else None
+        if val is None:
+            return None
+        val = float(val)
+        if val <= 0:
+            return None
+        # Если модель вернула число в миллионах (например, 1.0 или 1.5)
+        if 0 < val <= 20:
+            val = round(val * 1_000_000)
+        # Если модель вернула число в тысячах (например, 280 или 950 вместо 280000 или 950000)
+        elif 20 < val < 1000:
+            val = round(val * 1_000)
+        return float(val)
+    except (ValueError, TypeError):
+        return None
+
+
+def format_matched_project(raw_val: Any) -> Optional[str]:
+    """Форматирует название кейса в человекочитаемый вид, убирая сырые Python-списки и внутренние кодовые имена."""
+    if not raw_val:
+        return None
+    val_str = str(raw_val).strip()
+    if not val_str:
+        return None
+    import ast
+    parts = []
+    if val_str.startswith("[") and val_str.endswith("]"):
+        try:
+            evaluated = ast.literal_eval(val_str)
+            if isinstance(evaluated, list):
+                parts = [str(x) for x in evaluated if x]
+        except Exception:
+            parts = [p.strip(" '\"[]") for p in val_str.strip("[]").split(",") if p.strip(" '\"[]")]
+    else:
+        parts = [val_str]
+
+    clean_parts = []
+    mapping = {
+        "Avia_Pars": "Мониторинг цен (боты)",
+        "Speech Analytics": "Речевая аналитика",
+        "SpeechAnalytics": "Речевая аналитика",
+        "Intervesp": "Речевая аналитика",
+        "RAG-ассистент": "Корпоративный RAG",
+        "RAG": "Корпоративный RAG",
+        "leads-monitor": "Сбор данных и парсинг",
+        "Sort_YM": "Автоматизация каталога",
+        "LaptopTester": "Тестирование оборудования",
+        "netsleuth": "Сетевая диагностика",
+        "netcheck": "Сетевая диагностика",
+        "summarum": "Калькулятор-парсер",
+        "Numi": "Калькулятор-парсер",
+        "Warehouse Master": "Складской учет",
+        "WarehouseMaster": "Складской учет",
+        "AgroTech CV": "Компьютерное зрение",
+        "AgroTech_CV": "Компьютерное зрение",
+        "AgroTech": "Компьютерное зрение",
+    }
+    for p in parts:
+        p_clean = p.strip(" '\"")
+        if not p_clean:
+            continue
+        cleaned = mapping.get(p_clean)
+        if not cleaned:
+            cleaned = p_clean
+            for k in sorted(mapping.keys(), key=len, reverse=True):
+                cleaned = re.sub(rf"\b{re.escape(k)}\b", mapping[k], cleaned)
+        if cleaned and cleaned not in clean_parts:
+            clean_parts.append(cleaned)
+    return ", ".join(clean_parts) if clean_parts else None
+
+
 def sanitize_internal_project_codenames(t: str) -> str:
-    """Удаляет и заменяет внутренние кодовые имена репозиториев на человеческие описания функционала."""
+    """Удаляет и заменяет ВСЕ внутренние кодовые имена репозиториев на человеческие описания функционала."""
     if not t:
         return ""
     import re
-    # 1. Конструкции сравнения '(как в X)', '(аналогично X)'
+    # 1. Обобщенные конструкции сравнения '(как в X)', '(аналогично X)'
     t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+Avia_Pars\)", "(в аналогичном проекте)", t)
     t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+netsleuth\)", "(в аналогичной сетевой утилите)", t)
     t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+leads-monitor\)", "(в аналогичном парсере)", t)
     t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+Speech\s+Analytics\)", "(в аналогичной системе)", t)
     t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+Sort_YM\)", "(в аналогичном скрипте)", t)
     t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+LaptopTester\)", "(в аналогичном приложении)", t)
+    t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+RAG(?:-ассистент)?\)", "(в аналогичной RAG-системе)", t)
+    t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+AgroTech(?:[-_ ]CV)?\)", "(в аналогичном проекте CV)", t)
+    t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+[A-Za-z0-9_ -]+\)", "(в аналогичном проекте)", t)
 
-    # 2. Обороты с 'аналогичную', 'стека', 'базе', 'например'
+    # 2. Обороты с 'в рамках кейса', 'проекте', 'базе', 'стека'
+    t = re.sub(r"(?i)\bв\s+рамках\s+кейса\s+[A-Za-z0-9_ -]+", "в аналогичном проекте", t)
     t = re.sub(r"(?i)аналогичн[а-я]+\s+Avia_Pars", "аналогичную ранее реализованному решению", t)
     t = re.sub(r"(?i)стека\s+Avia_Pars", "стека ранее реализованного парсера", t)
-    t = re.sub(r"(?i)базе\s+(?:проверенного\s+)?стека\s+Avia_Pars", "базе проверенного стека для парсинга и ботов", t)
-    t = re.sub(r"(?i)базе\s+Avia_Pars", "базе проверенного решения", t)
+    t = re.sub(r"(?i)базе\s+(?:проверенного\s+)?стека\s+(?:Avia_Pars|Sort_YM|leads-monitor)", "базе проверенного стека для парсинга и ботов", t)
+    t = re.sub(r"(?i)базе\s+(?:Avia_Pars|Sort_YM|leads-monitor)", "базе проверенного решения", t)
     t = re.sub(r"(?i)например,\s*Avia_Pars\s+для", "например, Telegram-бота для", t)
     t = re.sub(r"(?i)проекте\s+Speech\s+Analytics", "проекте речевой аналитики", t)
     t = re.sub(r"(?i)проекта\s+Speech\s+Analytics", "проекта речевой аналитики", t)
     t = re.sub(r"(?i)системе\s+Speech\s+Analytics", "системе речевой аналитики", t)
+    t = re.sub(r"(?i)в\s+проекте\s+RAG(?:-ассистент)?", "в корпоративной RAG-системе", t)
 
-    # 3. Одиночные вхождения технических названий
-    t = re.sub(r"\bAvia_Pars\b", "Telegram-бота мониторинга", t)
-    t = re.sub(r"\bnetsleuth\b", "сетевой утилиты", t)
-    t = re.sub(r"\bleads-monitor\b", "пайплайна мониторинга", t)
-    t = re.sub(r"\bSort_YM\b", "скрипта автоматизации", t)
-    t = re.sub(r"\bLaptopTester\b", "диагностической утилиты", t)
-    t = re.sub(r"\bWarehouse Master\b", "складской системы", t)
-    t = re.sub(r"\bSpeech Analytics\b", "системы речевой аналитики", t)
-    t = re.sub(r"\bsummarum\b", "десктопного калькулятора", t)
+    # 3. Точечные замены технических названий проектов
+    replacements = {
+        r"\bAvia_Pars\b": "Telegram-бота мониторинга",
+        r"\bnetsleuth\b": "сетевой утилиты",
+        r"\bnetcheck\b": "сетевой утилиты",
+        r"\bleads-monitor\b": "пайплайна мониторинга",
+        r"\bSort_YM\b": "скрипта автоматизации",
+        r"\bLaptopTester\b": "диагностической утилиты",
+        r"\bWarehouse Master\b": "складской системы",
+        r"\bWarehouseMaster\b": "складской системы",
+        r"\bSpeech Analytics\b": "системы речевой аналитики",
+        r"\bSpeechAnalytics\b": "системы речевой аналитики",
+        r"\bIntervesp\b": "B2B-клиента",
+        r"\bsummarum\b": "десктопного калькулятора",
+        r"\bNumi\b": "калькулятора с парсером",
+        r"\bAgroTech[-_ ]CV\b": "системы компьютерного зрения",
+        r"\bAgroTech\b": "системы компьютерного зрения",
+    }
+    for pattern, repl in replacements.items():
+        t = re.sub(pattern, repl, t)
     return t
 
 
@@ -348,15 +443,21 @@ def sanitize_proposal_text(text: str, max_len: Optional[int] = None) -> str:
     )
     t = boilerplate_rx.sub("", t)
     t = re.sub(r"(?i)^[ \t]*спасибо\s+за\s+внимание[.,!]?[ \t]*\n*", "", t, flags=re.MULTILINE)
-    # Удаление шаблонных мета-заголовков самосоответствия ("Почему подхожу на роль...", "Почему я подхожу:")
+    # Удаление шаблонных мета-заголовков и роботизированных связок ("Моя работа тесно пересекается...", "Почему подхожу для вашей команды:")
     t = re.sub(
-        r"(?im)^[ \t]*(?:почему\s+(?:подхожу|я\s+подхожу|мой\s+опыт|именно\s+я|выбираю)[^\n:]*|мое\s+соответствие[^\n:]*|чем\s+могу\s+быть\s+полезен[^\n:]*):[ \t]*\n*",
+        r"(?im)^[ \t]*(?:моя\s+работа|мой\s+опыт|мой\s+стек|мои\s+навыки)\s+(?:тесно\s+)?(?:пересекается|подходит|соответствует)\s+[^\n]*:?[ \t]*\n*",
         "",
         t,
     )
-    # Удаление шаблонных блоков лести компании ("Почему [Компания]:\n- ...")
+    # Удаление шаблонных блоков самосоответствия и лести компании вместе со списками буллетов
     t = re.sub(
-        r"(?im)^[ \t]*почему\s+(?:ваш[^\n:]*|компани[^\n:]*|[^\n:]+(?:инвестор|стартап|продукт|команд))[^\n:]*:\s*\n(?:[ \t]*[-*•].*\n*)+",
+        r"(?im)^[ \t]*(?:почему\s+(?:подхожу|я\s+подхожу|мой\s+опыт|именно\s+я|выбираю|ваш[^\n]*|компани[^\n]*|[^\n]*(?:команд|продукт|ваканси))[^\n]*|мое\s+соответствие[^\n]*|чем\s+могу\s+быть\s+полезен[^\n]*)[ \t]*:?[ \t]*\n(?:[ \t]*[-*•\d.][^\n]*\n*)+",
+        "",
+        t,
+    )
+    # Удаление оставшихся одиночных заголовков такого типа (с двоеточием или без)
+    t = re.sub(
+        r"(?im)^[ \t]*(?:почему\s+(?:подхожу|я\s+подхожу|мой\s+опыт|именно\s+я|выбираю|ваш[^\n]*|компани[^\n]*|[^\n]*(?:команд|продукт|ваканси))[^\n]*|мое\s+соответствие[^\n]*|чем\s+могу\s+быть\s+полезен[^\n]*)[ \t]*:?[ \t]*\n*",
         "",
         t,
     )
@@ -428,18 +529,8 @@ def extract_clean_proposal_payload(raw_text: str) -> dict:
             try:
                 parsed = json.loads(candidate, strict=False)
                 if isinstance(parsed, dict) and "proposal_text" in parsed:
-                    rec_p = None
-                    if parsed.get("recommended_price") is not None:
-                        try:
-                            rec_p = float(parsed["recommended_price"])
-                        except (ValueError, TypeError):
-                            pass
-                    mkt_p = None
-                    if parsed.get("market_price") is not None:
-                        try:
-                            mkt_p = float(parsed["market_price"])
-                        except (ValueError, TypeError):
-                            pass
+                    rec_p = normalize_extracted_price(parsed.get("recommended_price"))
+                    mkt_p = normalize_extracted_price(parsed.get("market_price"))
                     days = parsed.get("estimated_days") or parsed.get("realistic_days")
                     raw_just = str(parsed["price_justification"]).strip() if parsed.get("price_justification") else None
                     return {
@@ -470,13 +561,13 @@ def extract_clean_proposal_payload(raw_text: str) -> dict:
                 clean_prop = raw_val.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
             result["proposal_text"] = sanitize_proposal_text(clean_prop)
 
-            rec_m = re.search(r'"recommended_price"\s*:\s*([0-9.]+)', text)
+            rec_m = re.search(r'"recommended_price"\s*:\s*"?([0-9][0-9\s.,]*)', text)
             if rec_m:
-                result["recommended_price"] = float(rec_m.group(1))
+                result["recommended_price"] = normalize_extracted_price(rec_m.group(1))
 
-            mkt_m = re.search(r'"market_price"\s*:\s*([0-9.]+)', text)
+            mkt_m = re.search(r'"market_price"\s*:\s*"?([0-9][0-9\s.,]*)', text)
             if mkt_m:
-                result["market_price"] = float(mkt_m.group(1))
+                result["market_price"] = normalize_extracted_price(mkt_m.group(1))
 
             just_m = re.search(
                 r'"price_justification"\s*:\s*"((?:\\.|[\s\S])*?)(?="[ \t]*(?:,[ \t\r\n]*"(?:market_price|recommended_price|estimated_days|realistic_days|proposal_text|pert|score|take_order|priority)"|\s*\}))',

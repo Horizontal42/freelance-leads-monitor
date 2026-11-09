@@ -11,7 +11,7 @@ from aiogram.enums import ParseMode
 from aiogram.types import LinkPreviewOptions
 from src.bot.keyboards import get_order_inline_keyboard
 from src.config import settings
-from src.models.analysis import AnalysisResult
+from src.models.analysis import AnalysisResult, format_matched_project
 from src.models.order import RawOrder, SourcePlatform
 
 logger = logging.getLogger(__name__)
@@ -140,7 +140,7 @@ class TelegramNotifier:
         card_html += (
             f"⏱ <b>Срок (PERT):</b> {analysis.realistic_days} дн. "
             f"(E={analysis.pert.expected_days:.1f} дн., σ={analysis.pert.sigma:.1f})\n"
-            f"💼 <b>Кейс из досье:</b> <code>{html.escape(analysis.matched_project)}</code> "
+            f"💼 <b>Кейс из досье:</b> <code>{html.escape(format_matched_project(analysis.matched_project) or analysis.matched_project)}</code> "
             f"(Сложность: {analysis.complexity}/10, Время: {analysis.pure_dev_hours:.1f}ч)\n\n"
             f"⚠️ <b>Подводные камни:</b>\n{risks_list}\n\n"
             f"💡 <b>Резюме (Mistral):</b> {html.escape(analysis.executive_summary)}"
@@ -170,7 +170,7 @@ class TelegramNotifier:
             card_html += (
                 f"⏱ <b>Срок (PERT):</b> {analysis.realistic_days} дн. "
                 f"(E={analysis.pert.expected_days:.1f} дн., σ={analysis.pert.sigma:.1f})\n"
-                f"💼 <b>Кейс из досье:</b> <code>{html.escape(analysis.matched_project)}</code> "
+                f"💼 <b>Кейс из досье:</b> <code>{html.escape(format_matched_project(analysis.matched_project) or analysis.matched_project)}</code> "
                 f"(Сложность: {analysis.complexity}/10, Время: {analysis.pure_dev_hours:.1f}ч)\n\n"
                 f"⚠️ <b>Подводные камни:</b>\n{risks_list}\n\n"
                 f"💡 <b>Резюме (Mistral):</b> {html.escape(safe_summary)}"
