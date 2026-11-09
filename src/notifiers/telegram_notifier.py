@@ -87,13 +87,25 @@ class TelegramNotifier:
             if len(match_focus) > 120:
                 match_focus = match_focus[:117] + "..."
 
+            reqs_html = ""
+            if analysis.candidate_requirements:
+                req_lines = [
+                    l.strip().lstrip("-•* ")
+                    for l in str(analysis.candidate_requirements).splitlines()
+                    if l.strip() and not l.strip().startswith(("{", "}", "[", "]"))
+                ]
+                top_reqs = req_lines[:3]
+                if top_reqs:
+                    reqs_html = "🎯 <b>Ключевые требования:</b>\n" + "\n".join(f"• {html.escape(r)}" for r in top_reqs) + "\n\n"
+
             card_html = (
                 f"{badge}\n\n"
                 f"💼 <b>Позиция:</b> <a href=\"{html.escape(order.url, quote=True)}\">{html.escape(order.title)}</a>\n"
                 f"{company_line}"
                 f"💰 <b>Зарплата:</b> {price_str}\n"
-                f"📌 <b>Площадка:</b> {order.source.value.upper()} | 🕒 {pub_time_str}\n"
-                f"🎯 <b>Фокус совпадения:</b> {html.escape(match_focus)}\n\n"
+                f"📌 <b>Площадка:</b> {order.source.value.upper()} | 🕒 {pub_time_str}\n\n"
+                f"{reqs_html}"
+                f"💡 <b>Фокус совпадения:</b> {html.escape(match_focus)}\n\n"
                 f"🌐 <i>Полное описание, стек и Cover Letter доступны на сайте.</i>"
             )
             return card_html
