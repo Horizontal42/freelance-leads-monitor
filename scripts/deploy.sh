@@ -98,7 +98,10 @@ rsync -avz \
     --exclude='.git/index.lock' \
     "${REPO_DIR}/" "${PROD_HOST}:${PROD_DIR}/"
 
-# 5. Прогон тестов на прод-сервере
+# 5. Обновление зависимостей и прогон тестов на прод-сервере
+echo -e "${BLUE}==>${NC} Проверка и установка зависимостей на ${PROD_HOST}..."
+ssh "${PROD_HOST}" "cd ${PROD_DIR} && .venv/bin/pip install -q -e ."
+
 echo -e "${BLUE}==>${NC} Запуск тестов pytest на ${PROD_HOST}..."
 if ! ssh "${PROD_HOST}" "cd ${PROD_DIR} && .venv/bin/pytest -q"; then
     echo -e "${RED}[ERROR]${NC} Тесты на прод-сервере провалены! Сервис не перезапущен."
