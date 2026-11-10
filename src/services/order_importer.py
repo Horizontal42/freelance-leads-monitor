@@ -3,6 +3,7 @@
 import html
 import json
 import logging
+import os
 import re
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlparse
@@ -41,6 +42,9 @@ class OrderImporterService:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8",
         }
+        fl_cookie = os.getenv("FL_RU_COOKIE") or os.getenv("FL_COOKIE")
+        if fl_cookie:
+            self.headers["Cookie"] = fl_cookie
 
     def detect_platform_and_id(self, url: str) -> Tuple[SourcePlatform, str]:
         """Определить биржу/платформу и извлечь идентификатор из URL."""

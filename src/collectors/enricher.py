@@ -4,9 +4,14 @@ import html
 import logging
 import os
 import re
+import urllib.parse
 from typing import List, Optional
 import httpx
 from src.models.order import RawOrder, SourcePlatform
+from src.collectors.file_extractor import (
+    is_supported_attachment,
+    extract_text_from_file_bytes,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +64,33 @@ class OrderEnricher:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8",
         }
+        fl_cookie = os.getenv("FL_RU_COOKIE") or os.getenv("FL_COOKIE")
+        if fl_cookie:
+            self.headers["Cookie"] = fl_cookie
+
+    async def _fetch_and_extract_file(
+        self, client: httpx.AsyncClient, file_url: str, fname: str, size_str: str = ""
+    ) -> str:
+        """Download and extract content from attachment, returning formatted block."""
+        if not is_supported_attachment(fname) and not is_supported_attachment(file_url):
+            return f"[Прикрепленный файл: {fname} ({size_str})]" if size_str else f"[Прикрепленный файл: {fname}]"
+
+        try:
+            resp = await client.get(file_url, follow_redirects=True)
+            if resp.status_code == 200 and not resp.text.strip().startswith("<!DOCTYPE"):
+                extracted = extract_text_from_file_bytes(resp.content, fname)
+                if extracted:
+                    header = f"[Файл: {fname} ({size_str})]" if size_str else f"[Файл: {fname}]"
+                    return (
+                        f"{header}\n"
+                        f"--- Начало содержимого файла ---\n"
+                        f"{extracted}\n"
+                        f"--- Конец содержимого файла ---"
+                    )
+        except Exception as e:
+            logger.debug("Не удалось скачать или разобрать файл %s: %s", fname, e)
+
+        return f"[Прикрепленный файл: {fname} ({size_str})]" if size_str else f"[Прикрепленный файл: {fname}]"
 
     async def enrich(self, order: RawOrder) -> RawOrder:
         """Выгрузить полное ТЗ и файлы для заказа, передавая готовый текст для LLM."""
@@ -99,25 +131,9 @@ class OrderEnricher:
                 fname = f.get("fname") or "unnamed_file"
                 furl = f.get("url") or ""
                 fsize = f.get("size") or 0
-                size_str = f"{fsize} байт" if fsize else "размер не указан"
-                ext = os.path.splitext(fname)[1].lower()
-
-                if ext in TEXT_EXTENSIONS and furl:
-                    try:
-                        resp = await client.get(furl, follow_redirects=True)
-                        if resp.status_code == 200 and not resp.text.strip().startswith("<!DOCTYPE"):
-                            content_sample = resp.text[:MAX_FILE_BYTES].strip()
-                            attachments.append(
-                                f"[Файл: {fname} ({size_str})]\n"
-                                f"--- Начало содержимого файла ---\n"
-                                f"{content_sample}\n"
-                                f"--- Конец содержимого файла ---"
-                            )
-                            continue
-                    except Exception as e:
-                        logger.debug("Не удалось скачать файл Kwork %s: %s", fname, e)
-
-                attachments.append(f"[Прикрепленный файл: {fname} ({size_str})]")
+                size_str = f"{fsize} байт" if fsize else ""
+                block = await self._fetch_and_extract_file(client, furl, fname, size_str)
+                attachments.append(block)
 
         if attachments:
             files_block = "\n\n".join(attachments)
@@ -150,14 +166,25 @@ class OrderEnricher:
 
             # 2. Файлы
             file_matches = re.findall(
-                r"<a[^>]*href=\"([^\"]*(?:upload|files|download)[^\"]*)\"[^>]*>(.*?)</a>",
+                r"<a[^>]*href=[\"']([^\"']*(?:upload|files|download|\.(?:docx?|pdf|xlsx?|txt|rtf|zip))[^\"']*)[\"'][^>]*>(.*?)</a>",
                 html_text,
                 re.IGNORECASE,
             )
-            if file_matches:
-                items = [f"[Прикрепленный файл: {html.unescape(txt).strip()}]" for _, txt in file_matches if txt.strip()]
-                if items:
-                    order.attachments_text = "\n".join(items)
+            attachments: List[str] = []
+            for href, txt in file_matches:
+                fname = html.unescape(txt).strip() or os.path.basename(href.split("?")[0])
+                if not fname or fname.lower() in ("ссылка на заказ", "посмотреть другие заказы", "вход", "откликнуться"):
+                    continue
+                full_furl = urllib.parse.urljoin("https://www.fl.ru", href)
+                block = await self._fetch_and_extract_file(client, full_furl, fname)
+                attachments.append(block)
+
+            if attachments:
+                files_block = "\n\n".join(attachments)
+                if order.attachments_text:
+                    order.attachments_text = f"{order.attachments_text}\n\n{files_block}"
+                else:
+                    order.attachments_text = files_block
 
             # 3. Уточнение статуса PRO / платного объявления
             if (
@@ -194,11 +221,26 @@ class OrderEnricher:
                     order.description = full_text
 
             # Файлы
-            files = re.findall(r"href=\"([^\"]*/download/[^\"]*)\"[^>]*>(.*?)</a>", html_text)
-            if files:
-                items = [f"[Прикрепленный файл: {html.unescape(txt).strip()}]" for _, txt in files if txt.strip()]
-                if items:
-                    order.attachments_text = "\n".join(items)
+            files = re.findall(
+                r"<a[^>]*href=[\"']([^\"']*(?:/download/|\.(?:docx?|pdf|xlsx?|txt|rtf|zip))[^\"']*)[\"'][^>]*>(.*?)</a>",
+                html_text,
+                re.IGNORECASE,
+            )
+            attachments: List[str] = []
+            for href, txt in files:
+                fname = html.unescape(txt).strip() or os.path.basename(href.split("?")[0])
+                if not fname:
+                    continue
+                full_furl = urllib.parse.urljoin("https://freelance.ru", href)
+                block = await self._fetch_and_extract_file(client, full_furl, fname)
+                attachments.append(block)
+
+            if attachments:
+                files_block = "\n\n".join(attachments)
+                if order.attachments_text:
+                    order.attachments_text = f"{order.attachments_text}\n\n{files_block}"
+                else:
+                    order.attachments_text = files_block
 
             # Уточнение бюджета со страницы задания (если не определен в ленте)
             if order.price is None:
@@ -244,6 +286,28 @@ class OrderEnricher:
                 full_text = html.unescape("\n".join(l.strip() for l in clean.splitlines() if l.strip()))
                 if len(full_text) > len(order.description):
                     order.description = full_text
+
+            # Файлы
+            files = re.findall(
+                r"<a[^>]*href=[\"']([^\"']*(?:/download/|/attachments/|\.(?:docx?|pdf|xlsx?|txt|rtf|zip))[^\"']*)[\"'][^>]*>(.*?)</a>",
+                resp.text,
+                re.IGNORECASE,
+            )
+            attachments: List[str] = []
+            for href, txt in files:
+                fname = html.unescape(txt).strip() or os.path.basename(href.split("?")[0])
+                if not fname:
+                    continue
+                full_furl = urllib.parse.urljoin("https://pchel.net", href)
+                block = await self._fetch_and_extract_file(client, full_furl, fname)
+                attachments.append(block)
+
+            if attachments:
+                files_block = "\n\n".join(attachments)
+                if order.attachments_text:
+                    order.attachments_text = f"{order.attachments_text}\n\n{files_block}"
+                else:
+                    order.attachments_text = files_block
 
     async def _enrich_habr_career(self, order: RawOrder) -> None:
         """Хабр Карьера: выгружаем полный текст описания вакансии."""
