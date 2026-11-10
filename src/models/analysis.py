@@ -411,8 +411,16 @@ def sanitize_proposal_text(text: str, max_len: Optional[int] = None) -> str:
     if not text:
         return ""
     import re
+    t = str(text)
+    # 0. Преобразование литеральных экранированных переносов строк (\n -> перенос строки)
+    if "\\n" in t:
+        t = t.replace("\\r\\n", "\n").replace("\\n", "\n")
+    if "\\t" in t:
+        t = t.replace("\\t", " ")
+    if '\\"' in t:
+        t = t.replace('\\"', '"')
     # 1. Замена длинных и средних тире на обычный дефис
-    t = text.replace("—", "-").replace("–", "-")
+    t = t.replace("—", "-").replace("–", "-")
     # 2. Удаление жирного шрифта markdown (**текст** -> текст)
     t = re.sub(r"\*\*([^*]+)\*\*", r"\1", t)
     # 3. Удаление курсива (*текст* -> текст)

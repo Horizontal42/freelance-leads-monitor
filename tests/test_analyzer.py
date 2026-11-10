@@ -467,6 +467,17 @@ def test_sanitize_proposal_text_zdravstvuyte_comma():
     assert sanitize_proposal_text(raw_5) == "здравствуйте, разрабатываю парсеры на Scrapy."
 
 
+def test_sanitize_proposal_text_unescapes_literal_newlines():
+    """Тест автоматического разворачивания строковых \\n\\n в реальные переносы строк."""
+    from src.models.analysis import sanitize_proposal_text
+
+    raw = "Добрый день.\\n\\nИнженерная реализация ключевых узлов:\\n1. Интеграция с MeHotel"
+    res = sanitize_proposal_text(raw)
+    assert "\\n" not in res
+    assert "\n\n" in res
+    assert "Инженерная реализация ключевых узлов:\n1. Интеграция с MeHotel" in res
+
+
 def test_extract_clean_proposal_payload_with_unescaped_quotes():
     """Тест извлечения proposal_text и price_justification при наличии неэкранированных кавычек."""
     from src.models.analysis import extract_clean_proposal_payload

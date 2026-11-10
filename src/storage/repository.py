@@ -183,15 +183,17 @@ class OrderRepository:
             return None
         d = dict(row)
         prop = d.get("proposal_text")
-        if prop and ("proposal_text" in str(prop)) and ("{" in str(prop) or "```" in str(prop)):
-            payload = extract_clean_proposal_payload(str(prop))
-            clean_text = payload.get("proposal_text")
-            if clean_text:
-                d["proposal_text"] = clean_text
-            if d.get("recommended_price") is None and payload.get("recommended_price"):
-                d["recommended_price"] = payload.get("recommended_price")
-            if d.get("market_price") is None and payload.get("market_price"):
-                d["market_price"] = payload.get("market_price")
+        if prop:
+            if ("proposal_text" in str(prop)) and ("{" in str(prop) or "```" in str(prop)):
+                payload = extract_clean_proposal_payload(str(prop))
+                clean_text = payload.get("proposal_text")
+                if clean_text:
+                    d["proposal_text"] = clean_text
+                if d.get("recommended_price") is None and payload.get("recommended_price"):
+                    d["recommended_price"] = payload.get("recommended_price")
+                if d.get("market_price") is None and payload.get("market_price"):
+                    d["market_price"] = payload.get("market_price")
+            d["proposal_text"] = sanitize_proposal_text(str(d["proposal_text"]))
         return d
 
     async def update_proposal(
