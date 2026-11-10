@@ -105,13 +105,20 @@ def extract_text_from_pdf_bytes(content: bytes) -> str:
 
 
 def extract_text_from_plain_bytes(content: bytes) -> str:
-    """Extract plain text decoding with common encodings."""
-    for encoding in ("utf-8", "cp1251", "latin-1"):
+    """Extract plain text decoding with common encodings, rejecting binary files."""
+    if b"\x00" in content:
+        # Binary content should not be parsed as plain text
+        return ""
+
+    for encoding in ("utf-8", "cp1251"):
         try:
             return content.decode(encoding)
         except (UnicodeDecodeError, LookupError):
             continue
-    return content.decode("utf-8", errors="replace")
+    try:
+        return content.decode("utf-8", errors="replace")
+    except Exception:
+        return ""
 
 
 def extract_text_from_file_bytes(
@@ -130,13 +137,14 @@ def extract_text_from_file_bytes(
             text = extract_text_from_docx_bytes(content)
         elif ext == ".pdf":
             text = extract_text_from_pdf_bytes(content)
-        elif ext in SUPPORTED_EXTENSIONS or ext == "":
+        elif ext in SUPPORTED_EXTENSIONS:
             text = extract_text_from_plain_bytes(content)
     except Exception as e:
         logger.warning("Error extracting text from %s: %s", filename, e)
         return None
 
-    text = text.strip()
+    # Guarantee removal of any null bytes or control artifacts
+    text = text.replace("\x00", "").strip()
     if not text:
         return None
 

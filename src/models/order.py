@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SourcePlatform(str, Enum):
@@ -46,6 +46,13 @@ class RawOrder(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     raw_payload: Optional[Dict[str, Any]] = None
     attachments_text: Optional[str] = None
+
+    @field_validator("title", "description", "attachments_text", mode="before")
+    @classmethod
+    def sanitize_null_bytes(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            return v.replace("\x00", "")
+        return v
 
     @property
     def full_text(self) -> str:

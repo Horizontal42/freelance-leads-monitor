@@ -52,6 +52,10 @@ class AntigravityClient(BaseLLMClient):
             return cleaned[start_idx : end_idx + 1]
         return cleaned
 
+    def _sanitize_subprocess_cmd(self, cmd: list) -> list[str]:
+        """Guarantee no argument contains embedded null bytes which crash asyncio.create_subprocess_exec."""
+        return [str(arg).replace("\x00", "") for arg in cmd]
+
     def _sanitize_proposal(self, text: str, max_len: Optional[int] = None) -> str:
         """Гарантированная очистка отклика: дефисы, удаление звездочек (**) и markdown-мусора."""
         return sanitize_proposal_text(text, max_len=max_len)
@@ -92,7 +96,7 @@ class AntigravityClient(BaseLLMClient):
         )
 
         proc = await asyncio.create_subprocess_exec(
-            *cmd,
+            *self._sanitize_subprocess_cmd(cmd),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=self._get_subprocess_env(),
@@ -207,7 +211,7 @@ class AntigravityClient(BaseLLMClient):
         )
 
         proc = await asyncio.create_subprocess_exec(
-            *cmd,
+            *self._sanitize_subprocess_cmd(cmd),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=self._get_subprocess_env(),
@@ -300,7 +304,7 @@ class AntigravityClient(BaseLLMClient):
         )
 
         proc = await asyncio.create_subprocess_exec(
-            *cmd,
+            *self._sanitize_subprocess_cmd(cmd),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=self._get_subprocess_env(),

@@ -72,14 +72,22 @@ class OrderEnricher:
         self, client: httpx.AsyncClient, file_url: str, fname: str, size_str: str = ""
     ) -> str:
         """Download and extract content from attachment, returning formatted block."""
-        if not is_supported_attachment(fname) and not is_supported_attachment(file_url):
+        target_fname = fname
+        if not os.path.splitext(target_fname)[1]:
+            parsed_path = urllib.parse.urlparse(file_url).path
+            base_ext = os.path.splitext(parsed_path)[1]
+            if base_ext:
+                target_fname = f"{fname}{base_ext}"
+
+        if not is_supported_attachment(target_fname) and not is_supported_attachment(file_url):
             return f"[Прикрепленный файл: {fname} ({size_str})]" if size_str else f"[Прикрепленный файл: {fname}]"
 
         try:
             resp = await client.get(file_url, follow_redirects=True)
             if resp.status_code == 200 and not resp.text.strip().startswith("<!DOCTYPE"):
-                extracted = extract_text_from_file_bytes(resp.content, fname)
+                extracted = extract_text_from_file_bytes(resp.content, target_fname)
                 if extracted:
+                    extracted = extracted.replace("\x00", "").strip()
                     header = f"[Файл: {fname} ({size_str})]" if size_str else f"[Файл: {fname}]"
                     return (
                         f"{header}\n"
@@ -171,9 +179,13 @@ class OrderEnricher:
                 re.IGNORECASE,
             )
             attachments: List[str] = []
+            ignored_href_tokens = ("/about/", "/rules", "cookie_accept", "regulations", "appendix_2", "terms", "agreement", "privacy")
+            ignored_names = ("ссылка на заказ", "посмотреть другие заказы", "вход", "откликнуться", "правила", "соглашение", "конфиденциальность")
             for href, txt in file_matches:
+                if any(tok in href.lower() for tok in ignored_href_tokens):
+                    continue
                 fname = html.unescape(txt).strip() or os.path.basename(href.split("?")[0])
-                if not fname or fname.lower() in ("ссылка на заказ", "посмотреть другие заказы", "вход", "откликнуться"):
+                if not fname or fname.lower() in ignored_names:
                     continue
                 full_furl = urllib.parse.urljoin("https://www.fl.ru", href)
                 block = await self._fetch_and_extract_file(client, full_furl, fname)
@@ -227,9 +239,13 @@ class OrderEnricher:
                 re.IGNORECASE,
             )
             attachments: List[str] = []
+            ignored_href_tokens = ("/about/", "/rules", "cookie_accept", "regulations", "terms", "agreement", "privacy")
+            ignored_names = ("ссылка на заказ", "посмотреть другие заказы", "вход", "откликнуться", "правила", "соглашение", "конфиденциальность")
             for href, txt in files:
+                if any(tok in href.lower() for tok in ignored_href_tokens):
+                    continue
                 fname = html.unescape(txt).strip() or os.path.basename(href.split("?")[0])
-                if not fname:
+                if not fname or fname.lower() in ignored_names:
                     continue
                 full_furl = urllib.parse.urljoin("https://freelance.ru", href)
                 block = await self._fetch_and_extract_file(client, full_furl, fname)
@@ -294,9 +310,13 @@ class OrderEnricher:
                 re.IGNORECASE,
             )
             attachments: List[str] = []
+            ignored_href_tokens = ("/about/", "/rules", "cookie_accept", "regulations", "terms", "agreement", "privacy")
+            ignored_names = ("ссылка на заказ", "посмотреть другие заказы", "вход", "откликнуться", "правила", "соглашение", "конфиденциальность")
             for href, txt in files:
+                if any(tok in href.lower() for tok in ignored_href_tokens):
+                    continue
                 fname = html.unescape(txt).strip() or os.path.basename(href.split("?")[0])
-                if not fname:
+                if not fname or fname.lower() in ignored_names:
                     continue
                 full_furl = urllib.parse.urljoin("https://pchel.net", href)
                 block = await self._fetch_and_extract_file(client, full_furl, fname)

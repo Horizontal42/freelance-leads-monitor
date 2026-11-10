@@ -126,3 +126,50 @@ async def test_enricher_fl_ru_with_files(monkeypatch):
     assert enriched.attachments_text is not None
     assert "Спецификация из docx файла" in enriched.attachments_text
     assert "Содержимое текстового файла ТЗ" in enriched.attachments_text
+
+
+def test_extract_rejects_binary_null_bytes():
+    # Arbitrary binary data containing null bytes (e.g. corrupted or raw binary)
+    raw_binary = b"%PDF-1.7\x00\x01\x02\x03some binary data\x00\xff"
+    res = extract_text_from_file_bytes(raw_binary, "unnamed_file")
+    assert res is None
+
+
+@pytest.mark.asyncio
+async def test_enricher_fl_ru_ignores_footer_rules(monkeypatch):
+    sample_html = """
+    <html>
+    <body>
+        <div id="projectp456" class="fl-project-content__description-text">
+            Описание проекта
+        </div>
+        <a href="/about/appendix_2_regulations.pdf" target="_blank">Правила</a>
+        <a href="https://st.fl.ru/about/documents/cookie_accept.pdf">Политика</a>
+    </body>
+    </html>
+    """
+
+    enricher = OrderEnricher()
+
+    class MockResponse:
+        def __init__(self, status_code, text, content):
+            self.status_code = status_code
+            self.text = text
+            self.content = content
+
+    async def mock_get(self, url, *args, **kwargs):
+        return MockResponse(200, sample_html, sample_html.encode())
+
+    import httpx
+    monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
+
+    order = RawOrder(
+        source=SourcePlatform.FL_RU,
+        external_id="456",
+        title="Тест правил",
+        description="Кратко",
+        url="https://www.fl.ru/projects/456/test.html",
+    )
+
+    enriched = await enricher.enrich(order)
+    assert enriched.attachments_text is None
