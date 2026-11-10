@@ -6,7 +6,11 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import aiosqlite
-from src.models.analysis import AnalysisResult, extract_clean_proposal_payload
+from src.models.analysis import (
+    AnalysisResult,
+    extract_clean_proposal_payload,
+    sanitize_proposal_text,
+)
 from src.models.order import OrderPriority, OrderStatus, RawOrder
 from src.storage.db import get_db_connection
 
