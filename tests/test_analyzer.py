@@ -704,6 +704,41 @@ def test_format_matched_project():
     assert format_matched_project(None) is None
 
 
+def test_sanitize_internal_project_codenames_bullets_and_words():
+    """Проверяем очистку кодовых имен проектов в буллетах и тексте."""
+    from src.models.analysis import sanitize_internal_project_codenames
+
+    raw = (
+        "- RAG-ассистент: векторный поиск\n"
+        "- Speech Analytics: пайплайн аудио\n"
+        "- Avia_Pars: асинхронный бот\n"
+        "Опыт внедрения RAG-ассистент и архитектура Intervesp."
+    )
+    cleaned = sanitize_internal_project_codenames(raw)
+    assert "RAG-ассистент" not in cleaned
+    assert "Speech Analytics" not in cleaned
+    assert "Avia_Pars" not in cleaned
+    assert "Intervesp" not in cleaned
+    assert "- Корпоративная RAG-система: векторный поиск" in cleaned
+    assert "- B2B-система речевой аналитики: пайплайн аудио" in cleaned
+    assert "- Отказоустойчивый Telegram-бот: асинхронный бот" in cleaned
+
+
+def test_trim_text_to_char_limit_smart_compact():
+    """Проверяем бережное сжатие текста до лимита символов."""
+    from src.models.analysis import trim_text_to_char_limit
+
+    # Текст длиной 2005 символов с двойными переносами перед буллетами
+    base = "А" * 1975
+    bullets = "\n\n- P1\n\n- P2\n\n- P3\n\n- P4\n\n- P5"
+    text = f"{base}{bullets}"
+    assert len(text) > 2000
+    res = trim_text_to_char_limit(text, max_chars=2000)
+    assert len(res) <= 2000
+    assert "P5" in res  # Сохранился последний пункт благодаря уплотнению списков
+
+
+
 
 
 

@@ -252,10 +252,23 @@ def trim_text_to_char_limit(text: str, max_chars: int = 2000) -> str:
     if not text or len(text) <= max_chars:
         return text
 
-    truncated = text[:max_chars]
-    # 1. Попытка обрезать по границе абзаца (если занимает хотя бы 70% лимита)
+    import re
+    # 0. Сначала пробуем мягко оптимизировать форматирование (убрать хвостовые пробелы и избыточные пустые строки)
+    cleaned = re.sub(r"[ \t]+$", "", text, flags=re.MULTILINE)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    if len(cleaned) <= max_chars:
+        return cleaned
+
+    # Если превышение небольшое (до 15%), пробуем компактно оформить списки (одинарный перенос перед буллетами)
+    if len(cleaned) <= max_chars * 1.15:
+        compacted = re.sub(r"\n\n([ \t]*(?:[-*•]|\d+[\.\)]))", r"\n\1", cleaned)
+        if len(compacted) <= max_chars:
+            return compacted
+
+    truncated = cleaned[:max_chars]
+    # 1. Попытка обрезать по границе абзаца (если занимает хотя бы 75% лимита)
     last_para = truncated.rfind("\n\n")
-    if last_para >= int(max_chars * 0.7):
+    if last_para >= int(max_chars * 0.75):
         return truncated[:last_para].strip()
 
     # 2. Попытка обрезать по границе предложения (. ! ?)
@@ -265,7 +278,7 @@ def trim_text_to_char_limit(text: str, max_chars: int = 2000) -> str:
         if idx > best_sent_end:
             best_sent_end = idx + (1 if sep.endswith(" ") else 0)
 
-    if best_sent_end >= int(max_chars * 0.7):
+    if best_sent_end >= int(max_chars * 0.75):
         return truncated[:best_sent_end + 1].strip()
 
     # 3. Попытка обрезать по последнему переносу строки или пробелу
@@ -367,7 +380,7 @@ def sanitize_internal_project_codenames(t: str) -> str:
     t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+Speech\s+Analytics\)", "(в аналогичной системе)", t)
     t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+Sort_YM\)", "(в аналогичном скрипте)", t)
     t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+LaptopTester\)", "(в аналогичном приложении)", t)
-    t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+RAG(?:-ассистент)?\)", "(в аналогичной RAG-системе)", t)
+    t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+RAG(?:-ассистент|-assistant)?\)", "(в аналогичной RAG-системе)", t)
     t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+AgroTech(?:[-_ ]CV)?\)", "(в аналогичном проекте CV)", t)
     t = re.sub(r"(?i)\((?:как\s+в|аналогичн[оа-я]*\s+с?)\s+[A-Za-z0-9_ -]+\)", "(в аналогичном проекте)", t)
 
@@ -381,9 +394,20 @@ def sanitize_internal_project_codenames(t: str) -> str:
     t = re.sub(r"(?i)проекте\s+Speech\s+Analytics", "проекте речевой аналитики", t)
     t = re.sub(r"(?i)проекта\s+Speech\s+Analytics", "проекта речевой аналитики", t)
     t = re.sub(r"(?i)системе\s+Speech\s+Analytics", "системе речевой аналитики", t)
-    t = re.sub(r"(?i)в\s+проекте\s+RAG(?:-ассистент)?", "в корпоративной RAG-системе", t)
+    t = re.sub(r"(?i)в\s+проекте\s+RAG(?:-ассистент|-assistant)?", "в корпоративной RAG-системе", t)
 
-    # 3. Точечные замены технических названий проектов
+    # 3. Маркеры списков и заголовки с кодовыми именами проектов ('- RAG-ассистент:', '1. Speech Analytics:')
+    t = re.sub(r"(?im)^([ \t]*(?:[-*•]|\d+[\.\)]))\s*RAG(?:-ассистент|-assistant)?\s*:", r"\1 Корпоративная RAG-система:", t)
+    t = re.sub(r"(?im)^([ \t]*(?:[-*•]|\d+[\.\)]))\s*Speech\s*Analytics\s*:", r"\1 B2B-система речевой аналитики:", t)
+    t = re.sub(r"(?im)^([ \t]*(?:[-*•]|\d+[\.\)]))\s*Avia_Pars\s*:", r"\1 Отказоустойчивый Telegram-бот:", t)
+    t = re.sub(r"(?im)^([ \t]*(?:[-*•]|\d+[\.\)]))\s*leads-monitor\s*:", r"\1 Сервис B2B-мониторинга:", t)
+    t = re.sub(r"(?im)^([ \t]*(?:[-*•]|\d+[\.\)]))\s*netsleuth\s*:", r"\1 Сетевая CLI-утилита:", t)
+    t = re.sub(r"(?im)^([ \t]*(?:[-*•]|\d+[\.\)]))\s*AgroTech(?:[-_ ]CV)?\s*:", r"\1 Система компьютерного зрения:", t)
+    t = re.sub(r"(?im)^([ \t]*(?:[-*•]|\d+[\.\)]))\s*Sort_YM\s*:", r"\1 Скрипт автоматизации:", t)
+    t = re.sub(r"(?im)^([ \t]*(?:[-*•]|\d+[\.\)]))\s*LaptopTester\s*:", r"\1 Диагностическая утилита:", t)
+    t = re.sub(r"(?im)^([ \t]*(?:[-*•]|\d+[\.\)]))\s*Warehouse\s*Master\s*:", r"\1 Складская система:", t)
+
+    # 4. Точечные замены технических названий проектов
     replacements = {
         r"\bAvia_Pars\b": "Telegram-бота мониторинга",
         r"\bnetsleuth\b": "сетевой утилиты",
@@ -396,6 +420,7 @@ def sanitize_internal_project_codenames(t: str) -> str:
         r"\bSpeech Analytics\b": "системы речевой аналитики",
         r"\bSpeechAnalytics\b": "системы речевой аналитики",
         r"\bIntervesp\b": "B2B-клиента",
+        r"(?i)\bRAG(?:-ассистент|-assistant)\b": "корпоративной RAG-системы",
         r"\bsummarum\b": "десктопного калькулятора",
         r"\bNumi\b": "калькулятора с парсером",
         r"\bAgroTech[-_ ]CV\b": "системы компьютерного зрения",
