@@ -478,6 +478,33 @@ def test_sanitize_proposal_text_unescapes_literal_newlines():
     assert "Инженерная реализация ключевых узлов:\n1. Интеграция с MeHotel" in res
 
 
+def test_sanitize_proposal_text_removes_flattery_and_gaps():
+    """Тест автоматического удаления клише 'вакансия соответствует', '3. Почему подхожу' и 'готовность освоить'."""
+    from src.models.analysis import sanitize_proposal_text
+
+    raw = (
+        "Здравствуйте, занимаюсь разработкой бэкенда на Python.\n\n"
+        "Ваша вакансия полностью соответствует моему опыту. Расскажу о проекте, который максимально близок вашим задачам:\n\n"
+        "1. Речевая аналитика звонков (B2B-система под ключ)\n"
+        "   - FastAPI, Celery, WhisperX.\n\n"
+        "2. Стек и релевантные навыки\n"
+        "   - Python 3.12+, PostgreSQL, Docker.\n\n"
+        "3. Почему подхожу для вашей команды\n"
+        "   - Прямой опыт интеграций с CRM.\n"
+        "   - Готовность быстро освоить amoCRM по аналогии с Bitrix24.\n\n"
+        "GitHub с примерами открытого кода: https://github.com/Horizontal42 (коммерческие проекты закрыты NDA)."
+    )
+    res = sanitize_proposal_text(raw)
+    assert "полностью соответствует моему опыту" not in res
+    assert "максимально близок вашим задачам" not in res
+    assert "Почему подхожу" not in res
+    assert "Готовность быстро освоить" not in res
+    assert "1. Речевая аналитика звонков" in res
+    assert "2. Стек и релевантные навыки" in res
+    assert "Telegram: @Horizontal84" in res
+    assert "Email: pimenoffandrew@gmail.com" in res
+
+
 def test_extract_clean_proposal_payload_with_unescaped_quotes():
     """Тест извлечения proposal_text и price_justification при наличии неэкранированных кавычек."""
     from src.models.analysis import extract_clean_proposal_payload
