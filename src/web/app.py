@@ -412,7 +412,13 @@ DASHBOARD_HTML = """
                     <a href="/?section=hh_ru&tab={{ active_tab }}&source=hh_ru" class="px-3 py-1 rounded-lg text-xs font-medium transition {% if selected_source == 'hh_ru' %}bg-rose-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">HeadHunter (hh.ru)</a>
                     <a href="/?section=hh_ru&tab={{ active_tab }}&source=habr_career" class="px-3 py-1 rounded-lg text-xs font-medium transition {% if selected_source == 'habr_career' %}bg-cyan-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">Хабр Карьера</a>
                 {% endif %}
-                <span id="filterCountBadge" class="ml-auto text-xs text-slate-400 font-mono"></span>
+                <div class="ml-auto flex items-center gap-2">
+                    <span id="filterCountBadge" class="text-xs text-slate-400 font-mono"></span>
+                    <button type="button" onclick="toggleAllDescriptions()" id="toggleAllDescBtn" class="text-[11px] text-slate-400 hover:text-slate-200 bg-slate-900 border border-slate-800 hover:border-slate-700 px-2.5 py-0.5 rounded transition flex items-center gap-1 select-none" title="Развернуть или свернуть текст всех описаний">
+                        <span id="toggleAllDescIcon">📄</span>
+                        <span id="toggleAllDescText">Развернуть все описания</span>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -434,6 +440,7 @@ DASHBOARD_HTML = """
             {% endif %}
 
             {% for order in orders %}
+                {% set is_vac = order.source in ['hh_ru', 'habr_career'] %}
                 <div id="order-{{ order.id }}" class="order-card bg-slate-900 border {% if order.priority == 'hot' %}border-amber-500/50 shadow-lg shadow-amber-950/20{% elif order.priority == 'trash' %}border-slate-800 opacity-60{% else %}border-slate-800{% endif %} {% if order.is_responded %}opacity-65 border-dashed{% endif %} {% if order.is_skipped %}opacity-45 border-rose-950/40{% endif %} p-5 rounded-xl transition hover:border-slate-700 space-y-3.5" data-id="{{ order.id }}" data-ai-first="{{ 1 if order.is_ai_first else 0 }}" data-title="{{ order.title|lower }}" data-desc="{{ order.description|lower }} {{ order.attachments_text|lower if order.attachments_text else '' }}" data-price="{{ order.price or 0 }}" data-score="{{ order.score or 0 }}" data-responded="{{ 1 if order.is_responded else 0 }}" data-skipped="{{ 1 if order.is_skipped else 0 }}" data-created="{{ order.created_at or '' }}">
 
                     <!-- Card Header Row -->
@@ -908,10 +915,41 @@ DASHBOARD_HTML = """
                         </div>
                     {% endif %}
 
-                    <!-- Description / Text -->
-                    <div class="text-sm text-slate-300 leading-relaxed bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
-                        <p class="whitespace-pre-line">{{ order.description }}</p>
-                    </div>
+                    <!-- Collapsible Original Description -->
+                    <details class="order-description-details group bg-slate-950/70 border border-slate-800/80 rounded-lg overflow-hidden transition">
+                        <summary class="flex items-center justify-between px-3.5 py-2.5 cursor-pointer select-none text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-900/60 transition font-medium list-none [&::-webkit-details-marker]:hidden">
+                            <div class="flex items-center gap-2">
+                                <span class="text-slate-500 group-open:rotate-90 transition-transform duration-150 inline-block font-mono text-[10px]">▶</span>
+                                <span>📄</span>
+                                <span class="font-semibold text-slate-300">
+                                    {% if is_vac %}
+                                        Описание вакансии от работодателя
+                                    {% else %}
+                                        Исходное описание / ТЗ от заказчика
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <span class="text-[11px] text-indigo-400/90 hover:text-indigo-300 group-open:hidden flex items-center gap-1 font-mono">
+                                <span>Развернуть</span>
+                                <span>↓</span>
+                            </span>
+                            <span class="text-[11px] text-slate-500 hidden group-open:inline-flex items-center gap-1 font-mono">
+                                <span>Свернуть</span>
+                                <span>↑</span>
+                            </span>
+                        </summary>
+                        <div class="p-3.5 pt-2 text-sm text-slate-300 leading-relaxed border-t border-slate-800/60 space-y-3">
+                            <p class="whitespace-pre-line select-text">{{ order.description }}</p>
+                            {% if order.attachments_text and not is_vac %}
+                                <div class="mt-3 pt-2.5 border-t border-slate-800/80 text-xs text-slate-400 font-mono whitespace-pre-wrap select-text bg-slate-900/60 p-2.5 rounded border border-slate-800/60">
+                                    <div class="text-indigo-300 font-semibold mb-1.5 flex items-center gap-1">
+                                        <span>📎</span> Содержимое прикрепленных файлов / ТЗ:
+                                    </div>
+                                    {{ order.attachments_text }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    </details>
 
                     <!-- If Rejected (Tier 3) -> Filter Reason -->
                     {% if order.priority == 'trash' and order.filter_reason %}
@@ -3087,6 +3125,17 @@ DASHBOARD_HTML = """
                 }
             });
             applyClientFilters();
+        }
+
+        function toggleAllDescriptions() {
+            const detailsList = document.querySelectorAll('.order-description-details');
+            if (!detailsList.length) return;
+            const anyClosed = Array.from(detailsList).some(d => !d.open);
+            detailsList.forEach(d => { d.open = anyClosed; });
+            const btnText = document.getElementById('toggleAllDescText');
+            if (btnText) {
+                btnText.textContent = anyClosed ? 'Свернуть все описания' : 'Развернуть все описания';
+            }
         }
 
         async function toggleResponded(orderId, btn) {
