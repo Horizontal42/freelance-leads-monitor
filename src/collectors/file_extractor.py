@@ -87,17 +87,21 @@ def extract_text_from_docx_bytes(content: bytes) -> str:
     return ""
 
 
-def extract_text_from_pdf_bytes(content: bytes) -> str:
-    """Extract text from a .pdf file bytes."""
+def extract_text_from_pdf_bytes(content: bytes, max_chars: int = MAX_EXTRACTED_CHARS) -> str:
+    """Extract text from a .pdf file bytes, stopping early when max_chars is reached."""
     try:
         import pypdf
 
         reader = pypdf.PdfReader(io.BytesIO(content))
         pages_text = []
+        total_len = 0
         for page in reader.pages:
             text = page.extract_text()
             if text and text.strip():
                 pages_text.append(text.strip())
+                total_len += len(text)
+                if total_len >= max_chars:
+                    break
         return "\n\n".join(pages_text)
     except Exception as e:
         logger.warning("Failed to extract text from PDF: %s", e)

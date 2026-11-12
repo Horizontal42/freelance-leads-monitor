@@ -53,7 +53,7 @@ def clean_html_to_text(raw_html: str) -> str:
 class OrderEnricher:
     """Обогатитель заказов: выгружает полное ТЗ со страницы проекта и содержимое прикрепленных файлов."""
 
-    def __init__(self, timeout: float = 12.0) -> None:
+    def __init__(self, timeout: float = 25.0) -> None:
         self.timeout = timeout
         self.headers = {
             "User-Agent": (
