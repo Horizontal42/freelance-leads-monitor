@@ -738,6 +738,47 @@ def test_trim_text_to_char_limit_smart_compact():
     assert "P5" in res  # Сохранился последний пункт благодаря уплотнению списков
 
 
+def test_sanitize_proposal_text_strips_code_blocks():
+    """Проверяем гарантированное удаление сырых блоков кода из текста отклика."""
+    from src.models.analysis import sanitize_proposal_text
+
+    text = (
+        "Сроки: 5-7 дней. Бюджет: 40 000 ₽.\n\n"
+        "Пример кода для обработки статусов (базовый фрагмент):\n"
+        "```python\n"
+        "@celery.task(bind=True, max_retries=3)\n"
+        "def update_order_status(self, order_id, carrier):\n"
+        "    pass\n"
+        "```\n\n"
+        "Готов обсудить детали интеграции."
+    )
+    cleaned = sanitize_proposal_text(text)
+    assert "```" not in cleaned
+    assert "def update_order_status" not in cleaned
+    assert "Пример кода" not in cleaned
+    assert "Сроки: 5-7 дней" in cleaned
+    assert "Готов обсудить детали интеграции" in cleaned
+
+
+def test_sanitize_internal_project_codenames_indented():
+    """Проверяем замену кодовых имен в подпунктах и с отступами."""
+    from src.models.analysis import sanitize_internal_project_codenames
+
+    text = (
+        "   - Парсинг и интеграции:\n"
+        "     leads-monitor: Python 3.11, httpx\n"
+        "     AgroTech CV: YOLOv8\n"
+        "     RAG-ассистент: LangChain"
+    )
+    cleaned = sanitize_internal_project_codenames(text)
+    assert "leads-monitor" not in cleaned
+    assert "пайплайна" not in cleaned
+    assert "Сервис B2B-мониторинга:" in cleaned
+    assert "Система компьютерного зрения:" in cleaned
+    assert "Корпоративная RAG-система:" in cleaned
+
+
+
 
 
 

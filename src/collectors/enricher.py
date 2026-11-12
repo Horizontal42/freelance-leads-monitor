@@ -83,8 +83,16 @@ class OrderEnricher:
             return f"[Прикрепленный файл: {fname} ({size_str})]" if size_str else f"[Прикрепленный файл: {fname}]"
 
         try:
-            resp = await client.get(file_url, follow_redirects=True)
-            if resp.status_code == 200 and not resp.text.strip().startswith("<!DOCTYPE"):
+            req_url = file_url
+            if "kwork.ru/files/uploaded" in req_url:
+                req_url = req_url.replace("https://kwork.ru/files/uploaded", "https://cdn-edge.kwork.ru/files/uploaded").replace("http://kwork.ru/files/uploaded", "https://cdn-edge.kwork.ru/files/uploaded")
+
+            resp = await client.get(req_url, follow_redirects=True)
+            if (resp.status_code != 200 or resp.text.strip().startswith("<!DOCTYPE") or "<html" in resp.text[:200].lower()) and "kwork.ru" in file_url and "cdn-edge" not in req_url:
+                cdn_url = file_url.replace("https://kwork.ru", "https://cdn-edge.kwork.ru").replace("http://kwork.ru", "https://cdn-edge.kwork.ru")
+                resp = await client.get(cdn_url, follow_redirects=True)
+
+            if resp.status_code == 200 and not resp.text.strip().startswith("<!DOCTYPE") and "<html" not in resp.text[:200].lower():
                 extracted = extract_text_from_file_bytes(resp.content, target_fname)
                 if extracted:
                     extracted = extracted.replace("\x00", "").strip()
