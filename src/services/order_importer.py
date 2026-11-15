@@ -89,6 +89,12 @@ class OrderImporterService:
             ext_id = m.group(1) if m else str(hash(clean_url))
             return SourcePlatform.PCHEL_NET, ext_id
 
+        # 7. Авито (avito.ru)
+        if "avito.ru" in domain:
+            m = re.search(r"_(\d+)(?:\?|$)", path) or re.search(r"/(\d+)(?:\?|$)", path)
+            ext_id = m.group(1) if m else str(hash(clean_url))
+            return SourcePlatform.AVITO, ext_id
+
         # Fallback: пользовательская или неизвестная ссылка
         slug = path.strip("/").split("/")[-1]
         ext_id = slug if slug else str(hash(clean_url))
@@ -111,6 +117,8 @@ class OrderImporterService:
             return await self._fetch_freelance_ru(clean_url, ext_id)
         elif platform == SourcePlatform.PCHEL_NET:
             return await self._fetch_pchel_net(clean_url, ext_id)
+        elif platform == SourcePlatform.AVITO:
+            return await self._fetch_avito(clean_url, ext_id)
         else:
             return await self._fetch_generic(clean_url, ext_id)
 
@@ -373,6 +381,48 @@ class OrderImporterService:
             title=title,
             description=description,
             url=url,
+        )
+
+    async def _fetch_avito(self, url: str, ext_id: str) -> RawOrder:
+        """Спарсить объявление/вакансию с Авито."""
+        title = "Объявление на Авито"
+        description = "Загружено по внешней ссылке Авито."
+        price = None
+        is_negotiable = True
+
+        try:
+            async with httpx.AsyncClient(headers=self.headers, timeout=self.timeout, follow_redirects=True) as client:
+                resp = await client.get(url)
+                if resp.status_code == 200 and "Доступ ограничен" not in resp.text:
+                    ld_matches = re.findall(r'<script\s+type=["\']application/ld\+json["\']>(.*?)</script>', resp.text, re.DOTALL)
+                    for ld_raw in ld_matches:
+                        try:
+                            import json
+                            data = json.loads(ld_raw.strip())
+                            it = data[0] if isinstance(data, list) else data
+                            if it.get("title") or it.get("name"):
+                                title = it.get("title") or it.get("name")
+                                description = it.get("description") or description
+                                if "baseSalary" in it and isinstance(it["baseSalary"], dict):
+                                    val = it["baseSalary"].get("value")
+                                    if isinstance(val, (int, float)):
+                                        price = float(val)
+                                        is_negotiable = False
+                                break
+                        except Exception:
+                            pass
+        except Exception as e:
+            logger.debug("Не удалось получить страницу Авито %s: %s", url, e)
+
+        return RawOrder(
+            source=SourcePlatform.AVITO,
+            external_id=ext_id,
+            title=title[:100],
+            description=description[:5000],
+            url=url,
+            price=price,
+            is_negotiable=is_negotiable,
+            tags=["avito"],
         )
 
     async def _fetch_generic(self, url: str, ext_id: str) -> RawOrder:

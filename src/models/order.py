@@ -14,6 +14,7 @@ class SourcePlatform(str, Enum):
     REMOTE_JOB = "remote_job"  # Deprecated
     HH_RU = "hh_ru"
     HABR_CAREER = "habr_career"
+    AVITO = "avito"
     CUSTOM = "custom"
 
 

@@ -114,6 +114,18 @@ class HabrCareerCollectorConfig(BaseModel):
     queries: List[str] = Field(default_factory=lambda: ["python", "ai"])
 
 
+class AvitoCollectorConfig(BaseModel):
+    base_url: str = "https://www.avito.ru"
+    enabled: bool = True
+    feed_urls: List[str] = Field(default_factory=list)
+    search_queries: List[str] = Field(
+        default_factory=lambda: [
+            "sankt-peterburg/vakansii",
+            "sankt-peterburg/predlozheniya_uslug",
+        ]
+    )
+
+
 class CollectorsConfig(BaseModel):
     kwork: KworkCollectorConfig = Field(default_factory=KworkCollectorConfig)
     fl_ru: FlRuCollectorConfig = Field(default_factory=FlRuCollectorConfig)
@@ -122,6 +134,7 @@ class CollectorsConfig(BaseModel):
     remote_job: RemoteJobCollectorConfig = Field(default_factory=RemoteJobCollectorConfig)
     hh_ru: HhRuCollectorConfig = Field(default_factory=HhRuCollectorConfig)
     habr_career: HabrCareerCollectorConfig = Field(default_factory=HabrCareerCollectorConfig)
+    avito: AvitoCollectorConfig = Field(default_factory=AvitoCollectorConfig)
 
 
 class FilterConfig(BaseModel):
@@ -437,6 +450,10 @@ class Settings:
     @property
     def COLLECTORS_HABR_CAREER(self) -> HabrCareerCollectorConfig:
         return self.app_config.collectors.habr_career
+
+    @property
+    def COLLECTORS_AVITO(self) -> AvitoCollectorConfig:
+        return self.app_config.collectors.avito
 
     @property
     def VACANCIES_BOT_TOKEN(self) -> str:

@@ -43,6 +43,13 @@ collectors:
       - "python"
       - "ai"
       - "backend"
+  avito:
+    base_url: "https://www.avito.ru"
+    enabled: true
+    feed_urls: []
+    search_queries:
+      - "sankt-peterburg/vakansii"
+      - "sankt-peterburg/predlozheniya_uslug"
   hh_ru:
     base_url: "https://api.hh.ru"
     enabled: true

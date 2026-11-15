@@ -107,7 +107,9 @@ class LeadsPipeline:
                 continue
 
             # Проверка минимального бюджета (для фриланса) или минимальной зарплаты (для вакансий)
-            is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
+            is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER) or (
+                order.source == SourcePlatform.AVITO and "vacancy" in (order.tags or [])
+            )
             if is_vacancy:
                 if order.is_negotiable or not order.price:
                     if not vacancy_allow_negotiable:
@@ -201,7 +203,9 @@ class LeadsPipeline:
                     status=OrderStatus.ANALYZED,
                 )
 
-                is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
+                is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER) or (
+                    order.source == SourcePlatform.AVITO and "vacancy" in (order.tags or [])
+                )
                 effective_hot_threshold = vacancy_hot_threshold if is_vacancy else hot_threshold
 
                 if is_vacancy:

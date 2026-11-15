@@ -10,6 +10,7 @@ import uvicorn
 from src.analyzer.factory import get_llm_client
 from src.bot.bot import create_bot_and_dispatcher
 from src.collectors.base import BaseCollector
+from src.collectors.avito import AvitoCollector
 from src.collectors.fl_ru import FlRuCollector
 from src.collectors.freelance_ru import FreelanceRuCollector
 from src.collectors.habr_career import HabrCareerCollector
@@ -159,6 +160,7 @@ async def main() -> None:
     vacancy_collectors: List[BaseCollector] = [
         HhRuCollector(repo=repo),
         HabrCareerCollector(repo=repo),
+        AvitoCollector(repo=repo),
     ]
     all_collectors = freelance_collectors + vacancy_collectors
 

@@ -68,7 +68,9 @@ class TelegramNotifier:
             else "Не указано"
         )
 
-        is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
+        is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER) or (
+            order.source == SourcePlatform.AVITO and "vacancy" in (order.tags or [])
+        )
         if is_vacancy:
             badge = (
                 f"🔥 <b>[ВАКАНСИЯ | СКОР {analysis.score}/10]</b>"
@@ -193,7 +195,9 @@ class TelegramNotifier:
 
         card_text = self.format_card(order, analysis)
         has_proposal = bool(analysis.proposal_text and analysis.proposal_text.strip())
-        is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
+        is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER) or (
+            order.source == SourcePlatform.AVITO and "vacancy" in (order.tags or [])
+        )
         is_hh = order.source == SourcePlatform.HH_RU
         keyboard = get_order_inline_keyboard(
             order_db_id,

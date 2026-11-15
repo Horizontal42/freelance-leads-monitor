@@ -455,3 +455,89 @@ async def test_enricher_pro_detection(monkeypatch):
     res_fr = await enricher.enrich(order_fr)
     assert res_fr.is_pro_only is True
     assert "Полное описание ТЗ" in res_fr.description
+
+
+@pytest.mark.asyncio
+async def test_avito_collector_feed_parsing(monkeypatch):
+    from src.collectors.avito import AvitoCollector
+
+    collector = AvitoCollector()
+
+    fake_rss = """<?xml version="1.0" encoding="utf-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>Авито Вакансии</title>
+        <link>https://www.avito.ru</link>
+        <item>
+          <title>Системный администратор (80 000 руб.)</title>
+          <link>https://www.avito.ru/sankt-peterburg/vakansii/sistemnyy_administrator_3892817261</link>
+          <description>Требуется настройка серверов и локальной сети.</description>
+          <guid>3892817261</guid>
+        </item>
+      </channel>
+    </rss>"""
+
+    orders = collector._parse_feed(fake_rss, "https://fake.feed/rss")
+    assert len(orders) == 1
+    assert orders[0].source == SourcePlatform.AVITO
+    assert orders[0].external_id == "3892817261"
+    assert "Системный администратор" in orders[0].title
+    assert orders[0].price == 80000.0
+    assert "vacancy" in orders[0].tags
+
+
+@pytest.mark.asyncio
+async def test_avito_collector_html_and_firewall_handling(monkeypatch):
+    import httpx
+    from src.collectors.avito import AvitoCollector
+
+    collector = AvitoCollector()
+
+    # 1. Проверяем разбор HTML с JSON-LD
+    fake_html = """
+    <html>
+      <head>
+        <script type="application/ld+json">
+        {
+          "@context": "https://schema.org",
+          "@type": "JobPosting",
+          "title": "Монтажник видеонаблюдения",
+          "description": "Монтаж слаботочных систем и IP-камер.",
+          "url": "https://www.avito.ru/sankt-peterburg/vakansii/montazhnik_77112233",
+          "baseSalary": {
+            "@type": "MonetaryAmount",
+            "currency": "RUB",
+            "value": 90000
+          }
+        }
+        </script>
+      </head>
+      <body>Контент</body>
+    </html>
+    """
+
+    orders = collector._parse_html_listings(fake_html, "https://www.avito.ru")
+    assert len(orders) == 1
+    assert orders[0].external_id == "77112233"
+    assert orders[0].title == "Монтажник видеонаблюдения"
+    assert orders[0].price == 90000.0
+    assert "vacancy" in orders[0].tags
+
+    # 2. Проверяем устойчивость к фаерволу QRATOR (HTTP 439)
+    async def mock_qrator_get(self, url, *args, **kwargs):
+        req = httpx.Request("GET", str(url))
+        return httpx.Response(status_code=439, text="Доступ ограничен: проверка безопасности", request=req)
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", mock_qrator_get)
+    result = await collector.fetch_new_orders()
+    assert result == []
+
+
+def test_order_importer_detects_avito_url():
+    from src.services.order_importer import OrderImporterService
+
+    importer = OrderImporterService()
+    platform, ext_id = importer.detect_platform_and_id("https://www.avito.ru/sankt-peterburg/vakansii/inzhener_44991122?context=1")
+    assert platform == SourcePlatform.AVITO
+    assert ext_id == "44991122"
+
