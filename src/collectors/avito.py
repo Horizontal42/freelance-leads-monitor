@@ -23,12 +23,15 @@ class AvitoCollector(BaseCollector):
 
     def __init__(
         self,
-        base_url: str = "https://www.avito.ru",
+        base_url: Any = "https://www.avito.ru",
         timeout: float = 15.0,
         repo: Optional[Any] = None,
     ) -> None:
         super().__init__(name="avito")
-        self.base_url = base_url.rstrip("/")
+        if hasattr(base_url, "base_url"):
+            self.base_url = str(base_url.base_url).rstrip("/")
+        else:
+            self.base_url = str(base_url).rstrip("/")
         self.timeout = timeout
         self.repo = repo
         self.headers = {
