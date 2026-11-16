@@ -168,7 +168,7 @@ DASHBOARD_HTML = """
                 </a>
                 <a href="/?section=hh_ru&tab=hot" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition {% if active_section == 'hh_ru' and active_tab not in ['settings', 'config'] %}bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-lg shadow-rose-500/25 font-bold{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/60{% endif %}">
                     <span class="text-base">🏢</span>
-                    <span>IT-вакансии</span>
+                    <span>Вакансии и найм</span>
                     <span class="text-xs px-2 py-0.5 rounded-full {% if active_section == 'hh_ru' and active_tab not in ['settings', 'config'] %}bg-rose-700/80 text-rose-100{% else %}bg-slate-800 text-slate-400{% endif %} font-mono">{{ extended_stats.hh_ru.total if extended_stats.hh_ru else 0 }}</span>
                 </a>
                 <a href="/?section=non_it&tab=hot" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition {% if active_section == 'non_it' and active_tab not in ['settings', 'config'] %}bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25 font-bold{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/60{% endif %}">
