@@ -6,6 +6,7 @@ from typing import List, Optional
 from src.analyzer.base import BaseLLMClient
 from src.collectors.enricher import OrderEnricher
 from src.config import settings
+from src.filters.non_it_filter import NonITHardFilter
 from src.filters.pre_filter import HardFilter
 from src.models.order import OrderPriority, OrderStatus, RawOrder, SourcePlatform
 from src.notifiers.telegram_notifier import TelegramNotifier
@@ -26,9 +27,11 @@ class LeadsPipeline:
         vacancies_notifier: Optional[TelegramNotifier] = None,
         enricher: Optional[OrderEnricher] = None,
         max_concurrency: int = 2,
+        non_it_filter: Optional[NonITHardFilter] = None,
     ) -> None:
         self.repo = repo
         self.hard_filter = hard_filter
+        self.non_it_filter = non_it_filter or NonITHardFilter()
         self.llm_client = llm_client
         self.tg_notifier = tg_notifier
         self.vacancies_notifier = vacancies_notifier or tg_notifier
@@ -93,6 +96,27 @@ class LeadsPipeline:
                     priority=OrderPriority.TRASH,
                     filter_reason=f"Источник {order.source.value} отключен в настройках",
                 )
+                continue
+
+            # Прикладные (не-IT) вакансии: отдельная воронка, фильтр направлений и анти-скам
+            if order.is_non_it:
+                filter_res = self.non_it_filter.evaluate(order)
+                if not filter_res.passed:
+                    stats["filtered_trash"] += 1
+                    await self.repo.insert_raw_order(
+                        order=order,
+                        status=OrderStatus.REJECTED,
+                        priority=OrderPriority.TRASH,
+                        filter_reason=filter_res.reason,
+                    )
+                    logger.debug(
+                        "Прикладная вакансия [%s #%s] отсеяна фильтром: %s",
+                        order.source.value,
+                        order.external_id,
+                        filter_res.reason,
+                    )
+                    continue
+                passed_orders.append(order)
                 continue
 
             # Проверка фильтра PRO
@@ -203,8 +227,10 @@ class LeadsPipeline:
                     status=OrderStatus.ANALYZED,
                 )
 
-                is_vacancy = order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER) or (
-                    order.source == SourcePlatform.AVITO and "vacancy" in (order.tags or [])
+                is_vacancy = (
+                    order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
+                    or (order.source == SourcePlatform.AVITO and "vacancy" in (order.tags or []))
+                    or order.is_non_it
                 )
                 effective_hot_threshold = vacancy_hot_threshold if is_vacancy else hot_threshold
 

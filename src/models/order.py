@@ -74,6 +74,30 @@ class RawOrder(BaseModel):
         ]
         return any(re.search(p, text) for p in patterns)
 
+    @property
+    def is_non_it(self) -> bool:
+        """Определяет, относится ли вакансия к прикладным (не-IT) направлениям."""
+        tags = [t.lower() for t in (self.tags or [])]
+        if "non_it" in tags or "прикладное" in tags:
+            return True
+        import re
+        text = f"{self.title}\n{self.description}".lower()
+        non_it_patterns = [
+            r"\bчпу\b",
+            r"станк[а-я]*\s*с\s*чпу",
+            r"токарн[а-я]*\s*чпу",
+            r"фрезерн[а-я]*\s*чпу",
+            r"электроэрози",
+            r"модульн[а-я]*\s*ремонт",
+            r"ремонт\s*ноутбук",
+            r"постамат",
+            r"касс[а-я]*\s*самообслуживани",
+            r"входн[а-я]*\s*контрол[а-я]*\s*электроник",
+            r"эникей",
+            r"helpdesk",
+        ]
+        return any(re.search(p, text) for p in non_it_patterns)
+
 
 class FilterResult(BaseModel):
     """Результат работы эвристического Hard-Filter."""

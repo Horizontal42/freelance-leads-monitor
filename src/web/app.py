@@ -132,7 +132,9 @@ DASHBOARD_HTML = """
                         <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700/80 select-none" title="Версия интерфейса">v2.4.6</span>
                     </h1>
                     <p class="text-xs text-slate-400">
-                        {% if active_section == 'hh_ru' %}
+                        {% if active_section == 'non_it' %}
+                            Прикладные вакансии в СПб: ЧПУ, ремонт электроники, постаматы, Trade-In, Helpdesk
+                        {% elif active_section == 'hh_ru' %}
                             Поиск AI & Python вакансий на HeadHunter под стек Андрея Пименова
                         {% else %}
                             Мониторинг Kwork, FL.ru, Freelance.ru, Pchel.net, Remote-job с ИИ-откликами
@@ -166,8 +168,13 @@ DASHBOARD_HTML = """
                 </a>
                 <a href="/?section=hh_ru&tab=hot" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition {% if active_section == 'hh_ru' and active_tab not in ['settings', 'config'] %}bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-lg shadow-rose-500/25 font-bold{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/60{% endif %}">
                     <span class="text-base">🏢</span>
-                    <span>Вакансии и найм</span>
+                    <span>IT-вакансии</span>
                     <span class="text-xs px-2 py-0.5 rounded-full {% if active_section == 'hh_ru' and active_tab not in ['settings', 'config'] %}bg-rose-700/80 text-rose-100{% else %}bg-slate-800 text-slate-400{% endif %} font-mono">{{ extended_stats.hh_ru.total if extended_stats.hh_ru else 0 }}</span>
+                </a>
+                <a href="/?section=non_it&tab=hot" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition {% if active_section == 'non_it' and active_tab not in ['settings', 'config'] %}bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25 font-bold{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/60{% endif %}">
+                    <span class="text-base">🔧</span>
+                    <span>Прикладные (Не-IT)</span>
+                    <span class="text-xs px-2 py-0.5 rounded-full {% if active_section == 'non_it' and active_tab not in ['settings', 'config'] %}bg-emerald-700/80 text-emerald-100{% else %}bg-slate-800 text-slate-400{% endif %} font-mono">{{ extended_stats.non_it.total if extended_stats.non_it else 0 }}</span>
                 </a>
                 <a href="/?tab=settings" class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition {% if active_tab == 'settings' %}bg-indigo-600 text-white shadow-lg shadow-indigo-500/25 font-bold{% else %}text-slate-400 hover:text-slate-200 hover:bg-slate-800/60{% endif %}">
                     <span class="text-base">⚙️</span>
@@ -197,19 +204,19 @@ DASHBOARD_HTML = """
         <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
             <div class="bg-slate-900/80 border border-slate-800 p-3.5 rounded-xl">
                 <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    {% if active_section == 'hh_ru' %}Всего вакансий{% else %}Всего в базе{% endif %}
+                    {% if active_section == 'non_it' %}Всего (Не-IT){% elif active_section == 'hh_ru' %}Всего вакансий{% else %}Всего в базе{% endif %}
                 </div>
                 <div class="text-2xl font-black text-white mt-0.5">{{ stats.total }}</div>
             </div>
             <div class="bg-gradient-to-br from-amber-950/30 to-slate-900/80 border border-amber-900/50 p-3.5 rounded-xl">
                 <div class="text-[11px] font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1">
-                    <span>🔥</span> {% if active_section == 'hh_ru' %}Топ совпадения{% else %}Горячие (Tier 1){% endif %}
+                    <span>🔥</span> {% if active_section == 'non_it' %}Рекомендованные{% elif active_section == 'hh_ru' %}Топ совпадения{% else %}Горячие (Tier 1){% endif %}
                 </div>
                 <div class="text-2xl font-black text-amber-300 mt-0.5">{{ stats.hot }}</div>
             </div>
             <div class="bg-slate-900/80 border border-slate-800 p-3.5 rounded-xl">
                 <div class="text-[11px] font-semibold text-blue-400 uppercase tracking-wider flex items-center gap-1">
-                    <span>⚡</span> {% if active_section == 'hh_ru' %}Потенциальные{% else %}Обычные (Tier 2){% endif %}
+                    <span>⚡</span> {% if active_section == 'non_it' %}Подходящие{% elif active_section == 'hh_ru' %}Потенциальные{% else %}Обычные (Tier 2){% endif %}
                 </div>
                 <div class="text-2xl font-black text-blue-300 mt-0.5">{{ stats.normal }}</div>
             </div>
@@ -227,7 +234,7 @@ DASHBOARD_HTML = """
             </div>
             <div class="bg-slate-900/80 border border-slate-800 p-3.5 rounded-xl">
                 <div class="text-[11px] font-semibold text-purple-400 uppercase tracking-wider flex items-center gap-1">
-                    <span>💰</span> {% if active_section == 'hh_ru' %}Средняя з/п Hot{% else %}Средний чек Hot{% endif %}
+                    <span>💰</span> {% if active_section in ['hh_ru', 'non_it'] %}Средняя з/п Hot{% else %}Средний чек Hot{% endif %}
                 </div>
                 <div class="text-xl font-black text-purple-300 mt-1">
                     {% if stats.avg_hot_price %}{{ "{:,.0f}".format(stats.avg_hot_price).replace(",", " ") }} ₽{% else %}-{% endif %}
@@ -267,6 +274,28 @@ DASHBOARD_HTML = """
                     </a>
                     <a href="/?section=freelance&tab=health" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'health' %}active border-b-2 border-teal-500 text-teal-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                         <span>🩺</span> Статус бирж (Health)
+                    </a>
+                {% elif active_section == 'non_it' %}
+                    <!-- Non-IT Applied Vacancies Tabs -->
+                    <a href="/?section=non_it&tab=hot{% if selected_direction %}&direction={{ selected_direction }}{% endif %}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'hot' %}active border-b-2 border-emerald-500 text-emerald-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        <span>🔥</span> Топ совпадения (Score ≥ 7)
+                        <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono">{{ stats.hot }}</span>
+                    </a>
+                    <a href="/?section=non_it&tab=all{% if selected_direction %}&direction={{ selected_direction }}{% endif %}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'all' %}active border-b-2 border-teal-500 text-teal-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        <span>⚡</span> Все вакансии
+                        <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 font-mono">{{ stats.hot + stats.normal }}</span>
+                    </a>
+                    <a href="/?section=non_it&tab=normal{% if selected_direction %}&direction={{ selected_direction }}{% endif %}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'normal' %}active border-b-2 border-blue-500 text-blue-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                        <span>🎯</span> Потенциальные (Score 4-6)
+                        <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">{{ stats.normal }}</span>
+                    </a>
+                    <a href="/?section=non_it&tab=responded{% if selected_direction %}&direction={{ selected_direction }}{% endif %}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'responded' %}active border-b-2 border-emerald-500 text-emerald-400 font-bold{% else %}text-slate-400 hover:text-slate-200{% endif %}" title="Вакансии, на которые вы уже откликнулись">
+                        <span>✅</span> Отклики
+                        <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono">{{ stats.responded or 0 }}</span>
+                    </a>
+                    <a href="/?section=non_it&tab=trash{% if selected_direction %}&direction={{ selected_direction }}{% endif %}" class="tab-btn px-4 py-3 text-sm font-medium transition flex items-center gap-1.5 {% if active_tab == 'trash' %}active border-b-2 border-rose-500 text-rose-400 font-bold{% else %}text-slate-500 hover:text-slate-300{% endif %}">
+                        <span>🗑</span> Отсеянные / Скам
+                        <span class="ml-1 text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-mono">{{ stats.trash }}</span>
                     </a>
                 {% else %}
                     <!-- HH.ru Tabs -->
@@ -359,8 +388,15 @@ DASHBOARD_HTML = """
             <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800/80">
                 <!-- Topic Filter Chips -->
                 <div class="flex items-center space-x-1.5 overflow-x-auto custom-scroll py-1" id="topicChipsContainer">
-                    <span class="text-xs text-slate-400 font-semibold uppercase mr-1">Тематика:</span>
-                    {% if active_section == 'freelance' %}
+                    <span class="text-xs text-slate-400 font-semibold uppercase mr-1">{% if active_section == 'non_it' %}Направление:{% else %}Тематика:{% endif %}</span>
+                    {% if active_section == 'non_it' %}
+                        <a href="/?section=non_it&tab={{ active_tab }}" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition {% if not selected_direction %}bg-emerald-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">Все (5)</a>
+                        <a href="/?section=non_it&tab={{ active_tab }}&direction=cnc" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition {% if selected_direction == 'cnc' %}bg-emerald-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">⚙️ ЧПУ</a>
+                        <a href="/?section=non_it&tab={{ active_tab }}&direction=electronics_repair" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition {% if selected_direction == 'electronics_repair' %}bg-emerald-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">📱 Модульный ремонт</a>
+                        <a href="/?section=non_it&tab={{ active_tab }}&direction=postamat_tech" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition {% if selected_direction == 'postamat_tech' %}bg-emerald-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">📦 Постаматы</a>
+                        <a href="/?section=non_it&tab={{ active_tab }}&direction=trade_in_testing" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition {% if selected_direction == 'trade_in_testing' %}bg-emerald-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">🔍 Trade-In</a>
+                        <a href="/?section=non_it&tab={{ active_tab }}&direction=helpdesk_l1" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition {% if selected_direction == 'helpdesk_l1' %}bg-emerald-600 text-white font-bold{% else %}bg-slate-800 text-slate-300 hover:bg-slate-700{% endif %}">💻 Helpdesk L1</a>
+                    {% elif active_section == 'freelance' %}
                         <button type="button" onclick="setTopicFilter('all', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-blue-600 text-white font-bold">Все</button>
                         <button type="button" onclick="setTopicFilter('ai-first', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-purple-950 text-purple-300 border border-purple-700/60 hover:bg-purple-900/60 font-semibold">🚀 AI-First</button>
                         <button type="button" onclick="setTopicFilter('бот', this)" class="topic-chip px-3 py-1 rounded-lg text-xs font-medium transition bg-slate-800 text-slate-300 hover:bg-slate-700">🤖 Боты & TG</button>
@@ -380,7 +416,7 @@ DASHBOARD_HTML = """
 
                 <!-- Price Range Filter Inputs -->
                 <div class="flex items-center gap-2 text-xs flex-wrap">
-                    <span class="text-slate-400 font-semibold uppercase">{% if active_section == 'hh_ru' %}З/П от:{% else %}Бюджет от:{% endif %}</span>
+                    <span class="text-slate-400 font-semibold uppercase">{% if active_section in ['hh_ru', 'non_it'] %}З/П от:{% else %}Бюджет от:{% endif %}</span>
                     <input type="number" id="filterPriceMin" oninput="applyClientFilters()" placeholder="0 ₽" class="w-24 bg-slate-950 border border-slate-800 text-slate-200 rounded px-2.5 py-1 text-xs outline-none focus:border-blue-500 font-mono">
                     <span class="text-slate-500">до</span>
                     <input type="number" id="filterPriceMax" oninput="applyClientFilters()" placeholder="макс" class="w-24 bg-slate-950 border border-slate-800 text-slate-200 rounded px-2.5 py-1 text-xs outline-none focus:border-blue-500 font-mono">
@@ -4021,16 +4057,24 @@ def create_web_app(
     @app.get("/", response_class=HTMLResponse)
     async def get_dashboard(
         request: Request,
-        section: str = Query("freelance", description="Раздел сайта: freelance (биржи фриланса) или hh_ru (вакансии HeadHunter)"),
+        section: str = Query("freelance", description="Раздел сайта: freelance (биржи фриланса), hh_ru (вакансии HeadHunter) или non_it (прикладные вакансии)"),
         tab: str = Query("hot", description="Активная вкладка (hot, all, normal, trash, analytics, rules, profile)"),
-        source: Optional[str] = Query(None, description="Фильтр по источнику (kwork, fl_ru, freelance_ru, pchel_net, remote_job, hh_ru)"),
+        source: Optional[str] = Query(None, description="Фильтр по источнику (kwork, fl_ru, freelance_ru, pchel_net, remote_job, hh_ru, avito)"),
+        direction: Optional[str] = Query(None, description="Фильтр по прикладному направлению (cnc, electronics_repair, postamat_tech, trade_in_testing, helpdesk_l1)"),
         free_only: int = Query(0, description="Фильтр только бесплатных откликов (1 - без PRO, 0 - все)"),
         order_id: Optional[int] = Query(None, description="ID конкретного заказа для целевого показа в ленте"),
         limit: int = Query(80, ge=1, le=300),
     ):
-        active_section = "hh_ru" if section.strip().lower() in ["hh_ru", "hh"] else "freelance"
+        sec_raw = section.strip().lower()
+        if sec_raw in ["hh_ru", "hh", "vacancies"]:
+            active_section = "hh_ru"
+        elif sec_raw in ["non_it", "applied", "прикладное"]:
+            active_section = "non_it"
+        else:
+            active_section = "freelance"
         active_tab = tab.strip().lower()
         s_filter = source.strip().lower() if source else None
+        dir_filter = direction.strip().lower() if direction else None
         only_free_flag = bool(free_only)
 
         # Определяем фильтр приоритета по вкладке
@@ -4052,6 +4096,7 @@ def create_web_app(
                 source=s_filter,
                 only_free=only_free_flag,
                 section=active_section,
+                direction=dir_filter,
                 only_responded=(active_tab == "responded"),
                 only_skipped=(active_tab == "skipped"),
                 hide_skipped=(active_tab not in ["skipped", "responded"]),
@@ -4116,9 +4161,13 @@ def create_web_app(
 
         extended_stats = await repository.get_extended_stats()
         current_stats = (
-            extended_stats.get("hh_ru", {})
-            if active_section == "hh_ru"
-            else extended_stats.get("freelance", {})
+            extended_stats.get("non_it", {})
+            if active_section == "non_it"
+            else (
+                extended_stats.get("hh_ru", {})
+                if active_section == "hh_ru"
+                else extended_stats.get("freelance", {})
+            )
         )
         if not current_stats:
             current_stats = extended_stats
@@ -4211,6 +4260,7 @@ def create_web_app(
             analytics_days=analytics_days,
             active_tab=active_tab,
             selected_source=s_filter or "",
+            selected_direction=dir_filter or "",
             free_only=1 if only_free_flag else 0,
             keywords=effective_keywords,
             stop_words=effective_stop_words,

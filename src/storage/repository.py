@@ -383,6 +383,7 @@ class OrderRepository:
         only_responded: bool = False,
         hide_skipped: bool = True,
         only_skipped: bool = False,
+        direction: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Получить список свежих заказов с возможностью фильтрации по секциям, откликам и скипам."""
         query = """
@@ -393,9 +394,15 @@ class OrderRepository:
         params: List[Any] = []
 
         if section in ["vacancies", "hh_ru", "hh"]:
-            query += " AND source IN ('hh_ru', 'habr_career')"
+            query += " AND source IN ('hh_ru', 'habr_career') AND (tags NOT LIKE '%non_it%' OR tags IS NULL)"
+        elif section == "non_it":
+            query += " AND (tags LIKE '%non_it%' OR tags LIKE '%прикладное%')"
         elif section == "freelance":
-            query += " AND source NOT IN ('hh_ru', 'habr_career')"
+            query += " AND source NOT IN ('hh_ru', 'habr_career') AND (tags NOT LIKE '%non_it%' OR tags IS NULL)"
+
+        if direction:
+            query += " AND tags LIKE ?"
+            params.append(f"%direction:{direction}%")
 
         if priority:
             p_val = priority.value if hasattr(priority, "value") else str(priority)
@@ -458,7 +465,7 @@ class OrderRepository:
         async with self._get_conn() as db:
             stats = await self.get_stats()
 
-            # Фриланс статистика (биржи фриланса без hh_ru)
+            # Фриланс статистика (биржи фриланса без hh_ru и non_it)
             async with db.execute(
                 """
                 SELECT
@@ -470,7 +477,7 @@ class OrderRepository:
                     AVG(CASE WHEN price IS NOT NULL AND price > 0 AND priority='hot' THEN price ELSE NULL END) as avg_price,
                     SUM(CASE WHEN is_responded=1 THEN 1 ELSE 0 END) as responded,
                     SUM(CASE WHEN is_skipped=1 THEN 1 ELSE 0 END) as skipped
-                FROM orders WHERE source NOT IN ('hh_ru', 'habr_career')
+                FROM orders WHERE source NOT IN ('hh_ru', 'habr_career') AND (tags NOT LIKE '%non_it%' OR tags IS NULL)
                 """
             ) as cursor:
                 r_fr = await cursor.fetchone()
@@ -485,7 +492,7 @@ class OrderRepository:
                     "skipped": r_fr[7] or 0,
                 }
 
-            # Вакансии (HH.ru + Хабр Карьера)
+            # Вакансии IT (HH.ru + Хабр Карьера)
             async with db.execute(
                 """
                 SELECT
@@ -497,7 +504,7 @@ class OrderRepository:
                     AVG(CASE WHEN price IS NOT NULL AND price > 0 AND priority='hot' THEN price ELSE NULL END) as avg_price,
                     SUM(CASE WHEN is_responded=1 THEN 1 ELSE 0 END) as responded,
                     SUM(CASE WHEN is_skipped=1 THEN 1 ELSE 0 END) as skipped
-                FROM orders WHERE source IN ('hh_ru', 'habr_career')
+                FROM orders WHERE source IN ('hh_ru', 'habr_career') AND (tags NOT LIKE '%non_it%' OR tags IS NULL)
                 """
             ) as cursor:
                 r_hh = await cursor.fetchone()
@@ -513,6 +520,34 @@ class OrderRepository:
                 }
                 stats["hh_ru"] = vac_stats
                 stats["vacancies"] = vac_stats
+
+            # Прикладные вакансии (Не-IT)
+            async with db.execute(
+                """
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN priority='hot' THEN 1 ELSE 0 END) as hot,
+                    SUM(CASE WHEN priority='normal' THEN 1 ELSE 0 END) as normal,
+                    SUM(CASE WHEN priority='trash' THEN 1 ELSE 0 END) as trash,
+                    SUM(CASE WHEN status='sent_to_tg' THEN 1 ELSE 0 END) as sent_to_tg,
+                    AVG(CASE WHEN price IS NOT NULL AND price > 0 AND priority='hot' THEN price ELSE NULL END) as avg_price,
+                    SUM(CASE WHEN is_responded=1 THEN 1 ELSE 0 END) as responded,
+                    SUM(CASE WHEN is_skipped=1 THEN 1 ELSE 0 END) as skipped
+                FROM orders WHERE (tags LIKE '%non_it%' OR tags LIKE '%прикладное%')
+                """
+            ) as cursor:
+                r_nit = await cursor.fetchone()
+                nit_stats = {
+                    "total": r_nit[0] or 0,
+                    "hot": r_nit[1] or 0,
+                    "normal": r_nit[2] or 0,
+                    "trash": r_nit[3] or 0,
+                    "sent_to_tg": r_nit[4] or 0,
+                    "avg_hot_price": round(r_nit[5], 0) if r_nit and r_nit[5] else 0,
+                    "responded": r_nit[6] or 0,
+                    "skipped": r_nit[7] or 0,
+                }
+                stats["non_it"] = nit_stats
 
             async with db.execute(
                 """
