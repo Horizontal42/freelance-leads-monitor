@@ -100,7 +100,7 @@ rsync -avz \
 
 # 5. Обновление зависимостей и прогон тестов на прод-сервере
 echo -e "${BLUE}==>${NC} Проверка и установка зависимостей на ${PROD_HOST}..."
-ssh "${PROD_HOST}" "cd ${PROD_DIR} && .venv/bin/pip install -q -e ."
+ssh "${PROD_HOST}" "cd ${PROD_DIR} && .venv/bin/pip install --no-build-isolation --no-deps -q -e ."
 
 echo -e "${BLUE}==>${NC} Запуск тестов pytest на ${PROD_HOST}..."
 if ! ssh "${PROD_HOST}" "cd ${PROD_DIR} && .venv/bin/pytest -q"; then
