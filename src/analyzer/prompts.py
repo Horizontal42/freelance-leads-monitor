@@ -440,6 +440,79 @@ DEFAULT_NON_IT_SYSTEM_PROMPT = """Ты - эксперт по профориен�
 """
 
 
+DEFAULT_NON_IT_COVER_LETTER_TEMPLATE = """Ты - персональный карьерный консультант Андрея Пименова.
+Твоя задача - составить емкое, структурированное и убедительное сопроводительное письмо (Cover Letter) для отклика на прикладную (не-IT) вакансию в Санкт-Петербурге.
+
+ПРОФИЛЬ КАНДИДАТА (АНДРЕЙ ПИМЕНОВ):
+- Город: Санкт-Петербург (готов к очной работе, выездам по городу или сменному графику).
+- Образование: высшее инженерно-техническое (СПбГАСУ, специальность «Инженерные системы и автоматизация»).
+- Базовые инженерные навыки: уверенное чтение чертежей (ЕСКД, допуски, посадки, шероховатость) и принципиальных схем. Работа со штангенциркулем, микрометром, мультиметром, слесарным и электроинструментом.
+- Модульный ремонт и железо: практический опыт блочного ремонта ноутбуков и ПК (замена матриц, клавиатур, разъемов питания, АКБ, шлейфов, чистка охлаждения, замена термопасты). Обжимка витой пары (RJ-45), базовые сети (TCP/IP), установка и настройка Windows и оргтехники.
+- Личные качества: дисциплина, аккуратность, техническая грамотность, высокая обучаемость новому оборудованию (стойки ЧПУ, терминалы, стенды тестирования).
+- Чего Андрей НЕ делает: компонентная BGA-пайка с реболлингом, выездной обман клиентов на дому, холодные звонки.
+
+ЖЕСТКИЕ ПРАВИЛА:
+1. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО упоминать Python, AI, LLM, нейросети, веб-разработку, фриланс или программирование! Это прикладная инженерно-техническая вакансия.
+2. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНЫ длинные тире (em-dash)! Используй только обычные дефисы "-".
+3. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНЫ звездочки (**), курсив (*), заголовки (#) и разделители. Текст должен быть чистым (plain text).
+4. ВСТУПЛЕНИЕ:
+   - Начинай с вежливого краткого приветствия: "Здравствуйте, по вакансии [Название вакансии]:" (или "Здравствуйте," со строчной буквы на той же строке).
+   - Кратко укажи высшее инженерное образование (СПбГАСУ) и профильные навыки под задачу работодателя.
+5. СТРУКТУРА ПИСЬМА:
+   - Если в вакансии есть контрольные вопросы или требования - ответь прямо на них по пунктам.
+   - Сфокусируйся на конкретном направлении вакансии (ЧПУ, модульный ремонт, постаматы, входной контроль, Helpdesk L1).
+   - Выдели 2-3 ключевых факта: опыт работы с руками и инструментом, чтение документации/схем, готовность к графику компании.
+6. КОНТАКТЫ И ГОТОВНОСТЬ:
+   - В конце письма укажи готовность подъехать на собеседование в Санкт-Петербурге и контакты:
+     Telegram: @Horizontal84
+     Email: pimenoffandrew@gmail.com
+7. ТОН: спокойный, деловой, уверенный тон адекватного технического специалиста без подхалимажа и шаблонных фраз ("Буду рад", "С огромным интересом").
+
+ДАННЫЕ ВАКАНСИИ:
+Название: {title}
+{extra_context}
+Описание вакансии:
+{description}
+
+ФОРМАТ ОТВЕТА (СТРОГО JSON):
+```json
+{{
+  "proposal_text": "Готовый текст сопроводительного письма..."
+}}
+```
+Верни ТОЛЬКО JSON-блок, строго с обычными дефисами "-" (без длинных тире).
+"""
+
+
+DIRECTION_SPECIFIC_ANALYSIS_FOCUS = {
+    "cnc": (
+        "ЦЕЛЕВОЕ НАПРАВЛЕНИЕ: Оператор станков с ЧПУ.\n"
+        "ФОКУС АНАЛИЗА: Стойки ЧПУ (Fanuc, Siemens Sinumerik, Heidenhain), металлообработка (токарная, фрезерная группа, гибка листогиб), чтение чертежей и технологических карт, контроль размеров штангенциркулем/микрометром.\n"
+        "ПРОВЕРКА РИСКОВ: Отсекать требования опытного 5-осевого CAM-программиста/постпроцессоров от 3-5 лет, опасные производства без СИЗ и тяжелый неквалифицированный труд (грузчик под видом оператора)."
+    ),
+    "electronics_repair": (
+        "ЦЕЛЕВОЕ НАПРАВЛЕНИЕ: Мастер модульного ремонта электроники.\n"
+        "ФОКУС АНАЛИЗА: Стационарный модульный/блочный ремонт в оборудованном сервисном центре (ноутбуки, смартфоны, планшеты, мониторы: замена экранов/матриц, АКБ, разъемов, шлейфов, чистка от пыли, термопаста, сборка/разборка корпусов).\n"
+        "ПРОВЕРКА РИСКОВ: КАТЕГОРИЧЕСКИ ОТСЕКАТЬ выездной развод клиентов на дому, навязывание услуг с «процентом от чека», передачу наличных на руки, а также жесткие требования сложной BGA-пайки и реболлинга."
+    ),
+    "postamat_tech": (
+        "ЦЕЛЕВОЕ НАПРАВЛЕНИЕ: Сервисный техник постаматов и терминалов.\n"
+        "ФОКУС АНАЛИЗА: Регламентное сервисное обслуживание и ремонт постаматов (5Post, СДЭК, Яндекс Маркет, PickPoint, вендинг). Замена замков ячеек, 4G/LTE модемов, плат управления, блоков питания, сканеров штрихкодов, проверка питающей сети.\n"
+        "ПРОВЕРКА РИСКОВ: Отсекать скрытую курьерскую доставку посылок / развоз пиццы под видом техника, опасные высотные работы и допуск электробезопасности выше 1000В (IV-V группы)."
+    ),
+    "trade_in_testing": (
+        "ЦЕЛЕВОЕ НАПРАВЛЕНИЕ: Специалист входного контроля и Trade-In техники.\n"
+        "ФОКУС АНАЛИЗА: Складской или офисный входной контроль бывшей в употреблении или уцененной электроники (ноутбуки, смартфоны, ПК, мелкая техника на складах Ozon/DNS/ритейла). Проверка внешнего вида, стресс-тесты, проверка накопителей (SMART) и батарей, оформление актов дефектовки.\n"
+        "ПРОВЕРКА РИСКОВ: Отсекать физический труд грузчика / разнорабочего / ночного комплектовщика со сканером на ногах 12 часов под видом диагноста."
+    ),
+    "helpdesk_l1": (
+        "ЦЕЛЕВОЕ НАПРАВЛЕНИЕ: Младший специалист техподдержки (Helpdesk L1 / Эникей).\n"
+        "ФОКУС АНАЛИЗА: Подготовка и обслуживание рабочих мест офисных сотрудников: настройка Windows 10/11, офисного пакета, замена комплектующих ПК (БП, SSD, RAM), обжимка витой пары (RJ-45) и монтаж патч-кордов, базовое сетевое подключение, подключение принтеров и МФУ.\n"
+        "ПРОВЕРКА РИСКОВ: Отсекать холодные продажи, колл-центры на телефоне под видом техподдержки, круглосуточные дежурства без сна и размытые обязанности курьера."
+    ),
+}
+
+
 def get_system_prompt() -> str:
     """Получить актуальный системный промпт из конфигурации config.yml."""
     prompt = getattr(settings, "ANALYSIS_SYSTEM_PROMPT", "")
@@ -479,6 +552,12 @@ def get_non_it_system_prompt() -> str:
     return prompt if prompt else DEFAULT_NON_IT_SYSTEM_PROMPT
 
 
+def get_non_it_cover_letter_template() -> str:
+    """Получить шаблон сопроводительного письма для прикладных не-IT вакансий."""
+    tmpl = getattr(settings, "NON_IT_COVER_LETTER_TEMPLATE", "")
+    return tmpl if tmpl else DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
+
+
 # Для обратной совместимости
 SYSTEM_PROMPT = get_system_prompt()
 PROPOSAL_PROMPT_TEMPLATE = get_proposal_template()
@@ -498,12 +577,20 @@ def build_non_it_analysis_prompt(order: RawOrder) -> str:
         else ""
     )
 
+    direction_focus = ""
+    for tag in order.tags:
+        if tag.startswith("direction:"):
+            dir_code = tag.split(":", 1)[1]
+            if dir_code in DIRECTION_SPECIFIC_ANALYSIS_FOCUS:
+                direction_focus = f"\n\n{DIRECTION_SPECIFIC_ANALYSIS_FOCUS[dir_code]}"
+                break
+
     user_content = f"""
 ПРОАНАЛИЗИРУЙ ПРИКЛАДНУЮ (НЕ-IT) ВАКАНСИЮ:
 Источник: {order.source.value.upper()} (ID: {order.external_id})
 Название: {order.title}
 Зарплата: {salary_info}
-Теги и параметры: {tags_info}{meta_info}
+Теги и параметры: {tags_info}{meta_info}{direction_focus}
 
 ОПИСАНИЕ И УСЛОВИЯ ВАКАНСИИ:
 {order.description}
@@ -629,6 +716,51 @@ def build_analysis_prompt(order: RawOrder) -> str:
     return f"{get_system_prompt()}\n\n{user_content}"
 
 
+def build_non_it_cover_letter_prompt(
+    order: RawOrder,
+    analysis_data: Optional[Any] = None,
+) -> str:
+    """Сформировать промпт для генерации сопроводительного письма (Cover Letter) для прикладной не-IT вакансии."""
+    if hasattr(analysis_data, "model_dump"):
+        analysis_data = analysis_data.model_dump()
+    elif hasattr(analysis_data, "dict"):
+        analysis_data = analysis_data.dict()
+
+    extra_context = ""
+    if analysis_data:
+        company = analysis_data.get("company_overview", "")
+        reqs = analysis_data.get("candidate_requirements", "")
+        tasks = analysis_data.get("job_responsibilities", "")
+        match = analysis_data.get("match_reason", "")
+        gap = analysis_data.get("skills_gap", "")
+        counter = analysis_data.get("skills_gap_counter", "")
+
+        extra_lines = [
+            f"- О компании: {company}" if company else "",
+            f"- Требования: {reqs}" if reqs else "",
+            f"- Обязанности: {tasks}" if tasks else "",
+            f"- Точки совпадения с опытом: {match}" if match else "",
+        ]
+        if gap and gap != "Критичных пробелов нет":
+            extra_lines.append(f"- Пробелы/требования: {gap}")
+            if counter:
+                extra_lines.append(f"- Как компенсировать: {counter}")
+
+        valid_lines = [l for l in extra_lines if l]
+        if valid_lines:
+            extra_context = "Контекст анализа вакансии:\n" + "\n".join(valid_lines) + "\n"
+    if order.attachments_text and order.attachments_text.strip():
+        extra_context += f"\nДополнительные данные:\n{order.attachments_text.strip()}\n"
+
+    full_description = order.description
+    template = get_non_it_cover_letter_template()
+    return template.format(
+        title=order.title,
+        description=full_description,
+        extra_context=extra_context,
+    )
+
+
 def build_proposal_prompt(
     order: RawOrder,
     analysis_data: Optional[Any] = None,
@@ -638,6 +770,10 @@ def build_proposal_prompt(
         analysis_data = analysis_data.model_dump()
     elif hasattr(analysis_data, "dict"):
         analysis_data = analysis_data.dict()
+
+    if order.is_non_it:
+        return build_non_it_cover_letter_prompt(order, analysis_data)
+
     from src.models.order import SourcePlatform
     if order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER):
         return build_cover_letter_prompt(order, analysis_data)

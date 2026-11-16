@@ -211,3 +211,105 @@ async def test_repository_non_it_isolation(tmp_path):
     assert stats["non_it"]["total"] == 1
     assert stats["freelance"]["total"] == 1
     assert stats["hh_ru"]["total"] == 1
+
+
+def test_direction_specific_focus_injection():
+    """Тест: инъекция специализированного фокуса анализа по 5 прикладным направлениям."""
+    from src.analyzer.prompts import build_non_it_analysis_prompt
+
+    # ЧПУ
+    order_cnc = RawOrder(
+        source=SourcePlatform.AVITO,
+        external_id="cnc-focus",
+        title="Оператор ЧПУ",
+        description="Работа на Fanuc",
+        price=85000,
+        url="https://avito.ru/1",
+        tags=["non_it", "direction:cnc"],
+    )
+    prompt_cnc = build_non_it_analysis_prompt(order_cnc)
+    assert "ЦЕЛЕВОЕ НАПРАВЛЕНИЕ: Оператор станков с ЧПУ" in prompt_cnc
+    assert "Fanuc" in prompt_cnc
+
+    # Модульный ремонт
+    order_repair = RawOrder(
+        source=SourcePlatform.AVITO,
+        external_id="rep-focus",
+        title="Мастер по ремонту",
+        description="Ремонт ноутбуков",
+        price=80000,
+        url="https://avito.ru/2",
+        tags=["non_it", "direction:electronics_repair"],
+    )
+    prompt_repair = build_non_it_analysis_prompt(order_repair)
+    assert "Мастер модульного ремонта электроники" in prompt_repair
+    assert "замена экранов/матриц" in prompt_repair
+
+    # Постаматы
+    order_post = RawOrder(
+        source=SourcePlatform.AVITO,
+        external_id="post-focus",
+        title="Техник постаматов",
+        description="ТО постаматов",
+        price=75000,
+        url="https://avito.ru/3",
+        tags=["non_it", "direction:postamat_tech"],
+    )
+    prompt_post = build_non_it_analysis_prompt(order_post)
+    assert "Сервисный техник постаматов и терминалов" in prompt_post
+
+    # Trade-In
+    order_trade = RawOrder(
+        source=SourcePlatform.AVITO,
+        external_id="trade-focus",
+        title="Специалист Trade-In",
+        description="Входной контроль техники",
+        price=75000,
+        url="https://avito.ru/4",
+        tags=["non_it", "direction:trade_in_testing"],
+    )
+    prompt_trade = build_non_it_analysis_prompt(order_trade)
+    assert "Специалист входного контроля и Trade-In техники" in prompt_trade
+
+    # Helpdesk
+    order_hd = RawOrder(
+        source=SourcePlatform.AVITO,
+        external_id="hd-focus",
+        title="Helpdesk L1",
+        description="Техподдержка офиса",
+        price=70000,
+        url="https://avito.ru/5",
+        tags=["non_it", "direction:helpdesk_l1"],
+    )
+    prompt_hd = build_non_it_analysis_prompt(order_hd)
+    assert "Младший специалист техподдержки (Helpdesk L1" in prompt_hd
+
+
+def test_non_it_cover_letter_routing():
+    """Тест: генерация отклика для не-IT вакансии переключается на прикладное сопроводительное письмо."""
+    from src.analyzer.prompts import build_proposal_prompt, DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
+
+    # Проверка типографики шаблона
+    assert "—" not in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
+    assert "–" not in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
+
+    # Не-IT вакансия с Авито
+    order = RawOrder(
+        source=SourcePlatform.AVITO,
+        external_id="nit-avito-letter",
+        title="Оператор станка ЧПУ (Fanuc)",
+        description="Требуется оператор на токарный станок Fanuc в Санкт-Петербурге.",
+        price=90000,
+        url="https://avito.ru/item/nit-avito-letter",
+        tags=["non_it", "direction:cnc"],
+    )
+    prompt = build_proposal_prompt(order)
+    assert "СПбГАСУ" in prompt
+    assert "чертежей" in prompt
+    assert "штангенциркулем" in prompt
+    # Гарантия, что IT-стек не затянулся
+    assert "WhisperX" not in prompt
+    assert "FastAPI" not in prompt
+    assert "LangChain" not in prompt
+    assert "Qdrant" not in prompt
+    assert "—" not in prompt
