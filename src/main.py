@@ -219,21 +219,28 @@ async def main() -> None:
         else:
             vacancies_notifier = tg_notifier
 
-        # Регистрация команд бота в меню Telegram
+        # Регистрация команд бота в меню Telegram (асинхронно, чтобы не блокировать быстрый старт Uvicorn)
         from aiogram.types import BotCommand
         from src.bot.keyboards import get_main_reply_keyboard
-        try:
-            await bot.set_my_commands([
-                BotCommand(command="settings", description="⚙️ Настройки фильтров и бирж"),
-                BotCommand(command="health", description="🩺 Проверка здоровья сервисов"),
-                BotCommand(command="uptime", description="⏱️ Аптайм и статус системы"),
-                BotCommand(command="stats", description="📊 Статистика базы заказов"),
-                BotCommand(command="scan", description="🔍 Сканирование площадок"),
-                BotCommand(command="recent", description="📋 Последние горячие лиды"),
-                BotCommand(command="start", description="🤖 Главное меню и клавиатура"),
-            ])
-        except Exception as cmd_err:
-            logger.debug("Не удалось зарегистрировать команды меню бота: %s", cmd_err)
+
+        async def _register_bot_commands() -> None:
+            try:
+                await asyncio.wait_for(
+                    bot.set_my_commands([
+                        BotCommand(command="settings", description="⚙️ Настройки фильтров и бирж"),
+                        BotCommand(command="health", description="🩺 Проверка здоровья сервисов"),
+                        BotCommand(command="uptime", description="⏱️ Аптайм и статус системы"),
+                        BotCommand(command="stats", description="📊 Статистика базы заказов"),
+                        BotCommand(command="scan", description="🔍 Сканирование площадок"),
+                        BotCommand(command="recent", description="📋 Последние горячие лиды"),
+                        BotCommand(command="start", description="🤖 Главное меню и клавиатура"),
+                    ]),
+                    timeout=5.0,
+                )
+            except Exception as cmd_err:
+                logger.debug("Не удалось зарегистрировать команды меню бота: %s", cmd_err)
+
+        asyncio.create_task(_register_bot_commands())
 
         # Привязываем команду /scan и кнопку '🔍 Сканировать' к нашему пайплайну
         from aiogram import F

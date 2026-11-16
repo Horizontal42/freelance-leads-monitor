@@ -157,7 +157,7 @@ echo -e "${BLUE}==>${NC} Проверка работоспособности Hea
 sleep 2
 
 HEALTH_CHECK_PASSED=false
-for i in {1..15}; do
+for i in {1..30}; do
     HTTP_CODE="$(curl -s -o /dev/null -w "%{http_code}" -u Horizontal42:qaz403111 "${HEALTH_URL}" 2>/dev/null || true)"
     if [ "$HTTP_CODE" == "200" ]; then
         HEALTH_CHECK_PASSED=true
