@@ -369,3 +369,155 @@ class HhRuCollector(BaseCollector):
                     await asyncio.sleep(0.4)
 
         return list(found_orders.values())
+
+
+class NonITHhRuCollector(BaseCollector):
+    """Сборщик прикладных (не-IT) вакансий в Санкт-Петербурге с hh.ru по 5 целевым направлениям."""
+
+    DEFAULT_QUERIES = [
+        "ЧПУ",
+        "станок ЧПУ",
+        'модульный ремонт OR "ремонт телефонов" OR "ремонт ноутбуков"',
+        'постамат OR "сервисный техник"',
+        '"trade-in" OR "входной контроль" OR "тестирование техники"',
+        "helpdesk OR эникей",
+    ]
+
+    def __init__(
+        self,
+        base_url: Optional[str] = None,
+        token: Optional[str] = None,
+        user_agent: Optional[str] = None,
+        repo: Optional[Any] = None,
+        area: int = 2,
+        min_salary: int = 70000,
+    ) -> None:
+        super().__init__(name="non_it_hh")
+        self.config = settings.COLLECTORS_HH_RU
+        self.base_url = (base_url or self.config.base_url).rstrip("/")
+        self.token = settings.HH_APP_TOKEN if token is None else token
+        self.user_agent = settings.HH_USER_AGENT if user_agent is None else user_agent
+        self.repo = repo
+        self.area = area
+        self.min_salary = min_salary
+
+    def _format_salary_meta(
+        self, salary_data: Optional[Dict[str, Any]]
+    ) -> tuple[Optional[float], bool, str]:
+        if not salary_data:
+            return None, True, "Не указана (по договоренности)"
+        s_from = salary_data.get("from")
+        s_to = salary_data.get("to")
+        curr = (salary_data.get("currency") or "RUR").upper()
+        if not s_from and not s_to:
+            return None, True, "Не указана (по договоренности)"
+        val = float(s_to or s_from)
+        val_rub = val * 95.0 if curr == "USD" else (val * 105.0 if curr == "EUR" else val)
+        curr_symbol = "₽" if curr in ["RUR", "RUB"] else curr
+        if s_from and s_to:
+            sal_str = f"{s_from:,} - {s_to:,} {curr_symbol}".replace(",", " ")
+        elif s_from:
+            sal_str = f"от {s_from:,} {curr_symbol}".replace(",", " ")
+        else:
+            sal_str = f"до {s_to:,} {curr_symbol}".replace(",", " ")
+        return val_rub, False, sal_str
+
+    async def fetch_new_orders(
+        self, is_cold_start: Optional[bool] = None
+    ) -> List[RawOrder]:
+        token = (self.token or "").strip()
+        if not token:
+            return []
+
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "User-Agent": self.user_agent,
+            "HH-User-Agent": self.user_agent,
+            "Accept": "application/json",
+        }
+
+        queries = getattr(self.config, "non_it_queries", None) or self.DEFAULT_QUERIES
+        found_orders: Dict[str, RawOrder] = {}
+        seen_pairs: Set[tuple[str, str]] = set()
+
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            for query in queries:
+                params: Dict[str, Any] = {
+                    "text": query,
+                    "area": self.area,
+                    "salary": self.min_salary,
+                    "per_page": 20,
+                    "page": 0,
+                    "period": 30,
+                }
+                try:
+                    resp = await client.get(
+                        f"{self.base_url}/vacancies",
+                        headers=headers,
+                        params=params,
+                    )
+                except Exception as e:
+                    logger.warning("Ошибка запроса non_it hh.ru '%s': %s", query, e)
+                    continue
+
+                if resp.status_code != 200:
+                    continue
+
+                data = resp.json()
+                items = data.get("items", [])
+                for item in items:
+                    vac_id = str(item.get("id", ""))
+                    if not vac_id or vac_id in found_orders:
+                        continue
+
+                    title = item.get("name", "").strip()
+                    employer_name = (item.get("employer") or {}).get("name", "").strip()
+                    pair = (normalize_employer(employer_name), title.lower())
+                    if pair in seen_pairs:
+                        continue
+                    seen_pairs.add(pair)
+
+                    salary_data = item.get("salary") or item.get("salary_range")
+                    price_rub, is_negotiable, sal_str = self._format_salary_meta(salary_data)
+
+                    snippet_obj = item.get("snippet") or {}
+                    desc_req = strip_html(snippet_obj.get("requirement"))
+                    desc_resp = strip_html(snippet_obj.get("responsibility"))
+                    parts = [p for p in (desc_req, desc_resp) if p]
+                    description = "\n\n".join(parts) if parts else title
+
+                    city = ((item.get("area") or {}).get("name") or "").strip()
+                    experience = ((item.get("experience") or {}).get("name") or "").strip()
+                    schedule_name = ((item.get("schedule") or {}).get("name") or "").strip()
+
+                    meta_lines = [
+                        f"🏢 Компания: {employer_name}" if employer_name else "",
+                        f"📍 Локация: {city}" if city else "",
+                        f"🏠 График: {schedule_name}" if schedule_name else "",
+                        f"⏳ Требуемый опыт: {experience}" if experience else "",
+                        f"💰 Зарплата: {sal_str}",
+                    ]
+                    attachments_text = "\n".join(l for l in meta_lines if l)
+
+                    tags = ["non_it", "прикладное", "hh_ru"]
+                    if city:
+                        tags.append(city)
+
+                    url = (item.get("alternate_url") or f"https://hh.ru/vacancy/{vac_id}").split("?")[0]
+                    found_orders[vac_id] = RawOrder(
+                        source=SourcePlatform.HH_RU,
+                        external_id=vac_id,
+                        title=title,
+                        description=description,
+                        url=url,
+                        price=price_rub,
+                        is_negotiable=is_negotiable,
+                        is_pro_only=False,
+                        tags=tags,
+                        attachments_text=attachments_text,
+                        raw_payload=item,
+                    )
+
+                await asyncio.sleep(0.3)
+
+        return list(found_orders.values())

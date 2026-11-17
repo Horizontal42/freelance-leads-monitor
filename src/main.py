@@ -14,7 +14,7 @@ from src.collectors.avito import AvitoCollector
 from src.collectors.fl_ru import FlRuCollector
 from src.collectors.freelance_ru import FreelanceRuCollector
 from src.collectors.habr_career import HabrCareerCollector
-from src.collectors.hh_ru import HhRuCollector
+from src.collectors.hh_ru import HhRuCollector, NonITHhRuCollector
 from src.collectors.kwork import KworkCollector
 from src.collectors.pchel_net import PchelNetCollector
 from src.config import settings
@@ -161,6 +161,7 @@ async def main() -> None:
         HhRuCollector(repo=repo),
         HabrCareerCollector(repo=repo),
         AvitoCollector(repo=repo),
+        NonITHhRuCollector(repo=repo),
     ]
     all_collectors = freelance_collectors + vacancy_collectors
 

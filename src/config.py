@@ -106,6 +106,19 @@ class HhRuCollectorConfig(BaseModel):
         ]
     )
     engineering_marker: str = r"инженер|engineer|разработчик|developer|программист|\bml\b|\bllm\b|\brag\b"
+    non_it_enabled: bool = True
+    non_it_area: int = 2
+    non_it_salary: int = 70000
+    non_it_queries: List[str] = Field(
+        default_factory=lambda: [
+            "ЧПУ",
+            "станок ЧПУ",
+            'модульный ремонт OR "ремонт телефонов" OR "ремонт ноутбуков"',
+            'постамат OR "сервисный техник"',
+            '"trade-in" OR "входной контроль" OR "тестирование техники"',
+            "helpdesk OR эникей",
+        ]
+    )
 
 
 class HabrCareerCollectorConfig(BaseModel):

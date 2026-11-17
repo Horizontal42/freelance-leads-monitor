@@ -85,6 +85,16 @@ collectors:
       - 'системн\w+ администратор|администриров'
       - 'робот|\brobot'
     engineering_marker: 'инженер|engineer|разработчик|developer|программист|\bml\b|\bllm\b|\brag\b'
+    non_it_enabled: true
+    non_it_area: 2  # Санкт-Петербург
+    non_it_salary: 70000  # Минимальная зарплата прикладных вакансий
+    non_it_queries:
+      - 'ЧПУ'
+      - 'станок ЧПУ'
+      - 'модульный ремонт OR "ремонт телефонов" OR "ремонт ноутбуков"'
+      - 'постамат OR "сервисный техник"'
+      - '"trade-in" OR "входной контроль" OR "тестирование техники"'
+      - 'helpdesk OR эникей'
 
 filter:
   min_budget: 10000
