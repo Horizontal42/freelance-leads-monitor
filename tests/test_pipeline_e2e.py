@@ -110,12 +110,12 @@ async def test_pipeline_routing_flow(tmp_path):
             url="https://kwork.ru/projects/101",
             price=15000,
         ),
-        # 2. Трэш (бюджет < 10к)
+        # 2. Трэш (бюджет < 10к, не быстрый заказ: сложная платформа под ключ)
         RawOrder(
             source=SourcePlatform.KWORK,
             external_id="102",
-            title="Бот для Telegram на python",
-            description="Простой бот",
+            title="CRM система для компании под ключ на python",
+            description="Сделать CRM систему с нуля под ключ",
             url="https://kwork.ru/projects/102",
             price=3000,
             is_negotiable=False,
@@ -240,3 +240,40 @@ async def test_pipeline_vacancy_hot_threshold(tmp_path):
     stats2 = await pipeline.process_orders([vac_order_8])
     assert stats2["hot_leads_sent"] == 1
     assert stats2["analyzed_normal"] == 0
+
+
+@pytest.mark.asyncio
+async def test_pipeline_quick_win_passes_filter(tmp_path):
+    """Тест: быстрый заказ (Quick Win) с бюджетом 3000 руб проходит пайплайн."""
+    db_path = tmp_path / "test_qw.db"
+    await init_db(db_path)
+    repo = OrderRepository(db_path=db_path)
+    hard_filter = HardFilter(min_budget=15000, allow_quick_orders=True, quick_min_budget=2000)
+    llm_client = MockLLMClient(score=8, priority=OrderPriority.HOT)
+
+    pipeline = LeadsPipeline(
+        repo=repo,
+        hard_filter=hard_filter,
+        llm_client=llm_client,
+        tg_notifier=None,
+    )
+
+    quick_order = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="qw_301",
+        title="Скрипт парсера каталога на python",
+        description="Написать точечный парсер для сбора данных в excel",
+        url="https://kwork.ru/projects/qw_301",
+        price=3000,
+        is_negotiable=False,
+    )
+
+    stats = await pipeline.process_orders([quick_order])
+    assert stats["received"] == 1
+    assert stats["filtered_trash"] == 0
+    assert stats["hot_leads_sent"] == 1
+
+    recent = await repo.get_recent_orders(limit=5)
+    assert len(recent) == 1
+    assert recent[0]["priority"] == "hot"
+    assert recent[0]["external_id"] == "qw_301"

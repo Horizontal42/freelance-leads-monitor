@@ -154,16 +154,6 @@ class LeadsPipeline:
                         filter_reason=f"Зарплата {int(order.price)} ₽ ниже минимальной ({vacancy_min_salary} ₽)",
                     )
                     continue
-            else:
-                if min_budget and order.price and order.price < min_budget and not order.is_negotiable:
-                    stats["filtered_trash"] += 1
-                    await self.repo.insert_raw_order(
-                        order=order,
-                        status=OrderStatus.REJECTED,
-                        priority=OrderPriority.TRASH,
-                        filter_reason=f"Бюджет {int(order.price)} ₽ ниже минимального ({min_budget} ₽)",
-                    )
-                    continue
 
             filter_res = self.hard_filter.evaluate(order)
             if not filter_res.passed:
