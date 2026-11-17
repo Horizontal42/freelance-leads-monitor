@@ -146,7 +146,70 @@ class AvitoCollector(BaseCollector):
             except Exception as e:
                 logger.debug("Ошибка разбора JSON-LD Авито: %s", e)
 
-        # 2. Поиск карточек объявлений в HTML по data-marker="item"
+        # 2. Поиск данных в современных SSR-скриптах Авито (loaderData -> catalog/recommendationsInfinite)
+        if not orders:
+            for s in re.findall(r'<script[^>]*>(.*?)</script>', html_text, re.DOTALL):
+                s_clean = s.strip()
+                if '"loaderData"' in s_clean and ('"catalog"' in s_clean or '"items"' in s_clean):
+                    try:
+                        data = json.loads(s_clean)
+                        d = data.get("loaderData", {}).get("data", {})
+                        items = (
+                            d.get("catalog", {}).get("items")
+                            or d.get("recommendationsInfinite", {}).get("items")
+                            or []
+                        )
+                        for item in items:
+                            ext_id = str(item.get("id") or "")
+                            title = (item.get("title") or "").strip()
+                            url_path = item.get("urlPath") or ""
+                            if not title or not ext_id:
+                                continue
+
+                            full_url = (
+                                f"https://www.avito.ru{url_path}"
+                                if url_path.startswith("/")
+                                else url_path
+                            )
+
+                            price = None
+                            price_det = item.get("priceDetailed") or {}
+                            val = price_det.get("value")
+                            if val and float(val) > 0:
+                                price = float(val)
+                            else:
+                                p_str = price_det.get("string") or ""
+                                p_match = re.search(r"(\d[\d\s]*)\s*(?:₽|руб)", p_str)
+                                if p_match:
+                                    try:
+                                        price = float(
+                                            p_match.group(1).replace(" ", "").replace("\xa0", "")
+                                        )
+                                    except ValueError:
+                                        price = None
+
+                            location_name = (item.get("location") or {}).get("name") or ""
+                            tags = ["avito"]
+                            if location_name:
+                                tags.append(location_name)
+
+                            orders.append(
+                                RawOrder(
+                                    source=SourcePlatform.AVITO,
+                                    external_id=ext_id,
+                                    title=title,
+                                    description=title,
+                                    url=full_url.split("?")[0],
+                                    price=price,
+                                    tags=tags,
+                                )
+                            )
+                        if orders:
+                            break
+                    except Exception as e:
+                        logger.debug("Ошибка парсинга SSR скрипта Авито: %s", e)
+
+        # 3. Поиск карточек объявлений в HTML по data-marker="item"
         if not orders:
             item_blocks = re.findall(r'<div[^>]*data-marker=["\']item["\'][^>]*>(.*?)</div>\s*</div>', html_text, re.DOTALL)
             for block in item_blocks:
