@@ -70,6 +70,11 @@ DIRECTIONS_CONFIG: Dict[NonITDirection, DirectionConfig] = {
             "металлообработк",
             "гибка металла",
             "листогиб",
+            r"наладчик\w*.*чпу",
+            r"оператор\w*.*чпу",
+            r"станк\w*.*чпу",
+            r"гидроабразивн",
+            r"лазерн\w*\s+резк",
         ],
         anti_scam_words=[
             "выезд",
@@ -112,6 +117,10 @@ DIRECTIONS_CONFIG: Dict[NonITDirection, DirectionConfig] = {
             "ученик мастера",
             "сервисный инженер по ремонту",
             "сервисный специалист",
+            r"ремонт\w*.*(?:ноутбук|телефон|планшет|электроник|компьютер|техник)",
+            r"мастер\w*.*по\s+ремонт",
+            r"помощник\w*.*мастер",
+            r"сервисн\w*.*инженер",
         ],
         anti_scam_words=[
             "выезд к клиент",
@@ -159,6 +168,9 @@ DIRECTIONS_CONFIG: Dict[NonITDirection, DirectionConfig] = {
             "банкомат",
             "сервисный инженер терминал",
             "кофемашин",
+            r"сервисн\w*\s+техник",
+            r"обслуживан\w*.*(?:терминал|постамат|вендинг)",
+            r"техник\w*.*(?:постамат|терминал)",
         ],
         anti_scam_words=[
             "пеший курьер",
@@ -195,6 +207,10 @@ DIRECTIONS_CONFIG: Dict[NonITDirection, DirectionConfig] = {
             "оценка электроники",
             "проверка смартфонов",
             "диагност техники",
+            r"входн\w*\s+контрол",
+            r"контролер\w*\s+качеств",
+            r"тестирован\w*.*техник",
+            r"дефектовк\w*",
         ],
         anti_scam_words=[
             "грузчик",
@@ -235,6 +251,10 @@ DIRECTIONS_CONFIG: Dict[NonITDirection, DirectionConfig] = {
             "сборка пк",
             "младший системный администратор",
             "техник ит",
+            r"help\s*desk",
+            r"тех\w*\s*поддержк",
+            r"1\s*лини\w*",
+            r"специалист\w*.*поддержк",
         ],
         anti_scam_words=[
             "холодные звонки",
@@ -274,7 +294,10 @@ class NonITHardFilter:
         matched = set()
         text_lower = text.lower()
         for term in terms:
-            if len(term) <= 3:
+            if term.startswith("^") or term.startswith(r"\b") or ".*" in term or r"\s" in term or r"\w" in term or "|" in term:
+                if re.search(term, text_lower):
+                    matched.add(term)
+            elif len(term) <= 3:
                 pattern = rf"(?:\b|[^a-zA-Zа-яА-Я0-9]){re.escape(term)}(?:\b|[^a-zA-Zа-яА-Я0-9])"
                 if re.search(pattern, text_lower):
                     matched.add(term)

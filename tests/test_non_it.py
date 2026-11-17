@@ -140,7 +140,8 @@ def test_prompt_routing_for_non_it():
     )
     prompt = build_analysis_prompt(order)
     assert "ПРОАНАЛИЗИРУЙ ПРИКЛАДНУЮ (НЕ-IT) ВАКАНСИЮ" in prompt
-    assert "СПбГАСУ" in prompt
+    assert "неоконченное высшее" in prompt
+    assert "СПбГАСУ" not in prompt
     assert "—" not in prompt
 
 
@@ -304,7 +305,8 @@ def test_non_it_cover_letter_routing():
         tags=["non_it", "direction:cnc"],
     )
     prompt = build_proposal_prompt(order)
-    assert "СПбГАСУ" in prompt
+    assert "неоконченное высшее" in prompt
+    assert "СПбГАСУ" not in prompt
     assert "чертежей" in prompt
     assert "штангенциркулем" in prompt
     # Гарантия, что IT-стек не затянулся
