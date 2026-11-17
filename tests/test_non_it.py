@@ -315,3 +315,123 @@ def test_non_it_cover_letter_routing():
     assert "LangChain" not in prompt
     assert "Qdrant" not in prompt
     assert "—" not in prompt
+
+
+def test_direction_profile_isolation():
+    """Тест: строгая изоляция профилей кандидата между направлениями без смешивания."""
+    from src.analyzer.prompts import build_proposal_prompt
+
+    # 1. Заказ ЧПУ
+    order_cnc = RawOrder(
+        source=SourcePlatform.AVITO,
+        external_id="cnc-iso-1",
+        title="Оператор фрезерного станка ЧПУ",
+        description="Работа со стойкой Fanuc, фрезеровка деталей по чертежам.",
+        price=85000,
+        url="https://avito.ru/item/cnc-iso-1",
+        tags=["non_it", "direction:cnc"],
+    )
+    prompt_cnc = build_proposal_prompt(order_cnc)
+    assert "Fanuc" in prompt_cnc
+    assert "AutoCut" in prompt_cnc
+    assert "штангенциркулем" in prompt_cnc
+    # Проверка изоляции: нет ноутбуков и AIDA64
+    assert "Dell Precision" not in prompt_cnc
+    assert "AIDA64" not in prompt_cnc
+    assert "Gamer" not in prompt_cnc
+    assert "—" not in prompt_cnc
+
+    # 2. Заказ сервисного ремонта
+    order_repair = RawOrder(
+        source=SourcePlatform.AVITO,
+        external_id="rep-iso-1",
+        title="Сервисный инженер по ремонту ноутбуков",
+        description="Модульный ремонт, замена матриц, чистка систем охлаждения.",
+        price=80000,
+        url="https://avito.ru/item/rep-iso-1",
+        tags=["non_it", "direction:electronics_repair"],
+    )
+    prompt_repair = build_proposal_prompt(order_repair)
+    assert "Dell Precision" in prompt_repair
+    assert "HP EliteBook" in prompt_repair
+    assert "AIDA64" in prompt_repair
+    assert "LaptopTester" in prompt_repair
+    # Проверка изоляции: нет стоек Fanuc и чертежей ЕСКД
+    assert "Fanuc" not in prompt_repair
+    assert "AutoCut" not in prompt_repair
+    assert "G54-G59" not in prompt_repair
+    assert "—" not in prompt_repair
+
+    # 3. Заказ Helpdesk
+    order_hd = RawOrder(
+        source=SourcePlatform.AVITO,
+        external_id="hd-iso-1",
+        title="Специалист технической поддержки пользователей L1",
+        description="Обслуживание ПК, решение инцидентов, сети.",
+        price=75000,
+        url="https://avito.ru/item/hd-iso-1",
+        tags=["non_it", "direction:helpdesk_l1"],
+    )
+    prompt_hd = build_proposal_prompt(order_hd)
+    assert "Gamer" in prompt_hd
+    assert "LANGAME" in prompt_hd
+    assert "35" in prompt_hd
+    assert "Fanuc" not in prompt_hd
+    assert "—" not in prompt_hd
+
+
+def test_non_it_anti_false_positives():
+    """Тест: отсев непрофильных вакансий (стройматериалы, сантехника, пилорамы, служба заботы)."""
+    flt = NonITHardFilter(min_salary=70000)
+
+    # 1. Стройматериалы под видом Trade-In
+    order_building = RawOrder(
+        source=SourcePlatform.HH_RU,
+        external_id="false-build",
+        title="Ведущий специалист входного контроля строительных материалов",
+        description="Входной контроль бетонных смесей, арматуры и кирпича на объекте.",
+        price=85000,
+        url="https://hh.ru/vacancy/false-build",
+    )
+    res_b = flt.evaluate(order_building)
+    assert res_b.passed is False
+    assert "строительн" in res_b.reason.lower() or "стройматериал" in res_b.reason.lower()
+
+    # 2. Сантехника и эксплуатация зданий под видом Helpdesk
+    order_bld_maint = RawOrder(
+        source=SourcePlatform.HH_RU,
+        external_id="false-maint",
+        title="Специалист по эксплуатации и обслуживанию зданий",
+        description="Обслуживание здания, сантехника, ремонт помещений, работа с оргтехникой офиса.",
+        price=75000,
+        url="https://hh.ru/vacancy/false-maint",
+    )
+    res_m = flt.evaluate(order_bld_maint)
+    assert res_m.passed is False
+    assert any(w in res_m.reason.lower() for w in ["эксплуатация зданий", "обслуживание зданий", "сантехник", "ремонт помещений"])
+
+    # 3. Пилорама под видом ЧПУ
+    order_saw = RawOrder(
+        source=SourcePlatform.HH_RU,
+        external_id="false-saw",
+        title="Станочник д/о станков (распиловщик)",
+        description="Станочник деревообрабатывающего оборудования, распиловка бруса.",
+        price=80000,
+        url="https://hh.ru/vacancy/false-saw",
+    )
+    res_s = flt.evaluate(order_saw)
+    assert res_s.passed is False
+    assert "д/о станк" in res_s.reason.lower() or "деревообраб" in res_s.reason.lower() or "распиловщик" in res_s.reason.lower()
+
+    # 4. Служба заботы под видом Helpdesk
+    order_care = RawOrder(
+        source=SourcePlatform.HH_RU,
+        external_id="false-care",
+        title="Руководитель службы заботы о пользователях",
+        description="Поддержка пользователей сервиса, мотивация сотрудников службы заботы, без железа.",
+        price=90000,
+        url="https://hh.ru/vacancy/false-care",
+    )
+    res_c = flt.evaluate(order_care)
+    assert res_c.passed is False
+    assert "забот" in res_c.reason.lower()
