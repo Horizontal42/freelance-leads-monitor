@@ -435,3 +435,26 @@ def test_non_it_anti_false_positives():
     res_c = flt.evaluate(order_care)
     assert res_c.passed is False
     assert "забот" in res_c.reason.lower()
+
+
+def test_non_it_cover_letter_contacts_and_formatting():
+    """Тест: единые контакты и запрет скобок в шаблонах сопроводительных писем не-IT."""
+    from src.analyzer.prompts import DEFAULT_NON_IT_COVER_LETTER_TEMPLATE, build_proposal_prompt
+    from src.models.analysis import sanitize_proposal_text
+
+    # Проверка контактов в шаблоне
+    assert "+79097825505" in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
+    assert "@Horizontal84" in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
+    assert "pimenoffandrew@gmail.com" in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
+    assert "@horizontal42" not in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
+    assert "frolka84@gmail.com" not in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
+
+    # Проверка нормализации контактов через санитизатор
+    raw_text = "Контакты:\nТелефон: +7 (909) 7825505\nTelegram: @horizontal42\nEmail: frolka84@gmail.com"
+    cleaned = sanitize_proposal_text(raw_text)
+    assert "+79097825505" in cleaned
+    assert "@Horizontal84" in cleaned
+    assert "pimenoffandrew@gmail.com" in cleaned
+    assert "+7 (909) 7825505" not in cleaned
+    assert "@horizontal42" not in cleaned
+    assert "frolka84@gmail.com" not in cleaned

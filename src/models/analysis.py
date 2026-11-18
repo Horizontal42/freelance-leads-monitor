@@ -537,7 +537,12 @@ def sanitize_proposal_text(text: str, max_len: Optional[int] = None) -> str:
     t = re.sub(r"\n{3,}", "\n\n", t)
     t = t.strip()
 
-    # 14. Гарантия наличия прямых контактов Андрея в сопроводительных письмах с GitHub
+    # 14. Единая нормализация контактов Андрея
+    t = t.replace("@horizontal42", "@Horizontal84")
+    t = t.replace("frolka84@gmail.com", "pimenoffandrew@gmail.com")
+    t = re.sub(r"\+7[ \t]*\(?909\)?[- \t]*782[- \t]*55[- \t]*05", "+79097825505", t)
+
+    # Гарантия наличия прямых контактов Андрея в сопроводительных письмах с GitHub
     if "github.com/Horizontal42" in t and "@Horizontal84" not in t:
         t = t + "\n\nTelegram: @Horizontal84\nEmail: pimenoffandrew@gmail.com"
 
