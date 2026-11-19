@@ -46,7 +46,7 @@ jobs/
       handlers.py             Command and callback query handlers (/start, /scan, /stats, copy, archive, gen_prop).
       keyboards.py            Inline keyboard builders with dynamic proposal state buttons.
     web/
-      app.py                  FastAPI web application for jobs.3dvex.ru: tab navigation, live search, PRO toggle, copy-to-clipboard.
+      app.py                  FastAPI web application for localhost:8086: tab navigation, live search, PRO toggle, copy-to-clipboard.
   tests/
     test_collectors.py        Unit tests for HTML/JSON/RSS parsing across all 5 collectors.
     test_storage_and_filter.py Unit tests for SQLite WAL migrations, deduplication, and HardFilter rules.

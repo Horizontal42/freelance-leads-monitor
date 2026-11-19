@@ -1,0 +1,12 @@
+services:
+  freelance-monitor:
+    build: .
+    container_name: freelance-leads-monitor
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8086:8086"
+    volumes:
+      - ./data:/app/data
+      - ./config.yml:/app/config.yml:ro

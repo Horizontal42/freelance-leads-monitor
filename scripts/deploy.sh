@@ -22,10 +22,10 @@ done
 REPO_DIR="$(cd -P "$(dirname "$SCRIPT_SOURCE")/.." && pwd)"
 cd "$REPO_DIR"
 
-PROD_HOST="server-old-vm"
-PROD_DIR="/home/horizontal42/jobs"
-PROD_SERVICE="freelance-monitor.service"
-HEALTH_URL="https://jobs.3dvex.ru/health"
+PROD_HOST="${PROD_HOST:-your-server}"
+PROD_DIR="${PROD_DIR:-/opt/freelance-monitor}"
+PROD_SERVICE="${PROD_SERVICE:-freelance-monitor.service}"
+HEALTH_URL="${HEALTH_URL:-http://localhost:8086/health}"
 FORCE=false
 
 for arg in "$@"; do
@@ -158,7 +158,9 @@ sleep 2
 
 HEALTH_CHECK_PASSED=false
 for i in {1..30}; do
-    HTTP_CODE="$(curl -s -o /dev/null -w "%{http_code}" -u Horizontal42:qaz403111 "${HEALTH_URL}" 2>/dev/null || true)"
+    AUTH_USER="${WEB_AUTH_USERNAME:-admin}"
+    AUTH_PASS="${WEB_AUTH_PASSWORD:-change_me_secure_password}"
+    HTTP_CODE="$(curl -s -o /dev/null -w "%{http_code}" -u "${AUTH_USER}:${AUTH_PASS}" "${HEALTH_URL}" 2>/dev/null || true)"
     if [ "$HTTP_CODE" == "200" ]; then
         HEALTH_CHECK_PASSED=true
         break

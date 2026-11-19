@@ -225,6 +225,7 @@ async def test_web_hh_apply_auto_generate_letter(tmp_path, monkeypatch):
     mock_llm.generate_proposal = AsyncMock(return_value="Сгенерированное письмо от ИИ")
 
     with patch("src.analyzer.factory.get_llm_client", return_value=mock_llm), \
+         patch("src.web.app.get_llm_client", return_value=mock_llm), \
          patch.object(HhApplicantService, "apply_to_vacancy", new_callable=AsyncMock) as mock_apply:
         mock_apply.return_value = {"ok": True, "status": "applied", "message": "Отклик успешно отправлен на HeadHunter!"}
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as ac:

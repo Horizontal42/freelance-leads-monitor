@@ -7,7 +7,7 @@ name = "freelance-leads-monitor"
 version = "0.1.0"
 description = "Automated freelance job monitoring, filtering, LLM evaluation, and Telegram notifications"
 authors = [
-    {name = "Horizontal42", email = "andrey@horizontal42.ru"}
+    {name = "Open Source Developer", email = "developer@example.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.12"
