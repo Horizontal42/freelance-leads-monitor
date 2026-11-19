@@ -302,18 +302,40 @@ llm:
 
 prompts:
   developer_profile:
-    name: "Developer"
-    username: "@your_handle"
+    name: "Андрей Пименов"
+    username: "@Horizontal84"
+    email: "pimenoffandrew@gmail.com"
+    phone: "+79097825505"
     level: "Junior+ / Middle"
-    specialization: "Python Backend, Telegram-боты, B2B-интеграции (Битрикс24, amoCRM, МойСклад), LLM/Whisper, RAG-системы, речевая аналитика, Computer Vision (YOLOv8)"
+    specialization: "Разработчик решений на базе AI / Специалист по автоматизации (Python, FastAPI, Celery, WhisperX, Qdrant, RAG, Computer Vision, Docker, Linux, CI/CD, аппаратная диагностика и модульный ремонт электроники)"
     min_budget: 10000
     hourly_rate_rub: 750
 
   projects_dossier:
-    - name: "Speech Analytics (Intervesp)"
-      stack: "Python 3.12, FastAPI, Celery, Redis, PostgreSQL, WhisperX, pyannote, Qwen 32B, Bitrix24 REST API, Weasyprint, Jinja2"
-      highlights: "Детерминированная валидация оценок и цитат на 100% без галлюцинаций LLM, асинхронные очереди Celery с батчингом на GPU, оптимизация системной памяти, накопительные сводные PDF-отчеты O(n), фильтрация автоответчиков"
-      use_for: "Транскрибация звонков, речевая аналитика, внешние API-интеграции с Битрикс24/CRM (вебхуки, REST API - не штатная настройка CRM), локальные нейросети (Whisper, Ollama), Celery-пайплайны, генерация PDF-отчетов"
+    - name: "Cortex IT - Speech Analytics (Корпоративная речевая аналитика и аудит звонков)"
+      stack: "Python 3.12-3.14, FastAPI, Celery, Redis, PostgreSQL, WhisperX (large-v3-turbo), PyAnnote, Qwen 32B via Ollama, Битрикс24 REST API, S3 (MinIO), ctypes (malloc_trim)"
+      highlights: "Отказоустойчивый конвейер обработки сотен записей в сутки; детерминированный роутинг балла с нечеткой валидацией цитат по транскрипту (difflib), снизивший flip-rate с 33% до 0%; динамический батчинг (batch_size=3) и разделение I/O и GPU в Celery; ликвидация утечек памяти в PyTorch/CUDA; 100% звонков анализируются без человека, аудит сократился с 20 мин до 45 сек"
+      use_for: "Речевая аналитика, транскрибация звонков, диаризация, внешние API Битрикс24/CRM, локальные нейросети (Whisper, Ollama), Celery-пайплайны, S3 хранилища, отчеты"
+    - name: "Cortex IT - Корпоративный RAG-ассистент по базе знаний и регламентам (130+ пользователей)"
+      stack: "Python 3.12+, LangChain, векторная СУБД Qdrant, BM25, FastAPI, Docker"
+      highlights: "Гибридный поиск (dense эмбеддинги + BM25) по сложной документации и номенклатурным каталогам с валидацией чанков; онбординг быстрее на 40%, поиск ответов за 2-3 секунды без галлюцинаций"
+      use_for: "Корпоративные RAG-системы, векторные базы данных Qdrant, семантический поиск, базы знаний"
+    - name: "Cortex IT - Компьютерное зрение для конвейера (Computer Vision / AgroTech)"
+      stack: "Python, YOLOv8, OpenCV, ByteTrack, CUDA, FastAPI, Docker"
+      highlights: "Датасет промышленного контроля при переменном освещении, fine-tuning YOLOv8 для детекции дефектов, микросервис инференса с CUDA (<15 мс/кадр) и трекингом ByteTrack; снижение ручного контроля на 35%"
+      use_for: "Компьютерное зрение, детекция дефектов, видеоаналитика RTSP, локальный CUDA/GPU инференс"
+    - name: "Cortex IT - Распределенная инфраструктура, сетевые шлюзы и CI/CD (DevOps / On-Premise)"
+      stack: "Ubuntu, KVM/Libvirt, Docker, crypto_LUKS, TPM2, Rathole (Noise TCP), Caddy (wildcard SSL), Nginx, Tailscale mesh, dnsdist, PacketCache, Forgejo, Woodpecker CI, Gatus, Beszel, rsync (zstd)"
+      highlights: "On-premise размещение AI-микросервисов 24/7; защищенный доступ без белых IP (CGNAT) через VPS и туннели Rathole; SmartDNS для оптимизации запросов к OpenAI, Anthropic, Gemini (<8 мс задержка); CI/CD пайплайны; бэкапы rsync zstd"
+      use_for: "Инфраструктура, VPS, Docker, Linux, KVM, сетевые туннели, обход блокировок, CI/CD, бэкапы"
+    - name: "Компьютерный Цехъ - Сервисный инженер и автоматизация сервисных процессов"
+      stack: "Python, PyQt5, WMI, smartctl, ReportLab, Code128, Google Sheets API, Win32 API, RT809H, CH341A"
+      highlights: "Разработал утилиту аппаратной QA-приемки LaptopTester (-60% времени тестирования ноутбука) и модуль WMS Warehouse Master (этикетки Code128 58x40 мм в векторный PDF); глубокий модульный ремонт Dell Precision, HP EliteBook, Lenovo ThinkPad; компонентный ремонт (SMD/BGA пайка, осциллограф, ЛБП, прошивка BIOS/EC); профилактика систем охлаждения"
+      use_for: "Модульный ремонт ноутбуков и ПК, диагностика железа, сервисное обслуживание, автоматизация складского учета, WMI, SMART"
+    - name: "Пензагро-58 - Оператор станков с ЧПУ (11 месяцев)"
+      stack: "Josen DV1166 (Fanuc Series 0i-MF Plus), Josen WXZN 500-16D (Fanuc Series 0i Plus), Kedick SF800 (AutoCut), токарно-винторезный станок"
+      highlights: "Базирование заготовок, самостоятельная привязка инструмента по осям, нули G54-G59, вызов УП Fanuc, ввод корректоров на геометрию и износ, замена пластин и фрез; стали Ст3, Сталь 45, калёные стали, титан (партии 500-5000 шт); ЕСКД, штангенциркули, микрометры, калибры; брак <0.5%, сдача в ОТК 98%+, 100% безаварийность"
+      use_for: "Оператор станков с ЧПУ фрезерной и токарной группы, Fanuc, электроэрозия, металлообработка, ОТК"
     - name: "Avia_Pars"
       stack: "Python 3.12, asyncio, aiogram 3, SQLite WAL, residential proxy, pytest (208 тестов)"
       highlights: "UX одного экрана screen.py, Circuit Breaker, асинхронные очереди, высокая надежность и отказоустойчивость под нагрузкой"
@@ -330,22 +352,6 @@ prompts:
       stack: "Python 3.11, API dev.hh.ru, DaData API, LLM, Google Sheets API (gspread), SQLite"
       highlights: "Автоматический поиск вакансий на hh.ru, обогащение контактов через DaData, занесение B2B-лидов в Google Таблицы"
       use_for: "Интеграция с сервисами вакансий, Google Sheets, обогащение контактов DaData, B2B-автоматизация"
-    - name: "Sort_YM"
-      stack: "Python 3.11+, yandex-music, Ollama, JSON Schema decoding"
-      highlights: "Сортировка медиатеки с LLM-анализом текстов через локальные модели, идемпотентность"
-      use_for: "Скрипты работы с медиа, структурированный JSON Schema вывод из локальных LLM"
-    - name: "Warehouse Master & LaptopTester"
-      stack: "Python, PyQt5, ReportLab, WMI, smartctl, Google Sheets API"
-      highlights: "Печать этикеток со штрихкодами (PDF 58x40мм), автоматический опрос SMART/CPU/RAM железа ноутбука"
-      use_for: "Десктопный GUI на PyQt5, WMI/SMART железа Windows, генерация PDF-этикеток, Google Sheets"
-    - name: "RAG-ассистент"
-      stack: "Python 3.11+, LangChain, Qdrant, FastAPI, WhisperX, Docker"
-      highlights: "Индексация номенклатуры, таблиц и ГОСТов в векторной СУБД Qdrant для отдела продаж 130+ менеджеров"
-      use_for: "Корпоративные RAG-системы, умный поиск по документам, векторные базы Qdrant, корпоративные базы знаний"
-    - name: "AgroTech CV"
-      stack: "Python, YOLOv8, YOLOv11m-cls, ByteTrack, IsolationForest, OpenCV, CUDA, FastAPI, Docker"
-      highlights: "Многокамерный RTSP-пайплайн 24/7 с IP-камер, трекинг ByteTrack, биометрия животных EfficientNet-B1, алерты с FSM"
-      use_for: "Компьютерное зрение, детекция объектов и аномалий, видеоаналитика с IP-камер / RTSP, локальный CUDA/GPU инференс"
 
   rules:
     strict_no_em_dash: true
@@ -355,7 +361,7 @@ prompts:
 
   templates:
     analysis_system_prompt: |
-      Ты - старший Python-разработчик и ассистент разработчика (@your_handle, Junior+/Middle).
+      Ты - старший Python-разработчик и ассистент Андрея Пименова (@Horizontal84, Junior+/Middle).
       Твоя задача - объективно оценить заказ с биржи фриланса и сформировать ответ СТРОГО в формате JSON по заданной схеме.
 
       БЭКГРАУНД РАЗРАБОТЧИКА (БАЗА ПРОЕКТОВ ИЗ ДОСЬЕ):
@@ -409,7 +415,7 @@ prompts:
       }}
 
     proposal_prompt_template: |
-      Ты - старший Python-разработчик и персональный ассистент разработчика (@your_handle, Junior+/Middle).
+      Ты - старший Python-разработчик и персональный ассистент Андрея Пименова (@Horizontal84, Junior+/Middle).
       Твоя задача:
       1. ПРОВЕСТИ РЫНОЧНУЮ ОЦЕНКУ С ВЕБ-ПОИСКОМ:
          - ОБЯЗАТЕЛЬНО используй веб-поиск (search_web), чтобы проверить актуальные расценки и сроки на российских биржах фриланса (Kwork, FL.ru, Хабр Фриланс) для аналогичных задач.
@@ -510,10 +516,10 @@ prompts:
       Верни ТОЛЬКО JSON-блок, строго с обычными дефисами "-" (без длинных тире).
 
     vacancy_analysis_system_prompt: |
-      Ты - старший AI/Python-разработчик и карьерный ментор разработчика (@your_handle, Junior+/Middle).
-      Твоя задача - объективно проанализировать вакансию с HeadHunter (hh.ru) под профиль и резюме разработчика и сформировать ответ СТРОГО в формате JSON по заданной схеме.
+      Ты - старший AI/Python-разработчик и карьерный ментор Андрея Пименова (@Horizontal84, Junior+/Middle).
+      Твоя задача - объективно проанализировать вакансию с HeadHunter (hh.ru) под профиль и резюме Андрея и сформировать ответ СТРОГО в формате JSON по заданной схеме.
 
-      БЭКГРАУНД И РЕЗЮМЕ КАНДИДАТА:
+      БЭКГРАУНД И РЕЗЮМЕ КАНДИДАТА (АНДРЕЙ ПИМЕНОВ):
       {dossier_text}
 
       ЖЕСТКИЕ ПРАВИЛА:
@@ -574,7 +580,7 @@ prompts:
       }}
 
     cover_letter_template: |
-      Ты - старший карьерный консультант и технический ментор разработчика (@your_handle, Junior+/Middle AI/Python-разработчик).
+      Ты - старший карьерный консультант и технический ментор Андрея Пименова (@Horizontal84, Junior+/Middle AI/Python-разработчик).
       Твоя задача - составить идеальное, персонализированное, четко структурированное и убедительное сопроводительное письмо (Cover Letter) для отклика на вакансию HeadHunter (hh.ru).
 
       ЖЕСТКИЕ ПРАВИЛА:
@@ -598,10 +604,18 @@ prompts:
            * С какими сложностями столкнулся и как решил:
            НЕ сваливай 5 проектов в одну кучу!
       5. БАЗА РЕАЛЬНОГО ОПЫТА И СТЕКА:
-         - Speech Analytics: B2B-система автоматической речевой аналитики звонков отдела продаж от архитектуры до продакшена под ключ (FastAPI, Celery, WhisperX, LLM, REST API телефонии и Битрикс24, PostgreSQL, сводные PDF-отчеты). Описывай систему ЦЕЛИКОМ как законченный бизнес-продукт! КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО писать про "flip-rate" или "malloc_trim" - это узкие технические детали, которые непонятны на скрининге.
-         - Корпоративная RAG-система: LangChain, векторная база Qdrant, семантический поиск по сложной документации и спецификациям для 130+ менеджеров.
-         - leads-monitor: автоматизация поиска и сбора данных, парсинг площадок, интеграции внешних API (DaData, Google Sheets API / gspread, SQLite/PostgreSQL, Telegram-алерты).
-         - Компьютерное зрение AgroTech CV: пайплайн обработки видео и изображений (YOLOv8, OpenCV, CUDA).
+         - Cortex IT (Май 2026 - настоящее время, 7 месяцев): Python-разработчик / Специалист по автоматизации (AI).
+           * Корпоративная речевая аналитика и автоматический аудит звонков продаж: отказоустойчивый конвейер (FastAPI, Celery с динамическим батчингом batch_size=3 и разделением I/O и GPU, malloc_trim), WhisperX + PyAnnote (транскрибация и диаризация), скоринг диалогов локальной LLM (Qwen 32B via Ollama), детерминированный роутинг балла с difflib по цитатам (flip-rate 0%), Битрикс24 REST API, S3 MinIO. 100% звонков без человека, аудит сократился с 20 мин до 45 сек на звонок.
+           * Корпоративный RAG-ассистент по базе знаний и регламентам (130+ активных пользователей): LangChain, Qdrant (гибридный поиск: dense эмбеддинги + BM25), векторизация и обновление каталогов с валидацией чанков. Онбординг быстрее на 40%, поиск ответов 2-3 секунды без галлюцинаций.
+           * Компьютерное зрение (AgroTech CV): fine-tuning YOLOv8 для детекции дефектов на конвейере, инференс FastAPI с CUDA (<15 мс/кадр), потоковый трекинг OpenCV + ByteTrack, Docker on-premise. Снижение ручного контроля на 35%.
+           * Распределенная инфраструктура и DevOps: Ubuntu, KVM/Libvirt, Docker, аппаратное шифрование crypto_LUKS + TPM2, туннели Rathole (Noise TCP) через VPS без белых IP (CGNAT), Caddy wildcard SSL, Tailscale mesh, SmartDNS (dnsdist + PacketCache + dnsmasq) для AI API (<8 мс задержка), Forgejo Git, Woodpecker CI, мониторинг Gatus, Beszel, бэкапы rsync zstd.
+         - Компьютерный Цехъ (Август 2025 - Май 2026, 10 месяцев): Сервисный инженер.
+           * Автоматизация: LaptopTester (WMI, smartctl, Google Sheets API, ускорение входного тестирования на 60%) и WMS Warehouse Master (термоэтикетки Code128 58x40 мм в векторный PDF через ReportLab).
+           * Компонентный ремонт: SMD/BGA пайка, осциллограф, ЛБП, тепловизор, прошивка BIOS и мультиконтроллеров (EC) на программаторах RT809H, CH341A.
+           * Модульный ремонт: Dell Precision, HP EliteBook G3-G10, Lenovo ThinkPad, MSI. Профилактика систем охлаждения, чистка от окислов, подбор термопрокладок.
+         - Пензагро-58 (Сентябрь 2024 - Июль 2025, 11 месяцев): Оператор станков с ЧПУ.
+           * Фрезерный Josen DV1166 (Fanuc Series 0i-MF Plus), токарный Josen (Fanuc Series 0i Plus), электроэрозия Kedick SF800 (AutoCut), токарно-винторезный станок.
+           * Базирование, привязка инструмента, рабочие нули G54-G59, вызов УП Fanuc, подналадка/корректоры со стойки. Стали Ст3, Сталь 45, калёные стали, титан (партии 500-5000 шт). ЕСКД, штангенциркули, микрометры, калибры. Брак <0.5%, сдача в ОТК 98%+, 100% безаварийность.
          - Инфраструктура и стек: Python 3.12+, FastAPI, Celery, Redis, PostgreSQL, Docker, Linux (Ubuntu, CLI, systemd, логи), Git.
          - У Андрея ЕСТЬ базовое уверенное владение Linux и развертыванием на VPS/VDS в Docker! Никогда не пиши, что у него пробел в Linux/VPS.
          - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать внутренние кодовые имена проектов ("Avia_Pars", "Sort_YM", "leads-monitor") без пояснения их сути.
@@ -609,7 +623,7 @@ prompts:
          - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО указывать зарплатные ожидания (например, "Зарплата от 200 000 ₽") и даты готовности выйти ("Готов приступить с ...")! Пусть работодатель сам делает оффер и спрашивает об этом на интервью.
       6. УВЕРЕННАЯ КОНЦОВКА БЕЗ НАВЯЗЫВАНИЯ:
          - КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО просить или предлагать "сделать тестовое задание"! Андрей уверенно рассказывает о своих результатах, а формат взаимодействия решает работодатель.
-         - В конце письма: готовность обсудить задачи на звонке и контакты: Telegram @your_handle, email your_email@example.com.
+         - В конце письма: готовность обсудить задачи на звонке и контакты: Telegram @Horizontal84, email pimenoffandrew@gmail.com.
       7. SKILLS GAP (ПРОБЕЛЫ В СТЕКЕ):
          - Если в требованиях есть инструмент, которого нет в основном стеке (например, n8n), позиционируй его спокойно: как смежный понятный инструмент (опыт с вебхуками, архитектурой пайплайнов, кастомными Python-скриптами и чужим кодом).
       8. ЧИСТЫЙ ЧЕЛОВЕЧЕСКИЙ ЯЗЫК БЕЗ ИИ-МАРКЕРОВ (AVOID-AI-WRITING):

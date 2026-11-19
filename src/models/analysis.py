@@ -539,12 +539,22 @@ def sanitize_proposal_text(text: str, max_len: Optional[int] = None) -> str:
 
     # 14. Единая нормализация контактов Андрея
     t = t.replace("@horizontal42", "@Horizontal84")
+    t = t.replace("@your_handle", "@Horizontal84")
     t = t.replace("frolka84@gmail.com", "pimenoffandrew@gmail.com")
+    t = t.replace("your_email@example.com", "pimenoffandrew@gmail.com")
     t = re.sub(r"\+7[ \t]*\(?909\)?[- \t]*782[- \t]*55[- \t]*05", "+79097825505", t)
 
     # Гарантия наличия прямых контактов Андрея в сопроводительных письмах с GitHub
     if "github.com/Horizontal42" in t and "@Horizontal84" not in t:
         t = t + "\n\nTelegram: @Horizontal84\nEmail: pimenoffandrew@gmail.com"
+
+    # Удаление дублирующихся блоков контактов, если они идут подряд
+    t = re.sub(
+        r"(Telegram:\s*@Horizontal84\s*\n\s*Email:\s*pimenoffandrew@gmail\.com(?:\s*\n\s*Телефон:\s*\+79097825505)?)(?:\s*\n+)+(Telegram:\s*@Horizontal84\s*\n\s*Email:\s*pimenoffandrew@gmail\.com(?:\s*\n\s*Телефон:\s*\+79097825505)?)",
+        r"\1",
+        t,
+        flags=re.IGNORECASE,
+    )
 
     if max_len is not None and max_len > 0:
         t = trim_text_to_char_limit(t, max_chars=max_len)
