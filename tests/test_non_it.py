@@ -442,12 +442,16 @@ def test_non_it_cover_letter_contacts_and_formatting():
     from src.analyzer.prompts import DEFAULT_NON_IT_COVER_LETTER_TEMPLATE, build_proposal_prompt
     from src.models.analysis import sanitize_proposal_text
 
-    # Проверка контактов в шаблоне
+    # Проверка контактов и структуры в шаблоне
     assert "+79097825505" in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
     assert "@Horizontal84" in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
     assert "pimenoffandrew@gmail.com" in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
     assert "@horizontal42" not in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
     assert "frolka84@gmail.com" not in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
+    assert "Практический опыт:" in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
+    assert "По требованиям вакансии:" in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
+    assert "—" not in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
+    assert "–" not in DEFAULT_NON_IT_COVER_LETTER_TEMPLATE
 
     # Проверка нормализации контактов через санитизатор
     raw_text = "Контакты:\nТелефон: +7 (909) 7825505\nTelegram: @horizontal42\nEmail: frolka84@gmail.com"
