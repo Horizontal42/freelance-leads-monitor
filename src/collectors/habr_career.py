@@ -82,16 +82,15 @@ class HabrCareerCollector(BaseCollector):
                     city_param = "&city_id=679"
 
                 if v_fmt == "remote":
-                    # Удаленка не привязывается к городу
-                    extra_param_sets = ["&s[]=remote"]
+                    # RSS Хабр Карьеры ломается при передаче &s[]=remote, поэтому запрашиваем базовый фид
+                    extra_param_sets = [""]
                 elif v_fmt == "office":
-                    extra_param_sets = [f"&s[]=office{city_param}"]
+                    extra_param_sets = [f"{city_param}"]
                 elif v_fmt == "hybrid":
-                    extra_param_sets = [f"&s[]=mixed{city_param}"]
+                    extra_param_sets = [f"{city_param}"]
                 else:  # "all"
                     if city_param:
-                        # Удаленка отовсюду + офис/гибрид в выбранном городе
-                        extra_param_sets = ["&s[]=remote", city_param]
+                        extra_param_sets = ["", city_param]
                     else:
                         extra_param_sets = [""]
             except Exception as e:
