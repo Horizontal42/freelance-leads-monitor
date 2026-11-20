@@ -293,6 +293,7 @@ class Secrets(BaseSettings):
 
     BOT_TOKEN: str = ""
     TELEGRAM_PROXY: Optional[str] = None
+    AVITO_COOKIE: Optional[str] = None
     ADMIN_CHAT_ID: int = 0
     VACANCIES_BOT_TOKEN: str = ""
     VACANCIES_ADMIN_CHAT_ID: Optional[int] = None
@@ -331,6 +332,10 @@ class Settings:
     @property
     def TELEGRAM_PROXY(self) -> Optional[str]:
         return self.secrets.TELEGRAM_PROXY
+
+    @property
+    def AVITO_COOKIE(self) -> Optional[str]:
+        return self.secrets.AVITO_COOKIE
 
     @property
     def ADMIN_CHAT_ID(self) -> int:

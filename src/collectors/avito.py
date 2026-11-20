@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import re
 from typing import Any, Dict, List, Optional
 import feedparser
@@ -47,6 +48,9 @@ class AvitoCollector(BaseCollector):
             "Accept-Language": "ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7",
             "Referer": "https://www.avito.ru/",
         }
+        cookie = getattr(settings, "AVITO_COOKIE", None) or os.getenv("AVITO_COOKIE")
+        if cookie:
+            self.headers["Cookie"] = cookie.strip()
 
     def _extract_id_from_url(self, url: str) -> str:
         """Извлечь уникальный идентификатор объявления из ссылки Авито."""

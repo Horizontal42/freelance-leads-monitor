@@ -73,3 +73,9 @@ def test_avito_parse_ssr_loader_data():
     assert orders[1].source == SourcePlatform.AVITO
     assert orders[1].external_id == "55667788"
     assert orders[1].price == 75000.0
+
+
+def test_avito_cookie_header(monkeypatch):
+    monkeypatch.setenv("AVITO_COOKIE", "test_cookie_value=123")
+    collector = AvitoCollector()
+    assert collector.headers.get("Cookie") == "test_cookie_value=123"
