@@ -292,6 +292,7 @@ class Secrets(BaseSettings):
     )
 
     BOT_TOKEN: str = ""
+    TELEGRAM_PROXY: Optional[str] = None
     ADMIN_CHAT_ID: int = 0
     VACANCIES_BOT_TOKEN: str = ""
     VACANCIES_ADMIN_CHAT_ID: Optional[int] = None
@@ -326,6 +327,10 @@ class Settings:
     @property
     def BOT_TOKEN(self) -> str:
         return self.secrets.BOT_TOKEN
+
+    @property
+    def TELEGRAM_PROXY(self) -> Optional[str]:
+        return self.secrets.TELEGRAM_PROXY
 
     @property
     def ADMIN_CHAT_ID(self) -> int:

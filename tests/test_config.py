@@ -41,10 +41,14 @@ def test_settings_facade(tmp_path):
     )
 
     env_file = tmp_path / ".env"
-    env_file.write_text("BOT_TOKEN=test_token_123\nADMIN_CHAT_ID=99999\n", encoding="utf-8")
+    env_file.write_text(
+        "BOT_TOKEN=test_token_123\nADMIN_CHAT_ID=99999\nTELEGRAM_PROXY=http://100.123.121.90:2081\n",
+        encoding="utf-8",
+    )
 
     settings = Settings(yaml_path=yaml_file, env_file=env_file)
     assert settings.BOT_TOKEN == "test_token_123"
+    assert settings.TELEGRAM_PROXY == "http://100.123.121.90:2081"
     assert settings.ADMIN_CHAT_ID == 99999
     assert settings.MIN_BUDGET == 15000
     assert settings.VACANCIES_POLL_INTERVAL == 3600

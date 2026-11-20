@@ -36,7 +36,12 @@ class TelegramNotifier:
         if self._bot is None:
             if not self.bot_token:
                 raise ValueError("BOT_TOKEN не задан в конфигурации (.env)")
-            proxy = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY")
+            proxy = (
+                getattr(settings, "TELEGRAM_PROXY", None)
+                or os.getenv("TELEGRAM_PROXY")
+                or os.getenv("HTTPS_PROXY")
+                or os.getenv("HTTP_PROXY")
+            )
             session = AiohttpSession(proxy=proxy) if proxy else None
             self._bot = Bot(
                 token=self.bot_token,

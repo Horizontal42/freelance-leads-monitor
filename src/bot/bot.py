@@ -15,7 +15,12 @@ def create_bot_and_dispatcher(
     repo: OrderRepository,
 ) -> tuple[Bot, Dispatcher]:
     """Создать и настроить экземпляры Bot и Dispatcher."""
-    proxy = os.getenv("HTTPS_PROXY") or os.getenv("HTTP_PROXY")
+    proxy = (
+        getattr(settings, "TELEGRAM_PROXY", None)
+        or os.getenv("TELEGRAM_PROXY")
+        or os.getenv("HTTPS_PROXY")
+        or os.getenv("HTTP_PROXY")
+    )
     session = AiohttpSession(proxy=proxy) if proxy else None
 
     bot = Bot(
