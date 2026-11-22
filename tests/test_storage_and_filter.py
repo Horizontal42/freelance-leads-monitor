@@ -358,3 +358,15 @@ def test_hard_filter_it_vacancy_rejection_rules():
     res_target = filter_.evaluate(target_vac)
     assert res_target.passed is True
     assert "прошел фильтр" in res_target.reason.lower()
+
+    # 6. Объявление исполнителя из раздела Авито 'Предложения услуг'
+    avito_service_order = RawOrder(
+        source=SourcePlatform.AVITO,
+        external_id="8436557292",
+        title="ML-модели для бизнеса: прогноз, скоринг. Санкт-Петербург",
+        description="Разработка ML-моделей на заказ",
+        url="https://www.avito.ru/sankt-peterburg/predlozheniya_uslug/ml-modeli_8436557292",
+    )
+    res_avito_service = filter_.evaluate(avito_service_order)
+    assert res_avito_service.passed is False
+    assert "предложения услуг" in res_avito_service.reason.lower()

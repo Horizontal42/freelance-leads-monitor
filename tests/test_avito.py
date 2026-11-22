@@ -79,3 +79,35 @@ def test_avito_cookie_header(monkeypatch):
     monkeypatch.setenv("AVITO_COOKIE", "test_cookie_value=123")
     collector = AvitoCollector()
     assert collector.headers.get("Cookie") == "test_cookie_value=123"
+
+
+def test_avito_filters_out_predlozheniya_uslug():
+    collector = AvitoCollector()
+
+    sample_ssr = {
+        "loaderData": {
+            "data": {
+                "catalog": {
+                    "items": [
+                        {
+                            "id": 8436557292,
+                            "title": "ML-модели для бизнеса: прогноз, скоринг. Санкт-Петербург",
+                            "urlPath": "/sankt-peterburg/predlozheniya_uslug/ml-modeli_dlya_biznesa_8436557292",
+                        },
+                        {
+                            "id": 11223344,
+                            "title": "Python разработчик",
+                            "urlPath": "/sankt-peterburg/vakansii/python_razrabotchik_11223344",
+                        },
+                    ]
+                }
+            }
+        }
+    }
+
+    html = f"<script>{json.dumps(sample_ssr)}</script>"
+    orders = collector._parse_html_listings(html, "https://www.avito.ru/sankt-peterburg")
+    # Должна остаться только вакансия, а предложение услуг от исполнителя отсеяться
+    assert len(orders) == 1
+    assert orders[0].external_id == "11223344"
+    assert orders[0].title == "Python разработчик"

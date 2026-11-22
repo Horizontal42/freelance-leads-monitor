@@ -77,6 +77,10 @@ class AvitoCollector(BaseCollector):
             if not title or not link:
                 continue
 
+            # Отсев чужих предложений услуг (исполнители/конкуренты, а не заказчики)
+            if "/predlozheniya_uslug" in link.lower():
+                continue
+
             # Попытка извлечь цену/зарплату из заголовка или описания
             price = None
             price_match = re.search(r"(\d[\d\s]{2,})\s*(?:₽|руб|rub)", f"{title} {summary}", re.IGNORECASE)
@@ -125,6 +129,8 @@ class AvitoCollector(BaseCollector):
                         title = it.get("title") or it.get("name")
                         desc = it.get("description") or ""
                         url = it.get("url") or base_url
+                        if "/predlozheniya_uslug" in url.lower():
+                            continue
                         ext_id = self._extract_id_from_url(url)
 
                         price = None
@@ -168,6 +174,8 @@ class AvitoCollector(BaseCollector):
                             title = (item.get("title") or "").strip()
                             url_path = item.get("urlPath") or ""
                             if not title or not ext_id:
+                                continue
+                            if "/predlozheniya_uslug" in url_path.lower():
                                 continue
 
                             full_url = (
@@ -228,6 +236,8 @@ class AvitoCollector(BaseCollector):
                     rel_url, title = link_m.group(1), link_m.group(2)
 
                 full_url = f"https://www.avito.ru{rel_url}" if rel_url.startswith("/") else rel_url
+                if "/predlozheniya_uslug" in full_url.lower():
+                    continue
                 ext_id = self._extract_id_from_url(full_url)
 
                 price = None

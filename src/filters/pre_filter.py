@@ -106,6 +106,13 @@ class HardFilter:
             or (order.source == SourcePlatform.AVITO and "vacancy" in (order.tags or []))
         ) and not order.is_non_it
 
+        # Отсев объявлений из раздела Авито 'Предложения услуг' (услуги других исполнителей, а не заказы)
+        if order.source == SourcePlatform.AVITO and "/predlozheniya_uslug" in (order.url or "").lower():
+            return FilterResult(
+                passed=False,
+                reason="Объявление из раздела Авито 'Предложения услуг' (услуга исполнителя, а не заказ клиента)",
+            )
+
         if is_it_vacancy:
             # 1. Отсев по грейду (Senior/Lead)
             if self.drop_title_rx.search(order.title) and not self.junior_title_rx.search(order.title):
