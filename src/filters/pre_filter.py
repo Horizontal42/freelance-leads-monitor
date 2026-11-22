@@ -4,7 +4,7 @@ import logging
 import re
 from typing import List, Optional, Set
 from src.config import settings
-from src.models.order import FilterResult, RawOrder
+from src.models.order import FilterResult, RawOrder, SourcePlatform
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,40 @@ class HardFilter:
             else getattr(settings, "QUICK_MIN_BUDGET", 2000)
         )
 
+        # Регулярные выражения для фильтрации IT-вакансий (HH.ru, Хабр Карьера, Авито)
+        self.drop_title_rx = re.compile(
+            r"senior|сеньор|\blead\b|тимлид|team lead|ведущ|старш|главный|principal|head of|руководител|архитектор|architect",
+            re.IGNORECASE,
+        )
+        self.junior_title_rx = re.compile(
+            r"junior|джуниор|\bджун\b|стаж[её]р|стажировк|\bintern\b|\binternship\b|\btrainee\b|начинающ|младш",
+            re.IGNORECASE,
+        )
+        self.drop_tags_rx = re.compile(
+            r"^(?:senior|lead|principal|architect|архитектор|руководитель|тимлид)$",
+            re.IGNORECASE,
+        )
+        self.drop_languages_rx = re.compile(
+            r"(?:(?:\b|_)c#(?=[^a-zA-Z0-9]|$)|c-sharp|csharp|\.net\b|\bdotnet\b|\bjava\b(?!\s*script)|\bphp\b|(?:\b|_)c\+\+(?=[^a-zA-Z0-9]|$)|cpp\b|\bgolang\b|\bgo\s*(?:разработчик|developer|инженер|engineer|бэкенд|backend)\b|\bruby\b|\brails\b|\brust\b|\bkotlin\b|\bandroid\b|\bswift\b|\bios\b|\b1с\b|\b1c\b|\bvmware\b)",
+            re.IGNORECASE,
+        )
+        self.target_stack_rx = re.compile(
+            r"\b(?:python|питон|ai\b|ии\b|ml\b|llm|rag|нейросет|data engineer|nlp|cv\b)\b",
+            re.IGNORECASE,
+        )
+        self.excessive_exp_rx = re.compile(
+            r"\b(?:от\s*(?:[5-9]|\d{2})\s*лет|(?:[5-9]|\d{2})\+\s*лет|опыт\s*(?:работы\s*)?(?:от\s*)?(?:[5-9]|\d{2})\s*лет|более\s*(?:4|[5-9]|\d{2})\s*лет)\b",
+            re.IGNORECASE,
+        )
+        self.stop_it_titles_rx = re.compile(
+            r"\b(?:smm|копирайт|разметчик\w* данных|ai[- ]?тренер|ai trainer|продаж\w*|\bsales\b|маркетолог|маркетинг|наставник|куратор|преподав\w*|репетитор)\b",
+            re.IGNORECASE,
+        )
+        self.engineering_marker_rx = re.compile(
+            r"\b(?:инженер|engineer|разработчик|developer|программист|ml|llm|rag|python)\b",
+            re.IGNORECASE,
+        )
+
     def _match_terms(self, text: str, terms: List[str]) -> Set[str]:
         """Найти совпадения терминов в тексте с учетом границ коротких слов."""
         matched = set()
@@ -65,6 +99,46 @@ class HardFilter:
     def evaluate(self, order: RawOrder) -> FilterResult:
         """Проверить заказ по правилам фильтрации."""
         full_text = order.full_text
+
+        # Специализированная фильтрация IT-вакансий (hh.ru, habr_career, avito-вакансии)
+        is_it_vacancy = (
+            order.source in (SourcePlatform.HH_RU, SourcePlatform.HABR_CAREER)
+            or (order.source == SourcePlatform.AVITO and "vacancy" in (order.tags or []))
+        ) and not order.is_non_it
+
+        if is_it_vacancy:
+            # 1. Отсев по грейду (Senior/Lead)
+            if self.drop_title_rx.search(order.title) and not self.junior_title_rx.search(order.title):
+                return FilterResult(
+                    passed=False,
+                    reason=f"Вакансия для уровня Senior/Lead в названии: '{order.title}' (профиль: Junior+/Middle)",
+                )
+            if any(self.drop_tags_rx.search(t.strip()) for t in (order.tags or [])):
+                return FilterResult(
+                    passed=False,
+                    reason="Вакансия содержит теги уровня Senior/Lead",
+                )
+
+            # 2. Отсев по требуемому опыту работы (от 5+ лет)
+            if self.excessive_exp_rx.search(full_text):
+                return FilterResult(
+                    passed=False,
+                    reason="Требуемый опыт работы (от 5+ лет) превышает профиль (Junior+/Middle)",
+                )
+
+            # 3. Отсев по нецелевому языку/стеку в названии (C#, Java, PHP, Go и др. без Python/AI)
+            if self.drop_languages_rx.search(order.title) and not self.target_stack_rx.search(order.title):
+                return FilterResult(
+                    passed=False,
+                    reason=f"Непрофильный основной стек в названии вакансии: '{order.title}'",
+                )
+
+            # 4. Отсев непрофильных направлений в IT (SMM, продажи, копирайтинг, разметка)
+            if self.stop_it_titles_rx.search(order.title) and not self.engineering_marker_rx.search(order.title):
+                return FilterResult(
+                    passed=False,
+                    reason=f"Непрофильное направление IT-вакансии: '{order.title}'",
+                )
 
         # 1. Проверка стоп-слов
         matched_stopwords = self._match_terms(full_text, self.stop_words)

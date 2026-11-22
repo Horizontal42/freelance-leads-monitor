@@ -278,3 +278,69 @@ async def test_toggle_responded_and_skipped(tmp_path):
     assert analytics["hot_total"] == 1
     assert analytics["hot_responded"] == 1
     assert analytics["hot_conversion"] == 100.0
+
+
+def test_hard_filter_it_vacancy_rejection_rules():
+    filter_ = HardFilter()
+
+    # 1. Вакансия с чужим языком в названии (C#)
+    csharp_vac = RawOrder(
+        source=SourcePlatform.HABR_CAREER,
+        external_id="1000169750",
+        title="Автотестировщик (C#)",
+        description="Разработка тестов с использованием Selenium, Playwright и C#.",
+        url="https://career.habr.com/vacancies/1000169750",
+    )
+    res_csharp = filter_.evaluate(csharp_vac)
+    assert res_csharp.passed is False
+    assert "непрофильный основной стек" in res_csharp.reason.lower()
+
+    # 2. Вакансия уровня Senior в названии
+    senior_vac = RawOrder(
+        source=SourcePlatform.HH_RU,
+        external_id="998877",
+        title="Senior Python Developer / Тимлид",
+        description="Архитектура сервисов, управление командой разработки, Python, FastAPI.",
+        url="https://hh.ru/vacancy/998877",
+    )
+    res_senior = filter_.evaluate(senior_vac)
+    assert res_senior.passed is False
+    assert "senior/lead" in res_senior.reason.lower()
+
+    # 3. Вакансия со сеньорским тегом
+    tag_vac = RawOrder(
+        source=SourcePlatform.HABR_CAREER,
+        external_id="998878",
+        title="Python разработчик",
+        description="Разработка сервисов на Python и Docker.",
+        url="https://career.habr.com/vacancies/998878",
+        tags=["Python", "Senior", "PostgreSQL"],
+    )
+    res_tag = filter_.evaluate(tag_vac)
+    assert res_tag.passed is False
+    assert "теги уровня senior/lead" in res_tag.reason.lower()
+
+    # 4. Вакансия с завышенным опытом работы (от 5 лет)
+    exp_vac = RawOrder(
+        source=SourcePlatform.HH_RU,
+        external_id="998879",
+        title="Python разработчик",
+        description="Требования: опыт коммерческой разработки на Python от 5 лет, глубокое знание распределенных систем.",
+        url="https://hh.ru/vacancy/998879",
+    )
+    res_exp = filter_.evaluate(exp_vac)
+    assert res_exp.passed is False
+    assert "от 5+ лет" in res_exp.reason.lower()
+
+    # 5. Целевая вакансия Junior+/Middle Python
+    target_vac = RawOrder(
+        source=SourcePlatform.HABR_CAREER,
+        external_id="998880",
+        title="Junior+ Python разработчик / AI Automation",
+        description="Разработка микросервисов на FastAPI, Telegram-ботов и интеграция LLM/RAG пайплайнов. Опыт от 1 года.",
+        url="https://career.habr.com/vacancies/998880",
+        tags=["Python", "FastAPI", "Junior"],
+    )
+    res_target = filter_.evaluate(target_vac)
+    assert res_target.passed is True
+    assert "прошел фильтр" in res_target.reason.lower()

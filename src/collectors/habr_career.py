@@ -44,7 +44,7 @@ class HabrCareerCollector(BaseCollector):
             re.IGNORECASE,
         )
         self.drop_languages_rx = re.compile(
-            r"(?:\bc#\b|c-sharp|\.net\b|\bdotnet\b|\bjava\b(?!\s*script)|\bphp\b|\bc\+\+\b|\bcpp\b|\bgolang\b|\bgo\s*(?:разработчик|developer|инженер|engineer|бэкенд|backend)\b|\bruby\b|\brails\b|\brust\b|\bkotlin\b|\bandroid\b|\bswift\b|\bios\b|\b1с\b|\b1c\b|\bvmware\b)",
+            r"(?:(?:\b|_)c#(?=[^a-zA-Z0-9]|$)|c-sharp|csharp|\.net\b|\bdotnet\b|\bjava\b(?!\s*script)|\bphp\b|(?:\b|_)c\+\+(?=[^a-zA-Z0-9]|$)|cpp\b|\bgolang\b|\bgo\s*(?:разработчик|developer|инженер|engineer|бэкенд|backend)\b|\bruby\b|\brails\b|\brust\b|\bkotlin\b|\bandroid\b|\bswift\b|\bios\b|\b1с\b|\b1c\b|\bvmware\b)",
             re.IGNORECASE,
         )
         self.target_stack_rx = re.compile(
