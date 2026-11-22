@@ -30,6 +30,47 @@ class HabrCareerCollector(BaseCollector):
             "Accept": "application/rss+xml,application/xml,text/xml;q=0.9,*/*;q=0.8",
         }
 
+        # Фильтры грейда и нецелевого стека для IT-вакансий Хабр Карьеры
+        self.drop_title_rx = re.compile(
+            r"senior|сеньор|\blead\b|тимлид|team lead|ведущ|старш|главный|principal|head of|руководител|архитектор|architect",
+            re.IGNORECASE,
+        )
+        self.junior_title_rx = re.compile(
+            r"junior|джуниор|\bджун\b|стаж[её]р|стажировк|\bintern\b|\binternship\b|\btrainee\b|начинающ|младш",
+            re.IGNORECASE,
+        )
+        self.drop_tags_rx = re.compile(
+            r"^(?:senior|lead|principal|architect|архитектор|руководитель|тимлид)$",
+            re.IGNORECASE,
+        )
+        self.drop_languages_rx = re.compile(
+            r"(?:\bc#\b|c-sharp|\.net\b|\bdotnet\b|\bjava\b(?!\s*script)|\bphp\b|\bc\+\+\b|\bcpp\b|\bgolang\b|\bgo\s*(?:разработчик|developer|инженер|engineer|бэкенд|backend)\b|\bruby\b|\brails\b|\brust\b|\bkotlin\b|\bandroid\b|\bswift\b|\bios\b|\b1с\b|\b1c\b|\bvmware\b)",
+            re.IGNORECASE,
+        )
+        self.target_stack_rx = re.compile(
+            r"\b(?:python|питон|ai\b|ии\b|ml\b|llm|rag|нейросет|data engineer|nlp|cv\b)\b",
+            re.IGNORECASE,
+        )
+
+    def _is_too_senior(self, title: str, tags: List[str]) -> bool:
+        """Проверить заголовок и теги на завышенный сеньорский грейд."""
+        if any(self.drop_tags_rx.search(t.strip()) for t in tags):
+            return True
+        if self.drop_title_rx.search(title) and not self.junior_title_rx.search(title):
+            return True
+        return False
+
+    def _is_non_target_stack(self, title: str, tags: List[str]) -> bool:
+        """Проверить, не ориентирована ли вакансия на чужой язык программирования (C#, Java, PHP и т.д.)."""
+        # Если в заголовке прямо указан чужой стек и нет Python/AI
+        if self.drop_languages_rx.search(title) and not self.target_stack_rx.search(title):
+            return True
+        # Если теги содержат чужие языки, а Python/AI отсутствует
+        tag_str = " ".join(tags)
+        if self.drop_languages_rx.search(tag_str) and not self.target_stack_rx.search(f"{title} {tag_str}"):
+            return True
+        return False
+
     def _extract_price(self, text: str) -> tuple[Optional[float], bool]:
         """Извлечь указанную вилку зарплаты из заголовка вакансии.
 
@@ -126,6 +167,15 @@ class HabrCareerCollector(BaseCollector):
 
                             # Навыки/теги из хэштегов summary: #Python, #FastAPI, etc.
                             tags = re.findall(r"#([A-Za-z0-9_+-]+)", summary)
+
+                            # Отсев завышенного грейда (Senior/Lead) и чужих стеков (C#, Java, PHP и т.д.)
+                            if self._is_too_senior(clean_title, tags):
+                                logger.debug("Хабр Карьера: отсев по грейду (Senior/Lead): '%s' (теги: %s)", clean_title, tags)
+                                continue
+                            if self._is_non_target_stack(clean_title, tags):
+                                logger.debug("Хабр Карьера: отсев по нецелевому стеку: '%s' (теги: %s)", clean_title, tags)
+                                continue
+
                             # Очищаем summary от HTML-тегов
                             clean_summary = re.sub(r"<[^>]+>", " ", summary)
                             clean_summary = html.unescape(re.sub(r"\s+", " ", clean_summary)).strip()

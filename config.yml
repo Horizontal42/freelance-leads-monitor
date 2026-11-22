@@ -42,7 +42,6 @@ collectors:
     queries:
       - "python"
       - "ai"
-      - "backend"
   avito:
     base_url: "https://www.avito.ru"
     enabled: true

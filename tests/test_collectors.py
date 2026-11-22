@@ -541,3 +541,56 @@ def test_order_importer_detects_avito_url():
     assert platform == SourcePlatform.AVITO
     assert ext_id == "44991122"
 
+
+@pytest.mark.asyncio
+async def test_habr_career_filters_out_csharp_and_senior(monkeypatch):
+    collector = HabrCareerCollector()
+    mock_rss = """<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0">
+      <channel>
+        <title>Хабр Карьера</title>
+        <item>
+          <title>Требуется «Автотестировщик (C#)» (Лоция)</title>
+          <link>https://career.habr.com/vacancies/1000169750</link>
+          <guid>1000169750</guid>
+          <author>Лоция</author>
+          <description>Требуемые навыки: #CSharp, #Selenium, #Playwright, #Senior</description>
+        </item>
+        <item>
+          <title>Требуется «Senior Python Developer» (Jetlin)</title>
+          <link>https://career.habr.com/vacancies/1000169999</link>
+          <guid>1000169999</guid>
+          <author>Jetlin</author>
+          <description>Требуемые навыки: #Python, #Kubernetes, #Senior</description>
+        </item>
+        <item>
+          <title>Требуется «Java разработчик» (Банк)</title>
+          <link>https://career.habr.com/vacancies/1000168888</link>
+          <guid>1000168888</guid>
+          <author>Банк</author>
+          <description>Требуемые навыки: #Java, #Spring</description>
+        </item>
+        <item>
+          <title>Требуется «Junior+ Python разработчик» (Стартап)</title>
+          <link>https://career.habr.com/vacancies/1000167777</link>
+          <guid>1000167777</guid>
+          <author>Стартап</author>
+          <description>Требуемые навыки: #Python, #FastAPI, #Junior</description>
+        </item>
+      </channel>
+    </rss>
+    """
+    import httpx
+
+    async def mock_get(self, url, *args, **kwargs):
+        req = httpx.Request("GET", str(url))
+        return httpx.Response(status_code=200, text=mock_rss, request=req)
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
+    vacancies = await collector.fetch_new_orders()
+
+    # Только Junior+ Python разработчик должен пройти фильтры сборщика
+    assert len(vacancies) == 1
+    assert vacancies[0].external_id == "1000167777"
+    assert vacancies[0].title == "Junior+ Python разработчик"
+
