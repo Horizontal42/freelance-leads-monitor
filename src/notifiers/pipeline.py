@@ -225,11 +225,19 @@ class LeadsPipeline:
                 effective_hot_threshold = vacancy_hot_threshold if is_vacancy else hot_threshold
 
                 if is_vacancy:
-                    is_hot = analysis.score >= effective_hot_threshold
+                    is_hot = (
+                        analysis.take_order
+                        and analysis.priority != OrderPriority.TRASH
+                        and analysis.score >= effective_hot_threshold
+                    )
                 else:
                     is_hot = (
-                        analysis.priority == OrderPriority.HOT
-                        or analysis.score >= effective_hot_threshold
+                        analysis.take_order
+                        and analysis.priority != OrderPriority.TRASH
+                        and (
+                            analysis.priority == OrderPriority.HOT
+                            or analysis.score >= effective_hot_threshold
+                        )
                     )
 
                 if is_hot:

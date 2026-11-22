@@ -778,6 +778,35 @@ def test_sanitize_internal_project_codenames_indented():
     assert "Корпоративная RAG-система:" in cleaned
 
 
+def test_analysis_result_guardrails_for_unfit_vacancies():
+    # 1. Модель вернула текст "не соответствует профилю", но ошибочно выставила score=9 и priority=hot
+    bad_llm_output = AnalysisResult(
+        take_order=True,
+        score=9,
+        priority=OrderPriority.HOT,
+        executive_summary="Вакансия на C# автотестировщика с 5+ лет опыта.",
+        match_reason="Вакансия не соответствует профилю Андрея, так как требует глубокого опыта в C#.",
+        skills_gap="C# 5+ лет",
+        skills_gap_counter="Отсутствует релевантный опыт в C#. Вакансия не подходит для профиля Андрея.",
+    )
+    # Валидатор обязан автоматически скорректировать оценку в TRASH со скором <= 3
+    assert bad_llm_output.take_order is False
+    assert bad_llm_output.priority == OrderPriority.TRASH
+    assert bad_llm_output.score <= 3
+
+    # 2. Модель выставила score=7, но priority=HOT
+    medium_output = AnalysisResult(
+        take_order=True,
+        score=7,
+        priority=OrderPriority.HOT,
+        executive_summary="Python разработчик с микросервисами.",
+        match_reason="Частичное совпадение со стеком Андрея.",
+    )
+    # При скоре 7 приоритет не может быть HOT
+    assert medium_output.priority == OrderPriority.NORMAL
+    assert medium_output.take_order is True
+
+
 
 
 

@@ -222,6 +222,41 @@ class AnalysisResult(BaseModel):
     def sanitize_skills_gap_counter(cls, v: Any) -> str:
         return clean_analysis_field(v)
 
+    @model_validator(mode="after")
+    def enforce_priority_and_take_order(self) -> "AnalysisResult":
+        """Автоматическая гармонизация take_order, score и priority."""
+        m_lower = (self.match_reason or "").lower()
+        sg_lower = (self.skills_gap_counter or "").lower()
+        pj_lower = (self.price_justification or "").lower()
+        es_lower = (self.executive_summary or "").lower()
+        combined = f"{m_lower} {sg_lower} {pj_lower} {es_lower}"
+        unfit_phrases = [
+            "не соответствует профилю",
+            "не подходит для профиля",
+            "не подходит под профиль",
+            "чужой стек",
+            "отсутствует релевантный опыт",
+            "нет соответствия профилю",
+            "вакансия не подходит",
+        ]
+        if any(phrase in combined for phrase in unfit_phrases):
+            self.take_order = False
+            self.score = min(self.score, 3)
+            self.priority = OrderPriority.TRASH
+
+        if not self.take_order or self.priority == OrderPriority.TRASH:
+            if self.score > 4:
+                self.score = min(self.score, 3)
+            self.take_order = False
+            self.priority = OrderPriority.TRASH
+        elif self.score < 5:
+            self.priority = OrderPriority.TRASH
+            self.take_order = False
+        elif self.score < 8 and self.priority == OrderPriority.HOT:
+            self.priority = OrderPriority.NORMAL
+
+        return self
+
 
 class ProposalResult(str):
     """Результат генерации отклика Antigravity (agy) с финансовой оценкой на основе поиска в интернете.
