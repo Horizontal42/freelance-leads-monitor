@@ -155,7 +155,7 @@ class FilterConfig(BaseModel):
     quick_min_budget: int = 2000
     allow_quick_orders: bool = True
     hot_score_threshold: int = 7
-    vacancy_hot_score_threshold: int = 8
+    vacancy_hot_score_threshold: int = 7
     vacancy_min_salary: int = 80000
     vacancy_allow_negotiable: bool = True
     filter_pro_only: bool = False

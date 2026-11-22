@@ -794,15 +794,15 @@ def test_analysis_result_guardrails_for_unfit_vacancies():
     assert bad_llm_output.priority == OrderPriority.TRASH
     assert bad_llm_output.score <= 3
 
-    # 2. Модель выставила score=7, но priority=HOT
+    # 2. Модель выставила score=6, но priority=HOT
     medium_output = AnalysisResult(
         take_order=True,
-        score=7,
+        score=6,
         priority=OrderPriority.HOT,
         executive_summary="Python разработчик с микросервисами.",
         match_reason="Частичное совпадение со стеком Андрея.",
     )
-    # При скоре 7 приоритет не может быть HOT
+    # При скоре 6 приоритет не может быть HOT
     assert medium_output.priority == OrderPriority.NORMAL
     assert medium_output.take_order is True
 

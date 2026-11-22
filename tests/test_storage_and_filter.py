@@ -84,6 +84,20 @@ def test_hard_filter_quick_orders():
     assert res_quick.passed is True
     assert "quick win" in res_quick.reason.lower()
 
+    # 1.1 Парсер маркетплейса под ключ (5 000 ₽) также должен проходить как Quick Win
+    wb_parser = RawOrder(
+        source=SourcePlatform.KWORK,
+        external_id="q1_wb",
+        title="Парсер Wildberries под ключ на Python",
+        description="Нужен скрипт парсинга цен и остатков с выгрузкой в Excel",
+        url="https://example.com/q1_wb",
+        price=5000,
+        is_negotiable=False,
+    )
+    res_wb = filter_.evaluate(wb_parser)
+    assert res_wb.passed is True
+    assert "quick win" in res_wb.reason.lower()
+
     # 2. Комплексный комбайн / продукт за 3 000 ₽ отсекается
     heavy_order = RawOrder(
         source=SourcePlatform.KWORK,

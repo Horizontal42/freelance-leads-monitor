@@ -100,7 +100,7 @@ filter:
   quick_min_budget: 2000  # Минимальный бюджет быстрых заказов (Quick Wins)
   allow_quick_orders: true  # Разрешать точечные микро-заказы (скрипты, парсеры, доработки)
   hot_score_threshold: 7  # Порог скора (1-10) для отправки в Telegram (Tier 1)
-  vacancy_hot_score_threshold: 8  # Порог скора (1-10) для вакансий (повышенное качество совпадения)
+  vacancy_hot_score_threshold: 7  # Порог скора (1-10) для вакансий (снижен до 7 для активного потока)
   vacancy_min_salary: 80000  # Минимальная зарплата вакансии (₽)
   vacancy_allow_negotiable: true  # Разрешать вакансии с неуказанной зарплатой (по договоренности)
 

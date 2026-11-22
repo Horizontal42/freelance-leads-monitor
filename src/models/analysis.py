@@ -252,7 +252,7 @@ class AnalysisResult(BaseModel):
         elif self.score < 5:
             self.priority = OrderPriority.TRASH
             self.take_order = False
-        elif self.score < 8 and self.priority == OrderPriority.HOT:
+        elif self.score < 7 and self.priority == OrderPriority.HOT:
             self.priority = OrderPriority.NORMAL
 
         return self

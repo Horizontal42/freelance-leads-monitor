@@ -192,8 +192,20 @@ class HardFilter:
         ):
             # Проверяем возможность пропустить как быстрый микро-заказ (Quick Win)
             if self.allow_quick_orders and order.price >= self.quick_min_budget:
-                quick_patterns = r"\b(?:скрипт|парсер|парсинг|бот|aiogram|эндпоинт|endpoint|n8n|вебхук|webhook|конвертац|обработк|api|fastapi|pandas)\b"
-                heavy_patterns = r"\b(?:под\s*ключ|маркетплейс|интернет[- ]магазин|портал|crm.*нуля|платформ|saas|соцсет|сервис.*под\s*ключ)\b"
+                quick_patterns = (
+                    r"\b(?:скрипт|парсер|парсинг|бот|aiogram|эндпоинт|endpoint|n8n|вебхук|webhook|"
+                    r"конвертац|обработк|api|fastapi|pandas|выгрузк|интеграц|доработк|фикс|починить|"
+                    r"исправить|микросервис|cron|автопостинг|рассылк|selenium|playwright|bs4|beautifulsoup)\b"
+                )
+                heavy_patterns = (
+                    r"\b(?:"
+                    r"(?:разработк[а-я]*|созда(?:ть|ние))\s+(?:с\s+нуля\s+)?(?:маркетплейс\w*|интернет[- ]магазин\w*|портал\w*|платформ\w*|saas|соцсет\w*|социальн\w*\s*сет\w*)|"
+                    r"(?:маркетплейс|интернет[- ]магазин|портал|платформ\w*|crm|saas)\s+с\s+нуля|"
+                    r"crm[- ]?систем\w*\s+под\s+ключ|"
+                    r"сервис.*под\s*ключ\s+с\s+нуля|"
+                    r"мобильн\w*\s*приложен\w*.*с\s+нуля"
+                    r")\b"
+                )
                 if re.search(quick_patterns, full_text, re.IGNORECASE) and not re.search(heavy_patterns, full_text, re.IGNORECASE):
                     is_quick_order = True
                 else:
